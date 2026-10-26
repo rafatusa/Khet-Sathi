@@ -223,7 +223,8 @@
       .join('');
     const tools = r.trace.filter((t) => t.type === 'tool').map((t) => t.name);
     const passed = Boolean(r.answer) && tools.length > 0;
-    mark('agent', passed ? 'PASS' : 'FAIL', `${tools.length} tool call(s): ${[...new Set(tools)].join(', ') || 'none'} · ${r.steps} step(s)`, r.ms);
+    const drafted = tools.includes('draft_order');
+    mark('agent', passed ? 'PASS' : 'FAIL', `${tools.length} tool call(s): ${[...new Set(tools)].join(', ') || 'none'} · ${r.steps} step(s)${passed && !drafted ? ' · no draft order this run' : ''}`, r.ms);
   }
 
   // ---------- 6. voice ----------

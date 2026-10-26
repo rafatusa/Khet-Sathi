@@ -1,9 +1,9 @@
-// Khet Saathi - v0.1.0 smoke-test server.
+// Khet Saathi - model-check server.
 // Proves every Meta model the product depends on works from this deployment.
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MODELS, hasKey, listModels, chat, transcribe, transcriptText, segmentStream } from './lib/meta.js';
+import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptText, segmentStream } from './lib/meta.js';
 import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage } from './lib/tile.js';
 import { runAgent } from './lib/agent.js';
@@ -11,7 +11,7 @@ import { runAgent } from './lib/agent.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -108,9 +108,12 @@ app.post(
           ],
         },
       ],
-      maxTokens: 600,
+      maxTokens: 6000,
+      effort: 'low',
     });
-    return { text: resp.choices?.[0]?.message?.content || '', usage: resp.usage || null };
+    const { text, finishReason } = messageText(resp);
+    if (!text) throw new Error(`Muse Spark returned no text (finish_reason: ${finishReason || 'unknown'})`);
+    return { text, finishReason, usage: resp.usage || null };
   })
 );
 

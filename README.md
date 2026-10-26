@@ -20,6 +20,7 @@ Built by Royal Bengal AI for the **Meta Global AI Developer Hackathon** (Oct 26 
 
 | Version | What was built |
 |---|---|
+| v0.1.1 | Fixes empty scene descriptions (larger reasoning budget), agent completes profile → prices → draft order in one run |
 | v0.1.0 | Model check: satellite plot image, SAM 3.1 field outlines, Spark vision, Spark tool-calling agent (demo data), voice transcription, live verification table |
 
 ## Run on Railway

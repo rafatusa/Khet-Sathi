@@ -2,7 +2,7 @@
 // Run: npm test
 import assert from 'node:assert/strict';
 import { collectSegments } from '../lib/segment.js';
-import { transcriptText } from '../lib/meta.js';
+import { transcriptText, messageText } from '../lib/meta.js';
 import { bboxFor } from '../lib/tile.js';
 
 // SAM 3.1 sample output from Meta's documentation, split across deltas.
@@ -45,6 +45,15 @@ check('Transcript extraction (turns shape)', () =>
   assert.equal(transcriptText({ turns: [{ transcript: 'नमस्ते' }, { transcript: 'ভাই' }] }), 'नमस्ते ভাই')
 );
 check('Transcript extraction (flat shape)', () => assert.equal(transcriptText({ transcript: 'hello' }), 'hello'));
+check('Spark text: string content', () =>
+  assert.deepEqual(messageText({ choices: [{ message: { content: ' hi ' }, finish_reason: 'stop' }] }), { text: 'hi', finishReason: 'stop' })
+);
+check('Spark text: empty content reports finish_reason', () =>
+  assert.deepEqual(messageText({ choices: [{ message: { content: '' }, finish_reason: 'length' }] }), { text: '', finishReason: 'length' })
+);
+check('Spark text: array content', () =>
+  assert.equal(messageText({ choices: [{ message: { content: [{ type: 'text', text: 'a' }, { type: 'text', text: 'b' }] } }] }).text, 'ab')
+);
 check('Satellite bbox is square and centred', () => {
   const [x1, y1, x2, y2] = bboxFor(30.91, 75.62, 300);
   assert.ok(Math.abs(x2 - x1 - (y2 - y1)) < 0.01);
