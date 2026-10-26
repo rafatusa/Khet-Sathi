@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { collectSegments } from '../lib/segment.js';
 import { transcriptText, messageText } from '../lib/meta.js';
 import { bboxFor } from '../lib/tile.js';
+import { cleanForSpeech, extractAudio, ensureWav } from '../lib/tts.js';
 
 // SAM 3.1 sample output from Meta's documentation, split across deltas.
 const outputText =
@@ -54,6 +55,19 @@ check('Spark text: empty content reports finish_reason', () =>
 check('Spark text: array content', () =>
   assert.equal(messageText({ choices: [{ message: { content: [{ type: 'text', text: 'a' }, { type: 'text', text: 'b' }] } }] }).text, 'ab')
 );
+check('TTS: markdown stripped before speaking', () =>
+  assert.equal(cleanForSpeech('**গম** বীজ\n- DAP সার # মোট'), 'গম বীজ\nDAP সার মোট')
+);
+check('TTS: audio found in steps[].content[]', () =>
+  assert.equal(extractAudio({ steps: [{ type: 'model_output', content: [{ type: 'audio', data: 'QUJD' }] }] }), 'QUJD')
+);
+check('TTS: audio found in output_audio', () => assert.equal(extractAudio({ output_audio: { data: 'WFla' } }), 'WFla'));
+check('TTS: raw PCM gets a WAV header, WAV passes through', () => {
+  const wrapped = ensureWav(Buffer.alloc(480));
+  assert.equal(wrapped.toString('ascii', 0, 4), 'RIFF');
+  assert.equal(wrapped.readUInt32LE(24), 24000);
+  assert.equal(ensureWav(wrapped), wrapped);
+});
 check('Satellite bbox is square and centred', () => {
   const [x1, y1, x2, y2] = bboxFor(30.91, 75.62, 300);
   assert.ok(Math.abs(x2 - x1 - (y2 - y1)) < 0.01);

@@ -26,8 +26,9 @@
     ['tile', 'Satellite image for plot', 'Esri World Imagery'],
     ['sam', 'Field outlines from satellite', 'sam-3.1'],
     ['vision', 'Scene description from image', 'spark'],
-    ['agent', 'Agent loop with tool calls', 'spark'],
+    ['agent', 'Agent plan with tool calls', 'spark'],
     ['voice', 'Speech → text', 'muse-voice-transcribe-1.0'],
+    ['speak', 'Reply → speech', 'gemini tts'],
   ];
   const vt = $('vt');
   for (const [key, label, model] of CHECKS) {
@@ -59,6 +60,8 @@
     setModel('vision', h.models.spark);
     setModel('agent', h.models.spark);
     setModel('voice', h.models.voice);
+    setModel('speak', h.models.tts);
+    if (!h.ttsConfigured) mark('speak', 'FAIL', 'GEMINI_API_KEY missing in Railway Variables');
     mark('server', h.keyConfigured ? 'PASS' : 'FAIL', h.keyConfigured ? `v${h.version}` : 'MODEL_API_KEY missing in Railway Variables');
     return h.keyConfigured;
   }
@@ -202,7 +205,7 @@
   function esc(s) {
     return String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
   }
-  async function runAgent() {
+  async function runAgent({ speakReply = true } = {}) {
     mark('agent', 'RUNNING');
     $('trace').innerHTML = '<li>Thinking…</li>';
     const r = await api('/api/agent', {
@@ -222,9 +225,46 @@
       )
       .join('');
     const tools = r.trace.filter((t) => t.type === 'tool').map((t) => t.name);
-    const passed = Boolean(r.answer) && tools.length > 0;
     const drafted = tools.includes('draft_order');
-    mark('agent', passed ? 'PASS' : 'FAIL', `${tools.length} tool call(s): ${[...new Set(tools)].join(', ') || 'none'} · ${r.steps} step(s)${passed && !drafted ? ' · no draft order this run' : ''}`, r.ms);
+    const toolDetail = tools.length
+      ? `${tools.length} tool call(s): ${[...new Set(tools)].join(', ')} · ${r.steps} step(s)${drafted ? '' : ' · no draft order this run'}`
+      : 'Answered directly, no tools needed';
+    // The check row is about planning: it passes only on a run that used tools and produced an answer.
+    if (tools.length) mark('agent', r.answer ? 'PASS' : 'FAIL', toolDetail, r.ms);
+    else {
+      $('trace').insertAdjacentHTML('afterbegin', `<li class="muted">${toolDetail}</li>`);
+      mark('agent', 'NOT RUN', 'Answered directly - ask what to grow or buy to test planning', r.ms);
+    }
+    if (r.answer && speakReply) await speak(r.answer);
+    return r.answer;
+  }
+
+  // ---------- 7. spoken reply ----------
+  let player = null;
+  async function speak(text) {
+    mark('speak', 'RUNNING');
+    const r = await api('/api/speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!r.ok) return mark('speak', 'FAIL', r.error, r.ms);
+    mark('speak', 'PASS', `${r.chars} chars → ${r.seconds} s audio`, r.ms);
+    if (player) player.pause();
+    player = new Audio(r.audioDataUrl);
+    const answerEl = document.querySelector('#trace li.answer');
+    if (answerEl) {
+      answerEl.classList.add('speaking');
+      player.onended = () => answerEl.classList.remove('speaking');
+      if (!answerEl.querySelector('.replay')) {
+        const b = document.createElement('button');
+        b.className = 'replay';
+        b.textContent = '▶ Play again';
+        b.onclick = () => { player.currentTime = 0; player.play(); answerEl.classList.add('speaking'); };
+        answerEl.appendChild(b);
+      }
+    }
+    try { await player.play(); } catch (e) { mark('speak', 'PASS', `${r.chars} chars - press ▶ Play again (browser blocked autoplay)`, r.ms); }
   }
 
   // ---------- 6. voice ----------
@@ -306,6 +346,11 @@
     $('transcript').textContent = r.text || JSON.stringify(r.raw, null, 1);
     $('useTranscript').hidden = !r.text;
     mark('voice', r.text ? 'PASS' : 'FAIL', r.text ? `${seconds.toFixed(1)} s audio → ${r.text.length} chars` : 'No text found - see raw response', r.ms);
+    if (r.text && $('autoReply').checked) {
+      $('agentText').value = r.text;
+      $('runAgent').disabled = true;
+      try { await runAgent(); } finally { $('runAgent').disabled = false; }
+    }
   }
   $('useTranscript').addEventListener('click', () => {
     $('agentText').value = $('transcript').textContent;
@@ -322,13 +367,15 @@
   $('loadTile').addEventListener('click', busy($('loadTile'), loadTile));
   $('segment').addEventListener('click', busy($('segment'), runSegment));
   $('describe').addEventListener('click', busy($('describe'), runVision));
-  $('runAgent').addEventListener('click', busy($('runAgent'), runAgent));
+  $('runAgent').addEventListener('click', busy($('runAgent'), () => runAgent()));
   $('runAll').addEventListener(
     'click',
     busy($('runAll'), async () => {
       if (!(await checkServer())) return;
       await checkModels();
       await loadTile();
+      const samples = { hi: SAMPLES.hi, bn: SAMPLES.bn, en: SAMPLES.en };
+      if (!Object.values(samples).includes($('agentText').value)) $('agentText').value = SAMPLES.hi;
       await Promise.all([runSegment(), runVision(), runAgent()]);
       const v = $(`row-voice`).children[2].textContent;
       if (v === 'NOT RUN') mark('voice', 'NOT RUN', 'Hold the mic button and speak to test');

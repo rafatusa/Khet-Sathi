@@ -76,6 +76,7 @@
         <button id="rec" class="btn mic"><span class="dot"></span><span id="recLabel">Hold to talk</span></button>
         <label class="btn ghost file">Or upload audio<input id="audioFile" type="file" accept="audio/*" hidden /></label>
         <span id="recTime" class="muted"></span>
+        <label class="toggle"><input id="autoReply" type="checkbox" checked /> Talk mode: send to agent and speak the reply</label>
       </div>
       <div class="out" id="transcript"></div>
       <button id="useTranscript" class="btn ghost" hidden>Send to agent ↓</button>
@@ -84,7 +85,7 @@
     <section class="card agent">
       <div class="card-head">
         <h2>3 · Agent plans</h2>
-        <p>Muse Spark with tool calls · tools return <b>demo data</b> in v0.1.0 · orders are drafts only</p>
+        <p>Muse Spark with tool calls · tools return <b>demo data</b> for now · orders are drafts only · replies are spoken</p>
       </div>
       <div class="chips">
         <button class="chip" data-lang="hi">हिंदी</button>

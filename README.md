@@ -14,19 +14,21 @@ Built by Royal Bengal AI for the **Meta Global AI Developer Hackathon** (Oct 26 
 | `muse-spark-1.3` (Meta Model API) | Agent brain: plans with tool calls, reads satellite images |
 | `muse-voice-transcribe-1.0` | Farmer speaks Hindi, Bangla, Marathi, Tamil, Telugu, Kannada or English |
 | `sam-3.1` | Outlines individual fields on satellite imagery |
+| Gemini TTS (Google, not Meta) | Speaks the agent's reply aloud. Meta offers speech-to-text but no text-to-speech |
 | Muse Spark Open (Baseten) | Open-weight path for the same agent (planned) |
 
 ## Releases
 
 | Version | What was built |
 |---|---|
+| v0.2.0 | Talk mode: farmer speaks → agent → spoken reply in Bangla/Hindi; agent plans only when asked |
 | v0.1.1 | Fixes empty scene descriptions (larger reasoning budget), agent completes profile → prices → draft order in one run |
 | v0.1.0 | Model check: satellite plot image, SAM 3.1 field outlines, Spark vision, Spark tool-calling agent (demo data), voice transcription, live verification table |
 
 ## Run on Railway
 
 1. New Project → Deploy from GitHub repo → `khet-saathi`
-2. Variables: `MODEL_API_KEY` (required), `APP_PASSCODE` (recommended)
+2. Variables: `MODEL_API_KEY` (required), `GEMINI_API_KEY` (spoken replies), `APP_PASSCODE` (recommended)
 3. Settings → Networking → Generate Domain
 
 Optional variables: `SPARK_MODEL`, `VOICE_MODEL`, `SAM_MODEL` to switch model IDs.

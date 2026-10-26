@@ -7,11 +7,12 @@ import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptTe
 import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage } from './lib/tile.js';
 import { runAgent } from './lib/agent.js';
+import { TTS, hasTtsKey, synthesize } from './lib/tts.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
-const VERSION = '0.1.1';
+const VERSION = '0.2.0';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -44,7 +45,8 @@ app.get('/api/health', (req, res) => {
     version: VERSION,
     keyConfigured: hasKey(),
     passcodeRequired: Boolean(process.env.APP_PASSCODE),
-    models: MODELS,
+    ttsConfigured: hasTtsKey(),
+    models: { ...MODELS, tts: TTS.model },
   });
 });
 
@@ -140,6 +142,22 @@ app.post(
     if (!Buffer.isBuffer(req.body) || req.body.length < 44) throw new Error('No WAV audio received');
     const json = await transcribe(req.body);
     return { text: transcriptText(json), raw: json };
+  })
+);
+
+// 8. Spoken reply (Gemini TTS). Returns the WAV as a data URL so the timing row still works.
+app.post(
+  '/api/speak',
+  guard,
+  timed(async (req) => {
+    const text = String(req.body?.text || '');
+    if (!text.trim()) throw new Error('text is required');
+    const { wav, chars } = await synthesize(text);
+    return {
+      audioDataUrl: `data:audio/wav;base64,${wav.toString('base64')}`,
+      chars,
+      seconds: wav.length > 44 ? Math.round(((wav.length - 44) / 48000) * 10) / 10 : 0,
+    };
   })
 );
 
