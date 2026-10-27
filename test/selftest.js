@@ -21,7 +21,7 @@ import { responseText } from '../lib/meta.js';
 import { fieldAlerts, shedAlerts, cameraAlerts, dedupe } from '../lib/alerts.js';
 import * as clipsLib from '../lib/clips.js';
 import { parsePath, fieldPolygonM, inRings, areaAcres } from '../lib/fieldgeo.js';
-import { passesFromStac, readPass, zonesFrom, nextPass, fieldHealth } from '../lib/sentinel.js';
+import { passesFromStac, readPass, zonesFrom, zoneShape, nextPass, fieldHealth } from '../lib/sentinel.js';
 import { brainChat, OPEN } from '../lib/brain.js';
 import { runAgent } from '../lib/agent.js';
 import { DEFAULT_RULE, TRAY, cleanRule, sellDue, planDeal, voiceDeal, parseLines, rankOffers, shopPrompt } from '../lib/sell.js';
@@ -749,6 +749,13 @@ await checkAsync('Sentinel-2: clouds masked, NDVI stats, zones, passes, next pas
   assert.ok(r.ndvi.stressedPct > 0 && r.ndvi.stressedPct < 40);
   const zones = zonesFrom(r.grid, rings);
   assert.equal(zones.length, 24);
+  // v0.10.1: a 2 x 2 pixel field gets 2 x 2 zones, all filled.
+  const tiny = { w: 4, h: 4, res: 10, x0: -20, y0: 20, cells: [-9, -9, -9, -9, -9, 0.5, 0.6, -9, -9, 0.7, 0.4, -9, -9, -9, -9, -9] };
+  const ts = zoneShape(tiny);
+  assert.deepEqual(ts, { cols: 2, rows: 2 });
+  const tz = zonesFrom(tiny, [[[-10, -10], [10, -10], [10, 10], [-10, 10]]], ts);
+  assert.equal(tz.length, 4);
+  assert.ok(tz.every((v) => v != null), 'no empty zones on a tiny field');
   assert.deepEqual(nextPass(passes, '2026-10-28'), { date: '2026-10-30', sat: 'S2B' });
   const h = await fieldHealth({ lat: 24.88, lon: 89.33, rings, today: '2026-10-28', search: async () => passes, read: (p, o) => readPass(p, { ...o, readWindow }) });
   assert.equal(h.latest.date, '2026-10-25');

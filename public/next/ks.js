@@ -169,7 +169,8 @@
       .finally(() => ($('#mapLoading').hidden = true));
   }
   async function loadSide() {
-    const [d, a] = await Promise.all([api('/api/deals').catch(() => null), api('/api/alerts').catch(() => null)]);
+    const [d, a, s] = await Promise.all([api('/api/deals').catch(() => null), api('/api/alerts').catch(() => null), api('/api/sell').catch(() => null)]);
+    S.sale = s?.ok ? s : null;
     S.deals = d?.ok ? d.deals || [] : [];
     S.alerts = a?.ok ? a.alerts || [] : [];
     renderAll();
@@ -255,6 +256,7 @@
     renderKpis();
     renderNdviChart();
     renderZones();
+    renderShed();
     renderGrow();
     renderRain();
     renderDonut();
@@ -351,7 +353,8 @@
     const f = tv * n - i;
     return RAMP[i].map((v, k) => Math.round(v + (RAMP[i + 1][k] - v) * f));
   }
-  const zoneName = (i) => `${String.fromCharCode(65 + Math.floor(i / 6))}${i % 6 + 1}`;
+  const zoneCols = () => latest()?.zoneCols || 6;
+  const zoneName = (i) => `${String.fromCharCode(65 + Math.floor(i / zoneCols()))}${(i % zoneCols()) + 1}`;
   function renderZones() {
     const z = latest()?.zones;
     if (!z) {
@@ -360,6 +363,7 @@
       $('#zinfo').textContent = S.field ? t('noZones') : t('readingSat');
       return;
     }
+    $('#zones').style.gridTemplateColumns = `repeat(${zoneCols()},minmax(0,1fr))`;
     const vals = z.filter((v) => v != null);
     let bi = z.findIndex((v) => v === Math.min(...vals));
     const spread = Math.max(...vals) - Math.min(...vals);
@@ -377,6 +381,28 @@
     const i = +b.dataset.z;
     $('#zinfo').textContent = `${t('zone')} ${zoneName(i)} · NDVI ${num(z[i], 2)} · ${fd(latest().date)}`;
   });
+
+  // Poultry shed summary (v0.10.1): the simulated shed kit and the egg stock; the full shed opens in the classic screen until v0.11.0.
+  function renderShed() {
+    const sh = S.sensors?.shed;
+    const cells = [
+      ['shed_temp', 's_shed_temp', (v) => `${num(v, 1)}°`, (v) => v > 32 || v < 16],
+      ['shed_humidity', 's_shed_humidity', (v) => `${num(v)}%`, (v) => v > 80 || v < 40],
+      ['ammonia_ppm', 's_ammonia_ppm', (v) => num(v), (v) => v > 25],
+      ['water_pct', 's_water_pct', (v) => `${num(v)}%`, (v) => v < 20],
+      ['feed_pct', 's_feed_pct', (v) => `${num(v)}%`, (v) => v < 20],
+      ['eggs_today', 'eggsToday', (v) => num(v), () => false],
+    ];
+    const html = sh
+      ? cells.filter(([m]) => sh[m]).map(([m, k, f, bad]) => `<div class="tile ${bad(sh[m].value) ? 'warn' : ''}"><div class="k">${esc(t(k))}</div><div class="v">${esc(f(sh[m].value))}</div></div>`).join('')
+      : emptyBox(t('shedWaiting'));
+    const st = S.sale;
+    const info = st ? fmt('eggStockText', { n: num(st.stock), trays: num(st.trays) }) : '';
+    for (const [g, i] of [['#shedGrid', '#shedInfo'], ['#camsGrid', '#camsInfo']]) {
+      $(g).innerHTML = html;
+      $(i).textContent = info;
+    }
+  }
 
   function renderGrow() {
     const p = S.plan;

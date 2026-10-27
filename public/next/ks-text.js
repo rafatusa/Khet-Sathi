@@ -1,6 +1,7 @@
 // Text for the new app shell (v0.10.0). Keys not found here fall back to /i18n.js (crop, soil and alert names).
 window.KS_TEXT = {
   bn: {
+    shedH: 'মুরগির শেড', openShed: 'শেড খুলুন', sellEggs: 'ডিম বিক্রি', eggsToday: 'আজকের ডিম', shedWaiting: 'শেডের সেন্সর চালু হচ্ছে…', camsH: 'মুরগির শেড',
     anSat: 'উপগ্রহের ছবি আনছি (Esri)', anSam: 'জমির সীমানা খুঁজছি (SAM 3.1)', anSoil: 'মাটি দেখছি (SoilGrids)', anWx: '১০ দিনের আবহাওয়া (Open-Meteo)', anCal: 'বোনার সময় মেলাচ্ছি (FAO)',
     acShort: 'একর', addH: 'আপনার জমি যোগ করুন', addLand: 'জমি যোগ', addSub: 'জমিতে দাঁড়িয়ে ছবি তুলুন বা লোকেশন দিন। সাথী উপগ্রহের ছবিতে আপনার জমি খুঁজে নেবে।',
     aiEstimate: 'সাথীর কাছে এআই অনুমান চান', allCloudy: 'এই সময়ে সব স্যাটেলাইট পাসে মেঘ ছিল', anH: 'আপনার জমি দেখছি', askPh: 'লিখুন বা মাইক চাপুন…',
@@ -21,7 +22,7 @@ window.KS_TEXT = {
     lNdvi: 'ফসলের স্বাস্থ্য · ১০ মি', lSat: 'উপগ্রহ', lat: 'অক্ষাংশ', lon: 'দ্রাঘিমাংশ', listening: 'শুনছি… আবার চাপলে পাঠাব', lowest: 'সবচেয়ে কম',
     mShort: 'মি', mapLabel: 'আপনার জমির উপগ্রহের ছবি', marketSoonH: 'বাজার এই নতুন অ্যাপে আসছে', marketSoonT: 'ডিম বিক্রি, বীজ আর সার কেনা, লোক বুক করা পরের সংস্করণে এখানে আসবে। ডিম বিক্রি এখন পুরোনো অ্যাপে চলছে।',
     mm: 'মিমি', moisture: 'মাটির রস', moneyH: 'এই মৌসুমের টাকা', moneyIn: 'আয়', moneyOut: 'খরচ',
-    nCams: 'ক্যামেরা', nField: 'জমি', nHome: 'হোম', nMarket: 'বাজার', nMoney: 'টাকা', nSaathi: 'সাথী',
+    nCams: 'মুরগি', nField: 'জমি', nHome: 'হোম', nMarket: 'বাজার', nMoney: 'টাকা', nSaathi: 'সাথী',
     ndviH: 'ফসলের সবুজ ভাব (NDVI)', ndviMean: 'গড় NDVI', ndviMinMax: 'NDVI কম / বেশি', net: 'নিট', next: 'এখন', nextPass: 'পরের পাস',
     nextPassInfo: '{sat} · {date} (১০ দিনের ঘূর্ণন থেকে হিসাব)', noAnswer: 'উত্তর পাওয়া যায়নি', noFaoHere: 'এই এলাকার সরকারি বোনার ক্যালেন্ডার নেই। সাথী মাটি আর আবহাওয়া দেখে অনুমান দিতে পারে।',
     noFieldFound: 'জমির সীমানা পাওয়া যায়নি', noLandYet: 'এখনও জমি নেই', noMoney: 'এখনও কোনো লেনদেন হয়নি', noOutlineShort: 'সীমানা নেই', noPhotoGps: 'ছবিতে GPS নেই, ফোনের লোকেশন নিচ্ছি',
@@ -44,6 +45,7 @@ window.KS_TEXT = {
     useAnyway: 'তবুও যোগ করুন', zone: 'অংশ', zonesH: 'জমির অংশ', zoomIn: 'বড় করুন', zoomOut: 'ছোট করুন',
   },
   hi: {
+    shedH: 'मुर्गी शेड', openShed: 'शेड खोलें', sellEggs: 'अंडे बेचें', eggsToday: 'आज के अंडे', shedWaiting: 'शेड के सेंसर चालू हो रहे हैं…', camsH: 'मुर्गी शेड',
     anSat: 'सैटेलाइट तस्वीर ला रहा हूँ (Esri)', anSam: 'खेत की सीमा ढूँढ रहा हूँ (SAM 3.1)', anSoil: 'मिट्टी देख रहा हूँ (SoilGrids)', anWx: '10 दिन का मौसम (Open-Meteo)', anCal: 'बुवाई का समय मिला रहा हूँ (FAO)',
     acShort: 'एकड़', addH: 'अपनी ज़मीन जोड़ें', addLand: 'ज़मीन जोड़ें', addSub: 'खेत में खड़े होकर फ़ोटो लें या लोकेशन दें। साथी सैटेलाइट तस्वीर में आपका खेत ढूँढ लेगा।',
     aiEstimate: 'साथी से एआई अनुमान माँगें', allCloudy: 'इस दौरान सभी सैटेलाइट पास में बादल थे', anH: 'आपकी ज़मीन देख रहा हूँ', askPh: 'लिखें या माइक दबाएँ…',
@@ -64,7 +66,7 @@ window.KS_TEXT = {
     lNdvi: 'फ़सल की सेहत · 10 मी', lSat: 'सैटेलाइट', lat: 'अक्षांश', lon: 'देशांतर', listening: 'सुन रहा हूँ… फिर दबाएँ तो भेजूँगा', lowest: 'सबसे कम',
     mShort: 'मी', mapLabel: 'आपके खेत की सैटेलाइट तस्वीर', marketSoonH: 'बाज़ार इस नए ऐप में आ रहा है', marketSoonT: 'अंडे बेचना, बीज और खाद ख़रीदना, लोग बुक करना अगले संस्करण में यहाँ आएगा। अंडे बेचना अभी पुराने ऐप में चलता है।',
     mm: 'मिमी', moisture: 'मिट्टी की नमी', moneyH: 'इस सीज़न का पैसा', moneyIn: 'आमदनी', moneyOut: 'ख़र्च',
-    nCams: 'कैमरे', nField: 'खेत', nHome: 'होम', nMarket: 'बाज़ार', nMoney: 'पैसा', nSaathi: 'साथी',
+    nCams: 'मुर्गी', nField: 'खेत', nHome: 'होम', nMarket: 'बाज़ार', nMoney: 'पैसा', nSaathi: 'साथी',
     ndviH: 'फ़सल की हरियाली (NDVI)', ndviMean: 'औसत NDVI', ndviMinMax: 'NDVI कम / ज़्यादा', net: 'शुद्ध', next: 'अब', nextPass: 'अगला पास',
     nextPassInfo: '{sat} · {date} (10 दिन के चक्कर से अनुमान)', noAnswer: 'जवाब नहीं मिला', noFaoHere: 'इस इलाक़े का सरकारी बुवाई कैलेंडर नहीं है। साथी मिट्टी और मौसम देखकर अनुमान दे सकता है।',
     noFieldFound: 'खेत की सीमा नहीं मिली', noLandYet: 'अभी कोई ज़मीन नहीं', noMoney: 'अभी कोई लेन-देन नहीं', noOutlineShort: 'सीमा नहीं', noPhotoGps: 'फ़ोटो में GPS नहीं, फ़ोन की लोकेशन ले रहा हूँ',
@@ -87,6 +89,7 @@ window.KS_TEXT = {
     useAnyway: 'फिर भी जोड़ें', zone: 'हिस्सा', zonesH: 'खेत के हिस्से', zoomIn: 'बड़ा करें', zoomOut: 'छोटा करें',
   },
   en: {
+    shedH: 'Poultry shed', openShed: 'Open the shed', sellEggs: 'Sell eggs', eggsToday: 'Eggs today', shedWaiting: 'Shed sensors are starting…', camsH: 'Poultry shed',
     anSat: 'Fetching the satellite image (Esri)', anSam: 'Finding the field outline (SAM 3.1)', anSoil: 'Reading the soil (SoilGrids)', anWx: '10-day weather (Open-Meteo)', anCal: 'Matching sowing windows (FAO)',
     acShort: 'ac', addH: 'Add your land', addLand: 'Add land', addSub: 'Stand in your field and take a photo, or share your location. Saathi finds your field in the satellite image.',
     aiEstimate: 'Ask Saathi for an AI estimate', allCloudy: 'Every satellite pass in this period was cloudy', anH: 'Looking at your land', askPh: 'Type or tap the mic…',
@@ -107,7 +110,7 @@ window.KS_TEXT = {
     lNdvi: 'Crop health · 10 m', lSat: 'Satellite', lat: 'Latitude', lon: 'Longitude', listening: 'Listening… tap again to send', lowest: 'lowest',
     mShort: 'm', mapLabel: 'Satellite image of your field', marketSoonH: 'Market is coming to the new app', marketSoonT: 'Selling eggs, buying seed and fertilizer and booking crews move here in the next release. Egg sales work in the classic app now.',
     mm: 'mm', moisture: 'Moisture', moneyH: 'Money this season', moneyIn: 'Money in', moneyOut: 'Money out',
-    nCams: 'Cams', nField: 'Field', nHome: 'Home', nMarket: 'Market', nMoney: 'Money', nSaathi: 'Saathi',
+    nCams: 'Poultry', nField: 'Field', nHome: 'Home', nMarket: 'Market', nMoney: 'Money', nSaathi: 'Saathi',
     ndviH: 'Crop greenness (NDVI)', ndviMean: 'NDVI mean', ndviMinMax: 'NDVI min / max', net: 'net', next: 'Next', nextPass: 'next pass',
     nextPassInfo: '{sat} · {date} (estimated from its 10-day repeat)', noAnswer: 'No answer came back', noFaoHere: 'There is no official sowing calendar for this area. Saathi can estimate from your soil and weather.',
     noFieldFound: 'No field outline found', noLandYet: 'No land yet', noMoney: 'No money moved yet', noOutlineShort: 'no outline', noPhotoGps: 'No GPS in the photo, using the phone location',

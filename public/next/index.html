@@ -52,6 +52,7 @@
       <div class="card c-kpi"><div class="kpis" id="kpis"></div></div>
       <div class="card span2"><div class="lab"><span data-icon="sat"></span><span data-t="ndviH"></span><span class="src-tag" data-t="srcS2"></span></div><div id="chNdvi"></div></div>
       <div class="card span2"><div class="lab"><span data-icon="eye"></span><span data-t="zonesH"></span><span class="pill warn" style="margin-left:auto" id="zoneTag"></span></div><div class="zones" id="zones"></div><div class="zinfo mono" id="zinfo"></div></div>
+      <div class="card span2" id="shedCard"><div class="lab"><span data-icon="egg"></span><span data-t="shedH"></span><span class="src-tag sim" data-t="simulated"></span></div><div class="shedgrid" id="shedGrid"></div><div class="zinfo mono" id="shedInfo"></div><div class="btns"><a class="btn" href="/#shed" data-t="openShed"></a><a class="btn ghost" href="/#sell" data-t="sellEggs"></a></div></div>
       <div class="card span2"><div class="lab"><span data-icon="sprout"></span><span data-t="growH"></span><span class="src-tag" id="growSrc"></span></div><div class="growlist" id="grow"></div></div>
       <div class="card span2"><div class="lab"><span data-icon="drop"></span><span data-t="rainH"></span><span class="src-tag">Open-Meteo</span></div><div id="chRain"></div><div class="wx" id="wx"></div></div>
       <div class="card span2"><div class="lab"><span data-icon="rupee"></span><span data-t="moneyH"></span><span class="src-tag sim" data-t="simulated"></span></div><div class="donutrow"><div class="donut" id="donut"></div><div class="dleg" id="dleg"></div></div></div>
@@ -141,7 +142,7 @@
   </section>
 
   <!-- CAMS / MARKET / MONEY (v0.11.0 brings these into the new shell; the classic screens work meanwhile) -->
-  <section id="cams" role="tabpanel" hidden><div class="panel soon"><span data-icon="camera"></span><h3 data-t="camsSoonH"></h3><p class="sub" data-t="camsSoonT"></p><a class="btn" href="/#shed" data-t="openClassic"></a></div></section>
+  <section id="cams" role="tabpanel" hidden><div class="panel soon"><span data-icon="egg"></span><h3 data-t="camsSoonH"></h3><p class="sub" data-t="camsSoonT"></p><div class="shedgrid" id="camsGrid"></div><div class="zinfo mono" id="camsInfo"></div><div class="btns"><a class="btn" href="/#shed" data-t="openShed"></a><a class="btn ghost" href="/#sell" data-t="sellEggs"></a></div></div></section>
   <section id="market" role="tabpanel" hidden><div class="panel soon"><span data-icon="cart"></span><h3 data-t="marketSoonH"></h3><p class="sub" data-t="marketSoonT"></p><a class="btn" href="/#sell" data-t="openClassic"></a></div></section>
   <section id="money" role="tabpanel" hidden>
     <div class="panel">
@@ -201,7 +202,7 @@
 <nav class="bottom"><div class="row" role="tablist" id="tabs">
   <button role="tab" data-tab="home" aria-selected="true"><span data-icon="home"></span><span data-t="nHome"></span></button>
   <button role="tab" data-tab="field" aria-selected="false"><span data-icon="sat"></span><span data-t="nField"></span></button>
-  <button role="tab" data-tab="cams" aria-selected="false"><span data-icon="camera"></span><span data-t="nCams"></span></button>
+  <button role="tab" data-tab="cams" aria-selected="false"><span data-icon="egg"></span><span data-t="nCams"></span></button>
   <button role="tab" data-tab="saathi" aria-selected="false"><span data-icon="chat"></span><span data-t="nSaathi"></span><span class="badge" id="badge" hidden>0</span></button>
   <button role="tab" data-tab="market" aria-selected="false"><span data-icon="cart"></span><span data-t="nMarket"></span></button>
   <button role="tab" data-tab="money" aria-selected="false"><span data-icon="rupee"></span><span data-t="nMoney"></span></button>

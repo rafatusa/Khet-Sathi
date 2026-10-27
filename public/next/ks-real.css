@@ -46,3 +46,16 @@
 .brand{white-space:nowrap}
 @media (max-width:440px){.brand{font-size:1.15rem}.lang button{padding:6px 7px;min-width:34px}}
 .addbtn{color:var(--ink)}
+/* v0.10.1: wider layout on laptops and desktops (6-column dashboard, 1320 px) */
+@media (min-width:1200px){.wrap{max-width:1320px}.dash{grid-template-columns:repeat(6,minmax(0,1fr))}.c-score{grid-column:span 2}.c-kpi{grid-column:span 4}.grid2{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}}
+.zones .zc{min-height:28px}
+.zones{grid-auto-rows:44px}
+.zones .zc{aspect-ratio:auto;height:100%;min-height:0}
+.shedgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.shedgrid .tile{background:var(--bg);border-radius:12px;padding:8px 10px}
+.shedgrid .tile .k{font-size:.72rem;color:var(--muted);font-weight:700}
+.shedgrid .tile .v{font-family:var(--f-display);font-weight:800;font-size:1.15rem}
+.shedgrid .tile.warn{background:var(--turmeric-soft)}
+#shedCard .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.panel.soon .shedgrid{width:100%;max-width:520px;text-align:left}
+.panel.soon .btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
