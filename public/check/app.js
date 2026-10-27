@@ -35,6 +35,7 @@
     ['mvideo', 'Shed video: behaviour + sound', 'muse-spark-1.2'],
     ['maudio', 'Shed sound only (audio input)', 'muse-spark-1.2'],
     ['vision', 'Scene description from image', 'spark'],
+    ['open', 'Open weights: tool call (Baseten)', 'muse-spark-open'],
     ['agent', 'Agent plan with tool calls', 'spark'],
     ['voice', 'Speech → text', 'muse-voice-transcribe-1.0'],
     ['speak', 'Reply → speech', 'gemini tts'],
@@ -68,7 +69,9 @@
     setModel('sam', h.models.sam);
     setModel('zoom', h.models.sam);
     setModel('vision', h.models.spark);
-    setModel('agent', h.models.spark);
+    setModel('agent', h.openWeights?.configured ? `${h.openWeights.model} → ${h.models.spark}` : h.models.spark);
+    setModel('open', h.openWeights?.model || 'muse-spark-open');
+    if (!h.openWeights?.configured) mark('open', 'FAIL', 'BASETEN_API_KEY missing in Railway Variables');
     setModel('voice', h.models.voice);
     setModel('speak', h.models.tts);
     if (!h.ttsConfigured) mark('speak', 'FAIL', 'GEMINI_API_KEY missing in Railway Variables');
@@ -319,9 +322,10 @@
       .join('');
     const tools = r.trace.filter((t) => t.type === 'tool').map((t) => t.name);
     const drafted = tools.includes('draft_order');
+    const by = r.brain ? ` · by ${r.brain.label}${r.brain.fallback ? ` (open weights failed: ${r.brain.fallback})` : ''}` : '';
     const toolDetail = tools.length
-      ? `${tools.length} tool call(s): ${[...new Set(tools)].join(', ')} · ${r.steps} step(s)${drafted ? '' : ' · no draft order this run'}`
-      : 'Answered directly, no tools needed';
+      ? `${tools.length} tool call(s): ${[...new Set(tools)].join(', ')} · ${r.steps} step(s)${drafted ? '' : ' · no draft order this run'}${by}`
+      : `Answered directly, no tools needed${by}`;
     // The check row is about planning: it passes only on a run that used tools and produced an answer.
     if (tools.length) mark('agent', r.answer ? 'PASS' : 'FAIL', toolDetail, r.ms);
     else {
@@ -469,6 +473,15 @@
   // Puts 300 eggs (10 trays) in stock so the farmer's sell rule triggers on camera (v0.8.0).
   $('forceEggs').addEventListener('click', busy($('forceEggs'), () => force('shed', 'egg_stock', 300)));
   $('runAgent').addEventListener('click', busy($('runAgent'), () => runAgent()));
+
+  // Open weights (v0.9.0): one real tool call on Muse Spark Open via Baseten, without fallback.
+  async function runOpen() {
+    mark('open', 'RUNNING');
+    const r = await api('/api/open-check', { method: 'POST' });
+    if (!r.ok) return mark('open', 'FAIL', r.error, r.ms);
+    const detail = `${r.toolCall ? `called ${r.toolCall}` : 'no tool call'} · "${(r.answer || '').slice(0, 80)}"`;
+    mark('open', r.toolCall && r.answer ? 'PASS' : 'FAIL', detail, r.ms);
+  }
   $('runAll').addEventListener(
     'click',
     busy($('runAll'), async () => {
@@ -478,7 +491,7 @@
       await loadTile();
       const samples = { hi: SAMPLES.hi, bn: SAMPLES.bn, en: SAMPLES.en };
       if (!Object.values(samples).includes($('agentText').value)) $('agentText').value = SAMPLES.hi;
-      await Promise.all([runSegment(), runVision(), runAgent()]);
+      await Promise.all([runSegment(), runVision(), runAgent(), runOpen()]);
       await runZoomScan();
       await runPlanCheck();
       await simTick();

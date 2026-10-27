@@ -1611,7 +1611,7 @@
         if (id !== sale.id) return;
         const el = document.createElement('div');
         el.className = `call-line ${turn.who === 'shop' ? 'shop' : 'saathi'} now`;
-        const src = turn.who === 'shop' && turn.by === 'spark' ? `<span class="src">${esc(t('shopBySpark'))}</span>` : '';
+        const src = turn.who === 'shop' && turn.by === 'spark' ? `<span class="src">${esc(fmt('shopBySpark', { model: s.by || 'Muse Spark' }))}</span>` : '';
         el.innerHTML = `<div class="who" aria-hidden="true">${esc(t(turn.who === 'shop' ? 'shopInitial' : 'saathiInitial'))}</div><div class="b">${esc(turn.text)}${src}</div>`;
         $('sellLines').append(el);
         el.scrollIntoView({ block: 'nearest' });
@@ -1763,6 +1763,7 @@
       box.innerHTML =
         `<div class="a-text">${esc(r.answer)}</div>` +
         (tools.length ? `<div class="a-steps">${tools.map((n) => `<span class="a-step">✓ ${esc(n.replace(/_/g, ' '))}</span>`).join('')}</div>` : '') +
+        (r.brain?.label ? `<div class="a-brain">${esc(fmt('answeredBy', { model: r.brain.label }))}</div>` : '') +
         (tools.includes('draft_order') ? `<div class="a-note">${esc(t('draftNote'))}</div>` : '') +
         `<button class="btn" data-replay>${esc(t('playAgain'))}</button>`;
       box.querySelector('[data-replay]').addEventListener('click', () => speak(r.answer, box));

@@ -43,6 +43,7 @@ in each version and when.
 |---|---|---|
 | `muse-spark-1.3` | Meta Model API | Agent brain: reasoning, tool calls, reads satellite and field images |
 | `muse-spark-1.2` | Meta Model API | Watches shed video with its sound and listens to shed sound clips (Meta recommends 1.2 for audio) |
+| `meta-models/muse-spark-open-1026` | Baseten (Meta open weights) | Saathi's agent with tool calls and the egg-sale shopkeepers, when `BASETEN_API_KEY` is set; falls back to `muse-spark-1.3` |
 | `muse-voice-transcribe-1.0` | Meta Model API | Hears the farmer: Bangla, Hindi, Marathi, Tamil, Telugu, Kannada, English |
 | `sam-3.1` | Meta Model API | Finds every field on the satellite image, picks the one under the farmer's GPS point and measures it; tracks animals in video (planned) |
 | Muse Spark Open | Meta open weights (Baseten) | Open-weight path for the same agent (planned) |
@@ -91,6 +92,7 @@ Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 
 | Version | Date | What was built |
 |---|---|---|
+| v0.9.0 | Oct 28 | Open weights: Saathi's agent and the egg-sale shopkeepers run on Muse Spark Open (`meta-models/muse-spark-open-1026`) on Baseten when `BASETEN_API_KEY` is set, falling back to Muse Spark 1.3; each answer shows which model answered; bench row for a real open-weights tool call |
 | v0.8.0 | Oct 28 | Egg sale: the farmer's sell rule (eggs reach N and/or every N days, lowest price per tray, shops, ask first), a simulated egg stock, Saathi calls the shops and bargains by fixed rules (never below the lowest price) while Muse Spark voices the shopkeepers, offers side by side, one tap saves the deal; `sql/004_sell_rules_v0.8.0.sql` |
 | v0.7.5 | Oct 28 | Simulated vet name and village in the farmer's language; Saathi tells the vet "about N chickens in the shed" (source shown below the line); English text says chickens instead of birds |
 | v0.7.4 | Oct 28 | Two-way demo vet call: after consent, Saathi and a simulated vet (second voice) take turns; the vet asks up to two scripted questions picked by the signs, Saathi answers only from the SAM count and the simulated shed kit (or says it does not know), the vet closes with a fixed safe line and a short summary |

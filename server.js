@@ -18,6 +18,7 @@ import { fieldDevice, SHED_DEVICE, latestByDevice, FIELD_METRICS, SHED_METRICS, 
 import { env } from './lib/env.js';
 import { runAgent } from './lib/agent.js';
 import { TTS, hasTtsKey, synthesize } from './lib/tts.js';
+import { brainChat, openChat, hasOpenKey, OPEN } from './lib/brain.js';
 import { DEMO_PLACES } from './lib/plot.js';
 import {
   dbConfigured, isId, newId, createLand, listLands, getLand, updateLand, deleteLand, putFile, getFile, deleteFiles, listAlerts, pingDb,
@@ -27,7 +28,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.8.0';
+const VERSION = '0.9.0';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -77,6 +78,7 @@ app.get('/api/health', (req, res) => {
     ok: true,
     version: VERSION,
     keyConfigured: hasKey(),
+    openWeights: { configured: hasOpenKey(), model: OPEN.model, host: 'Baseten' },
     passcodeRequired: Boolean(env('APP_PASSCODE')),
     ttsConfigured: hasTtsKey(),
     dbConfigured: dbConfigured(),
@@ -626,15 +628,17 @@ async function runSale(lang) {
     shops.map(async (shop, i) => {
       const plan = planDeal({ shop, floor: Number(rule.floor_price), trays, lang, day, slot: i });
       let lines = null;
+      let by = null;
       try {
-        const resp = await chat({ messages: [{ role: 'user', content: shopPrompt({ shop, lang, plan }) }], maxTokens: 3000, effort: 'low' });
-        lines = parseLines(messageText(resp).text);
+        const turn = await brainChat({ messages: [{ role: 'user', content: shopPrompt({ shop, lang, plan }) }], maxTokens: 3000, effort: 'low' });
+        lines = parseLines(messageText(turn.resp).text);
+        by = turn.label;
       } catch (err) {
         console.log('shop voice fallback:', err.message);
       }
       const { turns, spark } = voiceDeal(plan, lang, lines);
       const named = namesOf(shop);
-      return { contact_id: shop.id, name: shop.name, names: named.names, villages: named.villages, village: shop.village, turns, price: plan.price, best: plan.best, pickup: plan.pickup, spark };
+      return { contact_id: shop.id, name: shop.name, names: named.names, villages: named.villages, village: shop.village, turns, price: plan.price, best: plan.best, pickup: plan.pickup, spark, by: spark ? by : null };
     })
   );
   // shops: in the order they were called; ranked: best offer first (for the offers screen).
@@ -747,6 +751,24 @@ app.post(
     if (!text) throw new Error('text is required');
     const plan = await buildPlan({ lat: Number(lat), lon: Number(lon) }).catch(() => null);
     return runAgent({ userText: String(text).slice(0, 2000), lat: Number(lat), lon: Number(lon), plan });
+  })
+);
+
+// Bench: one real tool call on Muse Spark Open (Baseten), no fallback, so the row shows the open model itself.
+app.post(
+  '/api/open-check',
+  guard,
+  timed(async () => {
+    if (!hasOpenKey()) throw new Error('BASETEN_API_KEY missing in Railway Variables');
+    const tools = [{ type: 'function', function: { name: 'get_egg_count', description: 'Eggs collected in the shed today', parameters: { type: 'object', properties: {} } } }];
+    const messages = [{ role: 'user', content: 'How many eggs were collected today? Use the tool, then answer in one short sentence.' }];
+    const first = await openChat({ messages, tools, maxTokens: 2000, effort: 'low' });
+    const call = first.choices?.[0]?.message?.tool_calls?.[0];
+    if (!call) return { model: OPEN.model, toolCall: false, answer: messageText(first).text, usage: first.usage || null };
+    messages.push({ role: 'assistant', content: first.choices[0].message.content ?? '', tool_calls: [call] });
+    messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify({ eggs: 214 }) });
+    const second = await openChat({ messages, tools, maxTokens: 2000, effort: 'low' });
+    return { model: OPEN.model, toolCall: call.function?.name, answer: messageText(second).text, usage: second.usage || null };
   })
 );
 

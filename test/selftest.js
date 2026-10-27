@@ -20,6 +20,8 @@ import { analyseFrames, safeText, parseObservation } from '../lib/poultry.js';
 import { responseText } from '../lib/meta.js';
 import { fieldAlerts, shedAlerts, cameraAlerts, dedupe } from '../lib/alerts.js';
 import * as clipsLib from '../lib/clips.js';
+import { brainChat, OPEN } from '../lib/brain.js';
+import { runAgent } from '../lib/agent.js';
 import { DEFAULT_RULE, TRAY, cleanRule, sellDue, planDeal, voiceDeal, parseLines, rankOffers, shopPrompt } from '../lib/sell.js';
 import { autoSigns, vetMessage, vetScript, withNames, cleanCall, parseDeaths, parseSince, SIGN_CODES } from '../lib/vetcall.js';
 import { createEngine } from '../lib/engine.js';
@@ -660,6 +662,49 @@ await checkAsync('Sell rule and deal stored (memory store); engine passes market
   });
   const s = await engine.run();
   assert.ok(s.alerts.includes('sell_due'));
+});
+
+// ---------- v0.9.0: open weights (Muse Spark Open on Baseten) with fallback ----------
+await checkAsync('Brain: Muse Spark Open when the key is set, Meta fallback on error, one model per conversation', async () => {
+  const realFetch = globalThis.fetch;
+  const saved = { b: process.env.BASETEN_API_KEY, m: process.env.MODEL_API_KEY };
+  const calls = [];
+  let basetenUp = true;
+  const reply = (content) => new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content }, finish_reason: 'stop' }] }), { status: 200 });
+  globalThis.fetch = async (url, init) => {
+    const body = JSON.parse(init.body);
+    calls.push({ host: new URL(url).host, model: body.model });
+    if (url.includes('baseten')) return basetenUp ? reply('open') : new Response('{"error":{"message":"overloaded"}}', { status: 503 });
+    return reply('meta');
+  };
+  try {
+    process.env.MODEL_API_KEY = 'test';
+    delete process.env.BASETEN_API_KEY;
+    let r = await brainChat({ messages: [{ role: 'user', content: 'hi' }] });
+    assert.equal(r.provider, 'meta', 'no Baseten key: Meta');
+    process.env.BASETEN_API_KEY = 'test';
+    r = await brainChat({ messages: [{ role: 'user', content: 'hi' }] });
+    assert.equal(r.provider, 'baseten');
+    assert.equal(calls.at(-1).model, 'meta-models/muse-spark-open-1026', 'the hackathon model id');
+    assert.equal(calls.at(-1).host, 'inference.baseten.co');
+    basetenUp = false;
+    const state = {};
+    r = await brainChat({ messages: [{ role: 'user', content: 'hi' }] }, state);
+    assert.equal(r.provider, 'meta', 'Baseten down: falls back');
+    assert.match(state.fallback, /503/);
+    basetenUp = true;
+    const before = calls.length;
+    r = await brainChat({ messages: [{ role: 'user', content: 'hi' }] }, state);
+    assert.equal(r.provider, 'meta', 'the same conversation stays on Meta');
+    assert.equal(calls.length - before, 1);
+    const a = await runAgent({ userText: 'hi', lat: 1, lon: 2 });
+    assert.equal(a.brain.label, 'Muse Spark Open · Baseten');
+    assert.equal(a.answer, 'open');
+  } finally {
+    globalThis.fetch = realFetch;
+    if (saved.b === undefined) delete process.env.BASETEN_API_KEY; else process.env.BASETEN_API_KEY = saved.b;
+    if (saved.m === undefined) delete process.env.MODEL_API_KEY; else process.env.MODEL_API_KEY = saved.m;
+  }
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);
