@@ -30,6 +30,8 @@ import { createEngine } from '../lib/engine.js';
 import * as memStore from '../lib/store.js';
 import { runAs, devId, currentOwner, sendCode, verifyCode, refreshSession, userFromToken, useLimit, LIMITS, cleanEmail, friendly } from '../lib/auth.js';
 import { buyerQuery } from '../lib/place.js';
+import { CAPABILITIES } from '../lib/agent.js';
+import { shedSystem } from '../lib/shedchat.js';
 import { sowingFromPasses, rowFor, readiness, harvestAmount, unitFor, samplePrice, DEMO_BUYERS, planCropDeal, voiceCropDeal, cleanCropRule } from '../lib/harvest.js';
 import sharp from 'sharp';
 import { createLand, getLand, putFile, getFile, deleteLand, deleteFiles } from '../lib/store.js';
@@ -1011,6 +1013,15 @@ await checkAsync('sign-in: email code (local mode), farms see only their own row
   for (let i = 0; i < LIMITS.scan; i++) runAs(C, () => useLimit('scan'));
   assert.throws(() => runAs(C, () => useLimit('scan')), /Daily limit/);
   assert.match(friendly('For security purposes, you can only request this after 42 seconds', 429), /wait a minute/);
+});
+
+await checkAsync('Sathi: what she can do, with the three tools named as coming soon', async () => {
+  for (const name of ['Zavora 360', 'MailPulse', 'Prochar AI']) assert.ok(CAPABILITIES.includes(name), name);
+  assert.match(CAPABILITIES, /coming soon/);
+  assert.match(CAPABILITIES, /Never say you have already called, emailed or promoted/);
+  assert.match(CAPABILITIES, /demo/);
+  assert.ok(shedSystem('hi').includes('Zavora 360'), 'the shed Sathi knows it too');
+  assert.match(shedSystem('hi'), /feminine/);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

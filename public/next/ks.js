@@ -1029,6 +1029,7 @@
   function renderQuick() {
     const c = S.plan?.crops?.[0];
     const q = S.mode === 'shed' ? [['egg', t('chipShed'), t('qShed')], ['drop', t('chipWater'), t('qWater')], ['rupee', t('chipEggs'), t('qEggs')], ['warn', t('chipVet'), t('qVet')]] : [['sat', t('chipField'), t('qField')], ['sprout', t('chipGrow'), t('qGrow')], ...(c ? [['seed', fmt('chipPlan', { crop: cropName(c.key) }), fmt('qPlan', { crop: cropName(c.key) })]] : []), ['sun', t('chipWeather'), t('qWeather')]];
+    q.unshift(['chat', t('chipCan'), t('qCan')]); // v0.13.1: "What can you do?" first
     $('#quick').innerHTML = q.map(([ic, label, text]) => `<button class="chip" type="button" data-q="${esc(text)}">${I[ic]}${esc(label)}</button>`).join('');
   }
   $('#quick').addEventListener('click', (e) => {

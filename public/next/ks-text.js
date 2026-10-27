@@ -1,6 +1,9 @@
 // Text for the new app shell (v0.10.0). Keys not found here fall back to /i18n.js (crop, soil and alert names).
 window.KS_TEXT = {
   bn: {
+    // v0.13.1
+    chipCan: "তুমি কী পারো?",
+    qCan: "তুমি কী কী করতে পারো?",
     // v0.13.0
     loginPitch: "খেত সাথী জমি দেখে, ফসলে নজর রাখে আর আপনার হয়ে ফোন করে।",
     loginP1: "স্যাটেলাইট থেকে আপনার জমি, বাংলা, হিন্দি বা ইংরেজিতে",
@@ -299,6 +302,9 @@ window.KS_TEXT = {
     useAnyway: 'তবুও যোগ করুন', zone: 'অংশ', zonesH: 'জমির অংশ', zoomIn: 'বড় করুন', zoomOut: 'ছোট করুন',
   },
   hi: {
+    // v0.13.1
+    chipCan: "आप क्या कर सकती हैं?",
+    qCan: "आप मेरे लिए क्या-क्या कर सकती हैं?",
     // v0.13.0
     loginPitch: "खेत साथी ज़मीन जाँचता है, फ़सल पर नज़र रखता है और आपकी ओर से फ़ोन करता है।",
     loginP1: "सैटेलाइट से आपका खेत, बांग्ला, हिंदी या अंग्रेज़ी में",
@@ -597,6 +603,9 @@ window.KS_TEXT = {
     useAnyway: 'फिर भी जोड़ें', zone: 'हिस्सा', zonesH: 'खेत के हिस्से', zoomIn: 'बड़ा करें', zoomOut: 'छोटा करें',
   },
   en: {
+    // v0.13.1
+    chipCan: "What can you do?",
+    qCan: "What can you do for me?",
     // v0.13.0
     loginPitch: "A farm helper that checks the land, watches the crop and makes the calls.",
     loginP1: "Your field from the satellite, in Bangla, Hindi or English",
