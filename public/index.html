@@ -1,104 +1,172 @@
 <!doctype html>
-<html lang="en">
+<html lang="bn">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Khet Saathi · Model Check</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#2E7D32" />
+  <title>Khet Saathi</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Hind:wght@400;500;600&family=Noto+Sans+Bengali:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+Da+2:wght@600;800&family=Hind+Siliguri:wght@400;600;700&family=Hind:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="app.css" />
 </head>
 <body>
-  <header class="top">
-    <div class="brand">
-      <span class="mark" aria-hidden="true">
-        <svg viewBox="0 0 32 32"><path d="M16 29V13" /><path d="M16 17c-6 0-9-4-9-9 6 0 9 4 9 9z" /><path d="M16 13c0-5 3-9 9-9 0 5-3 9-9 9z" /></svg>
-      </span>
+<div class="phone">
+
+  <!-- Passcode -->
+  <section class="screen" id="s-pass" hidden>
+    <div class="center-col">
+      <div class="logo big" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 29V13"/><path d="M16 17c-6 0-9-4-9-9 6 0 9 4 9 9z"/><path d="M16 13c0-5 3-9 9-9 0 5-3 9-9 9z"/></svg></div>
+      <h1 class="display" data-t="passcodeTitle"></h1>
+      <label class="sr" for="passInput">Passcode</label>
+      <input id="passInput" class="big-input" type="password" autocomplete="off" />
+      <button id="passGo" class="btn primary wide" data-t="passcodeGo"></button>
+    </div>
+  </section>
+
+  <!-- Language -->
+  <section class="screen" id="s-lang" hidden>
+    <div class="center-col">
+      <div class="logo big" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 29V13"/><path d="M16 17c-6 0-9-4-9-9 6 0 9 4 9 9z"/><path d="M16 13c0-5 3-9 9-9 0 5-3 9-9 9z"/></svg></div>
+      <h1 class="display">খেত সাথী · खेत साथी</h1>
+      <p class="muted">ভাষা · भाषा · Language</p>
+      <button class="btn lang-btn" data-lang="bn">বাংলা</button>
+      <button class="btn lang-btn" data-lang="hi">हिंदी</button>
+      <button class="btn lang-btn" data-lang="en">English</button>
+    </div>
+  </section>
+
+  <!-- Home -->
+  <section class="screen" id="s-home" hidden>
+    <header class="top">
       <div>
-        <h1>Khet Saathi</h1>
-        <p class="sub">खेत साथी · ক্ষেত সাথী — model check <span id="ver">v0.1.0</span></p>
+        <div class="display xl"><span data-t="greet"></span> <span aria-hidden="true">·</span> <span data-t="appName"></span></div>
+        <div class="muted" data-t="tagline"></div>
+      </div>
+      <button class="chip-btn" id="langSwitch" aria-label="Language"></button>
+    </header>
+
+    <div class="tiles">
+      <button class="tile tile-green" id="goEmpty">
+        <svg class="tile-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 19h18"/><path d="M12 19v-7"/><path d="M12 12c-3 0-5-2-5-5 3 0 5 2 5 5z"/><path d="M12 12c0-3 2-5 5-5 0 3-2 5-5 5z"/><circle cx="18.5" cy="4.5" r="1.5"/></svg>
+        <span class="tile-title" data-t="newLand"></span>
+        <span class="tile-sub" data-t="newLandSub"></span>
+      </button>
+      <button class="tile tile-yellow" id="goCrop">
+        <svg class="tile-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V8"/><path d="M12 8c0-2.5 1.5-4.5 4-5 0 2.5-1.5 4.5-4 5z"/><path d="M12 12c-2.5 0-4-1.5-4.5-4 2.5 0 4 1.5 4.5 4z"/><path d="M12 15.5c2.5 0 4-1.5 4.5-4-2.5 0-4 1.5-4.5 4z"/></svg>
+        <span class="tile-title" data-t="myCrop"></span>
+        <span class="tile-sub" data-t="myCropSub"></span>
+      </button>
+      <button class="tile tile-plain" disabled>
+        <span class="soon" data-t="soon"></span>
+        <svg class="tile-ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 7a3 3 0 1 0-5.6 1.5C7 9.5 5 12 5 15a6 6 0 0 0 12 0c0-1.6-.5-3-1.4-4.1"/><path d="M19 7l2 1-2 1"/><path d="M9 21v-1M13 21v-1"/></svg>
+        <span class="tile-title sm" data-t="poultry"></span>
+      </button>
+      <button class="tile tile-plain" disabled>
+        <span class="soon" data-t="soon"></span>
+        <svg class="tile-ico sm" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+        <span class="tile-title sm" data-t="calendar"></span>
+      </button>
+    </div>
+
+    <h2 class="section-title" data-t="myLands"></h2>
+    <div id="landList" class="land-list"></div>
+
+    <div id="homeAnswer" class="answer" hidden></div>
+    <div class="spacer"></div>
+  </section>
+
+  <!-- Capture -->
+  <section class="screen" id="s-capture" hidden>
+    <header class="top">
+      <button class="round-btn" data-back aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="display lg" id="captureTitle"></div>
+      <span></span>
+    </header>
+
+    <div class="card">
+      <div class="card-title" data-t="step1"></div>
+      <div class="photo-box" id="photoBox">
+        <img id="photoPreview" alt="" hidden />
+        <svg class="photo-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="4"/></svg>
+      </div>
+      <label class="btn primary wide file-btn">
+        <span id="photoBtnLabel" data-t="takePhoto"></span>
+        <input id="photoInput" type="file" accept="image/*" capture="environment" hidden />
+      </label>
+      <div class="muted small center" data-t="photoOptional"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" data-t="step2"></div>
+      <div class="loc-row">
+        <span id="locDot" class="dot wait" aria-hidden="true"></span>
+        <span id="locText" class="loc-text"></span>
+      </div>
+      <div class="place-row" id="placeRow">
+        <button class="pill" data-place="gps" data-t="useGps"></button>
+        <button class="pill" data-place="bolpur"></button>
+        <button class="pill" data-place="bogura"></button>
+        <button class="pill" data-place="punjab"></button>
       </div>
     </div>
-    <div class="top-actions">
-      <input id="passcode" type="password" placeholder="Passcode" autocomplete="off" hidden />
-      <button id="runAll" class="btn primary">Run all checks</button>
+
+    <button id="analyseBtn" class="btn yellow wide xl-btn" data-t="analyse"></button>
+  </section>
+
+  <!-- Thinking -->
+  <section class="screen" id="s-think" hidden>
+    <div class="center-col">
+      <div class="radar" aria-hidden="true"><span></span><span></span><span></span></div>
+      <ol class="steps" id="steps">
+        <li data-step="0"><span class="tick"></span><span data-t="stepSat"></span></li>
+        <li data-step="1"><span class="tick"></span><span data-t="stepOutline"></span></li>
+        <li data-step="2"><span class="tick"></span><span data-t="stepArea"></span></li>
+        <li data-step="3"><span class="tick"></span><span data-t="stepSave"></span></li>
+      </ol>
+      <div class="muted small">Meta SAM 3.1 · Muse Spark</div>
     </div>
-  </header>
+  </section>
 
-  <main>
-    <section class="card verify">
-      <h2>Verification</h2>
-      <table>
-        <thead><tr><th>Check</th><th>Model</th><th>Result</th><th>Time</th><th>Detail</th></tr></thead>
-        <tbody id="vt"></tbody>
-      </table>
-    </section>
+  <!-- Land -->
+  <section class="screen" id="s-land" hidden>
+    <header class="top">
+      <button class="round-btn" data-home aria-label="Home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="display lg" id="landTitle"></div>
+      <button class="round-btn green" id="landListen" aria-label="Listen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+    </header>
 
-    <section class="card plot">
-      <div class="card-head">
-        <h2>1 · Plot from space</h2>
-        <p>Satellite image → SAM 3.1 outlines fields → Muse Spark reads the scene</p>
-      </div>
-      <div class="row">
-        <label>Lat <input id="lat" type="number" step="0.0001" value="30.9100" /></label>
-        <label>Lon <input id="lon" type="number" step="0.0001" value="75.6200" /></label>
-        <label>Width
-          <select id="half">
-            <option value="150">300 m</option>
-            <option value="300" selected>600 m</option>
-            <option value="600">1.2 km</option>
-          </select>
-        </label>
-        <button id="loadTile" class="btn">Load satellite</button>
-        <label class="btn ghost file">Or upload photo<input id="photo" type="file" accept="image/*" hidden /></label>
-      </div>
-      <div class="stage" id="stage">
-        <div class="empty" id="stageEmpty">Pick a location and load the satellite view</div>
-        <img id="plotImg" alt="Plot image" hidden />
-        <svg id="overlay" hidden></svg>
-      </div>
-      <p class="attrib" id="attrib"></p>
-      <div class="row">
-        <label class="grow">SAM concept <input id="concept" type="text" value="farm field" maxlength="80" /></label>
-        <button id="segment" class="btn">Outline (SAM 3.1)</button>
-        <button id="describe" class="btn">Describe (Spark vision)</button>
-      </div>
-      <div class="out" id="visionOut"></div>
-    </section>
+    <div class="map" id="map">
+      <img id="mapImg" alt="" />
+      <svg id="mapSvg" preserveAspectRatio="xMidYMid meet"></svg>
+      <span class="map-badge" id="acresBadge"></span>
+      <span class="map-badge right" id="demoBadge" hidden></span>
+      <img id="mapPhoto" class="map-photo" alt="" hidden />
+    </div>
+    <div class="muted small center" id="mapHint"></div>
 
-    <section class="card voice">
-      <div class="card-head">
-        <h2>2 · Farmer speaks</h2>
-        <p>Hindi, Bangla, Marathi, Tamil, Telugu, Kannada, English… → Muse Voice Transcribe</p>
-      </div>
-      <div class="row">
-        <button id="rec" class="btn mic"><span class="dot"></span><span id="recLabel">Hold to talk</span></button>
-        <label class="btn ghost file">Or upload audio<input id="audioFile" type="file" accept="audio/*" hidden /></label>
-        <span id="recTime" class="muted"></span>
-        <label class="toggle"><input id="autoReply" type="checkbox" checked /> Talk mode: send to agent and speak the reply</label>
-      </div>
-      <div class="out" id="transcript"></div>
-      <button id="useTranscript" class="btn ghost" hidden>Send to agent ↓</button>
-    </section>
+    <div class="stat-row">
+      <div class="stat"><span class="stat-big" id="statAcres">—</span><span class="muted small" data-t="acres"></span></div>
+      <div class="stat"><span class="stat-big" id="statFields">—</span><span class="muted small" data-t="fields"></span></div>
+    </div>
 
-    <section class="card agent">
-      <div class="card-head">
-        <h2>3 · Agent plans</h2>
-        <p>Muse Spark with tool calls · tools return <b>demo data</b> for now · orders are drafts only · replies are spoken</p>
-      </div>
-      <div class="chips">
-        <button class="chip" data-lang="hi">हिंदी</button>
-        <button class="chip" data-lang="bn">বাংলা</button>
-        <button class="chip" data-lang="en">English</button>
-      </div>
-      <textarea id="agentText" rows="3"></textarea>
-      <button id="runAgent" class="btn primary">Run agent</button>
-      <ol class="trace" id="trace"></ol>
-    </section>
-  </main>
+    <h2 class="section-title" data-t="askSaathi"></h2>
+    <div class="chips" id="askChips"></div>
+    <div id="landAnswer" class="answer" hidden></div>
+    <div class="spacer"></div>
+  </section>
 
-  <footer>Built during the Meta Global AI Developer Hackathon, Oct 26 – Nov 4 2026 · Royal Bengal AI</footer>
-  <script src="app.js"></script>
+  <!-- Mic bar (home + land) -->
+  <div class="mic-bar" id="micBar" hidden>
+    <button id="mic" class="mic" aria-label="Speak">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    </button>
+    <div id="micLabel" class="mic-label" data-t="holdToTalk"></div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+</div>
+<script src="i18n.js"></script>
+<script src="farmer.js"></script>
 </body>
 </html>

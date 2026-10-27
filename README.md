@@ -11,8 +11,10 @@ Built by Royal Bengal AI for the **Meta Global AI Developer Hackathon** (Oct 26 
 
 | Feature | Status |
 |---|---|
+| Farmer app: Bangla / Hindi / English, big picture buttons, hold-to-talk on every screen | Live |
+| Add land: photo + GPS → satellite view → SAM 3.1 finds the farmer's field and measures its acres | Live |
+| Tap a different field on the map if the guess is wrong | Live |
 | Talk mode: farmer speaks Bangla/Hindi → agent → spoken reply | Live |
-| Satellite view of a plot with SAM 3.1 field outlines | Live |
 | Agent plans with tools: plot profile → input prices → draft order | Live (demo vendor data) |
 | Empty land: photo + satellite + soil + weather → what to grow → vendors | In progress |
 | Crop calendar: when to sow which crop, with proactive alerts | In progress |
@@ -26,13 +28,15 @@ Built by Royal Bengal AI for the **Meta Global AI Developer Hackathon** (Oct 26 
 |---|---|---|
 | `muse-spark-1.3` | Meta Model API | Agent brain: reasoning, tool calls, reads satellite and field images |
 | `muse-voice-transcribe-1.0` | Meta Model API | Hears the farmer: Bangla, Hindi, Marathi, Tamil, Telugu, Kannada, English |
-| `sam-3.1` | Meta Model API | Segments individual fields on satellite imagery; tracks animals in video |
+| `sam-3.1` | Meta Model API | Finds every field on the satellite image, picks the one under the farmer's GPS point and measures it; tracks animals in video (planned) |
 | Muse Spark Open | Meta open weights (Baseten) | Open-weight path for the same agent (planned) |
 | `gemini-3.8-flash-tts` | Google Gemini API | **Voice output only.** Meta's lineup has speech-to-text but no text-to-speech, so the agent's reply is spoken with Gemini. All listening, seeing, reasoning and acting runs on Meta models |
 
 ## Data sources
 
-- Satellite imagery: Esri World Imagery (Esri, Maxar, Earthstar Geographics)
+- Satellite imagery: Esri World Imagery (Esri, Maxar, Earthstar Geographics), 600 m view around the farmer's location
+- Demo plots (used when GPS is off or outside South Asia): Bolpur (West Bengal), Bogura (Bangladesh), Ludhiana (Punjab)
+- Storage: Supabase Postgres + private storage bucket for land photos and satellite tiles; falls back to in-memory storage if not configured
 - Vendors, buyers, shop owners, sensors and shed cameras: **simulated** for the hackathon and labelled as such in the app
 - Orders and deals are drafts until the farmer confirms. Nothing is bought, sold or paid in this prototype
 
@@ -50,17 +54,21 @@ Hosted on Railway, deployed from this repo on every push.
 | `MODEL_API_KEY` | Yes | Meta Model API key |
 | `GEMINI_API_KEY` | For speech | Google AI Studio key, spoken replies |
 | `APP_PASSCODE` | Recommended | Protects the API routes on a public URL |
+| `SUPABASE_URL` | For saving | Supabase project URL |
+| `SUPABASE_SECRET_KEY` | For saving | Supabase secret key (server only; `SUPABASE_SERVICE_ROLE_KEY` also accepted) |
 | `SPARK_MODEL`, `VOICE_MODEL`, `SAM_MODEL`, `TTS_MODEL`, `TTS_VOICE` | No | Override model IDs or the voice |
 
 Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 
-The page at `/` is currently the model-check bench with a live verification table; the farmer app replaces it as the
-build progresses.
+- `/` is the farmer app (phone-first).
+- `/check/` is the model-check bench with a live verification table for every model and the database.
+- Database migrations live in `sql/`, numbered in run order (`001_…`, `002_…`). Run each new one once in the Supabase SQL Editor; every migration is safe to re-run.
 
 ## Releases
 
 | Version | Date | What was built |
 |---|---|---|
+| v0.3.0 | Oct 27 | Farmer app: language picker, home, add land with photo + GPS, SAM 3.1 plot detection and acreage, tap-to-correct field, ask by voice or tap with spoken answers; Supabase storage (`sql/001_core_tables_v0.3.0.sql`); dev bench moved to /check/ |
 | v0.2.1 | Oct 27 | README rewritten for the full product scope; developer documentation kept out of the repo |
 | v0.2.0 | Oct 26 | Talk mode with spoken Bangla/Hindi replies; agent plans only when asked |
 | v0.1.1 | Oct 26 | Fixed empty scene descriptions; agent completes profile → prices → draft order in one run |
