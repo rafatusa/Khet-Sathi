@@ -141,16 +141,35 @@
       <svg id="mapSvg" preserveAspectRatio="xMidYMid meet"></svg>
       <span class="map-badge" id="acresBadge"></span>
       <span class="map-badge right" id="demoBadge" hidden></span>
+      <span class="map-badge scale" id="scaleBadge" hidden></span>
       <img id="mapPhoto" class="map-photo" alt="" hidden />
     </div>
     <div class="muted small center" id="mapHint"></div>
 
-    <div class="stat-row">
+    <!-- Shown when no field outline was found: a town spot, or a land saved before v0.3.1 -->
+    <div class="notice" id="landNotice" hidden>
+      <div class="notice-head">
+        <div class="notice-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg></div>
+        <div>
+          <div class="notice-title" id="noticeTitle"></div>
+          <p id="noticeText"></p>
+        </div>
+      </div>
+      <button class="btn primary wide" id="demoBtn" data-t="showDemo"></button>
+      <button class="btn wide" id="rescanBtn">
+        <svg id="rescanIcoSearch" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <svg id="rescanIcoRetry" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 14-5.3L20 9M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-14 5.3L4 15M4 20v-5h5"/></svg>
+        <span id="rescanLabel"></span>
+      </button>
+      <div class="tech" id="samLine"></div>
+    </div>
+
+    <div class="stat-row" id="landStats">
       <div class="stat"><span class="stat-big" id="statAcres">—</span><span class="muted small" data-t="acres"></span></div>
       <div class="stat"><span class="stat-big" id="statFields">—</span><span class="muted small" data-t="fields"></span></div>
     </div>
 
-    <h2 class="section-title" data-t="askSaathi"></h2>
+    <h2 class="section-title" id="askTitle" data-t="askSaathi"></h2>
     <div class="chips" id="askChips"></div>
     <div id="landAnswer" class="answer" hidden></div>
     <div class="spacer"></div>

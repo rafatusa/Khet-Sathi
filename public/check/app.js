@@ -1,4 +1,4 @@
-// Khet Saathi v0.1.0 - browser side of the model check.
+// Khet Saathi v0.3.1 - browser side of the model check.
 (() => {
   const $ = (id) => document.getElementById(id);
 
@@ -26,6 +26,7 @@
     ['db', 'Database + photo storage', 'supabase'],
     ['tile', 'Satellite image for plot', 'Esri World Imagery'],
     ['sam', 'Field outlines from satellite', 'sam-3.1'],
+    ['zoom', 'Field outlines, zoomed 225 m (farmer app scan)', 'sam-3.1'],
     ['vision', 'Scene description from image', 'spark'],
     ['agent', 'Agent plan with tool calls', 'spark'],
     ['voice', 'Speech → text', 'muse-voice-transcribe-1.0'],
@@ -58,6 +59,7 @@
     $('ver').textContent = `v${h.version}`;
     $('passcode').hidden = !h.passcodeRequired;
     setModel('sam', h.models.sam);
+    setModel('zoom', h.models.sam);
     setModel('vision', h.models.spark);
     setModel('agent', h.models.spark);
     setModel('voice', h.models.voice);
@@ -182,8 +184,24 @@
     if (!r.ok) return mark('sam', 'FAIL', r.error, r.ms);
     drawSegments(r.objects);
     const ok = r.outcome?.status === 'completed';
-    const detail = `"${r.prompt}": ${r.count} object(s)${r.diagnostics?.length ? ` · ${r.diagnostics.length} warning(s)` : ''}${r.count === 0 ? ' - try "field", "crop field" or a wider view' : ''}`;
-    mark('sam', ok ? 'PASS' : 'FAIL', detail, r.ms);
+    const detail = `"${r.prompt}": ${r.count} object(s)${r.diagnostics?.length ? ` · ${r.diagnostics.length} warning(s)` : ''}${r.count === 0 ? ' · try "field" or the zoomed scan' : ''}`;
+    // 0 objects is not a pass: SAM answered but found no fields (v0.3.0 hid this as PASS).
+    mark('sam', !ok ? 'FAIL' : r.count === 0 ? 'WARN' : 'PASS', detail, r.ms);
+  }
+
+  // The same scan the farmer app runs: centre 225 m enlarged, "field", then the wide view.
+  async function runZoomScan() {
+    mark('zoom', 'RUNNING');
+    const q = new URLSearchParams({ lat: $('lat').value, lon: $('lon').value });
+    const r = await api(`/api/scan?${q}`);
+    if (!r.ok) return mark('zoom', 'FAIL', r.error, r.ms);
+    const s = r.sam || {};
+    showImage(r.image, r.imagePx, r.imagePx, `Farmer app scan · ${s.view === 'zoom' ? 'zoomed' : 'wide'} ${Math.round(s.groundMeters)} m view`);
+    drawSegments(r.objects || []);
+    const centre = (r.objects || []).some((o) => o.containsPoint);
+    const tries = (s.passes || []).map((p) => `${p.view} "${p.prompt}" ${p.error ? 'error' : `${p.kept}/${p.found}`}`).join(', ');
+    const detail = `"${s.prompt}": ${s.fields} object(s) · ${centre ? 'centre covered' : 'centre not covered'}${r.acres != null ? ` · ${r.acres} acres` : ''} · ${tries}${s.error ? ` · ${s.error}` : ''}`;
+    mark('zoom', s.error ? 'FAIL' : !s.fields ? 'WARN' : 'PASS', detail, r.ms);
   }
 
   // ---------- 4. Spark vision ----------
@@ -376,6 +394,7 @@
   $('loadTile').addEventListener('click', busy($('loadTile'), loadTile));
   $('segment').addEventListener('click', busy($('segment'), runSegment));
   $('describe').addEventListener('click', busy($('describe'), runVision));
+  $('zoomScan').addEventListener('click', busy($('zoomScan'), runZoomScan));
   $('runAgent').addEventListener('click', busy($('runAgent'), () => runAgent()));
   $('runAll').addEventListener(
     'click',
@@ -387,6 +406,7 @@
       const samples = { hi: SAMPLES.hi, bn: SAMPLES.bn, en: SAMPLES.en };
       if (!Object.values(samples).includes($('agentText').value)) $('agentText').value = SAMPLES.hi;
       await Promise.all([runSegment(), runVision(), runAgent()]);
+      await runZoomScan();
       const v = $(`row-voice`).children[2].textContent;
       if (v === 'NOT RUN') mark('voice', 'NOT RUN', 'Hold the mic button and speak to test');
     })

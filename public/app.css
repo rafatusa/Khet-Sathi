@@ -112,6 +112,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .map .gps { fill: #DC2626; stroke: #fff; stroke-width: 4; }
 .map-badge { position: absolute; left: 12px; top: 12px; background: var(--ink); color: #fff; border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: 17px; }
 .map-badge.right { left: auto; right: 12px; background: #fff; color: var(--ink); font-size: 13px; }
+.map-badge.scale { top: auto; bottom: 12px; left: auto; right: 12px; background: rgba(19, 36, 26, .82); font-size: 13px; font-weight: 600; }
 .map-photo { position: absolute; left: 12px; bottom: 12px; width: 86px; height: 86px; border-radius: 16px; border: 3px solid #fff; object-fit: cover; }
 
 .stat-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -140,3 +141,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 .toast { position: fixed; left: 50%; transform: translateX(-50%); top: 16px; background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 16px; max-width: 440px; width: calc(100% - 32px); font-weight: 600; z-index: 10; }
 .toast[hidden] { display: none; }
+
+/* No-field notice (v0.3.1): town spot or a land saved before the zoomed scan */
+.notice { background: var(--orange-soft); border: 2px solid #F5D3B5; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.notice[hidden] { display: none; }
+.notice-head { display: flex; gap: 12px; align-items: flex-start; }
+.notice-ico { width: 44px; height: 44px; border-radius: 999px; background: var(--orange); display: grid; place-items: center; flex-shrink: 0; }
+.notice-ico svg { width: 24px; height: 24px; fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.notice-title { font-family: var(--display); font-weight: 800; font-size: 21px; line-height: 1.2; }
+.notice p { margin: 2px 0 0; font-size: 17px; }
+.notice .btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.notice .tech { font-family: 'Hind', sans-serif; font-size: 12px; color: #7A3412; background: #fff; border-radius: 10px; padding: 6px 10px; overflow-wrap: anywhere; }
+.notice .tech:empty { display: none; }

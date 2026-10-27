@@ -5,7 +5,12 @@ The farmer talks in Bangla or Hindi; the agent watches their land from space, li
 season, and handles buying and selling, with the farmer confirming every deal.
 
 Built by Royal Bengal AI for the **Meta Global AI Developer Hackathon** (Oct 26 – Nov 4, 2026).
-**Everything in this repository was written during the hackathon.**
+
+## Built during the hackathon
+
+Everything in this repository was written during the hackathon, which opened on Mon Oct 26, 12:00 PM ET.
+The git history shows the date of every change, and the release table at the bottom lists what was added
+in each version and when.
 
 ## What it does
 
@@ -13,6 +18,8 @@ Built by Royal Bengal AI for the **Meta Global AI Developer Hackathon** (Oct 26 
 |---|---|
 | Farmer app: Bangla / Hindi / English, big picture buttons, hold-to-talk on every screen | Live |
 | Add land: photo + GPS → satellite view → SAM 3.1 finds the farmer's field and measures its acres | Live |
+| Small-plot scan: SAM 3.1 runs on an enlarged 225 m close-up, so tiny Bengal plots are outlined one by one; wide 600 m view as fallback | Live |
+| Honest empty states: "no farm field here" for a town spot, re-scan for older lands, SAM's answer shown on screen | Live |
 | Tap a different field on the map if the guess is wrong | Live |
 | Talk mode: farmer speaks Bangla/Hindi → agent → spoken reply | Live |
 | Agent plans with tools: plot profile → input prices → draft order | Live (demo vendor data) |
@@ -34,7 +41,7 @@ Built by Royal Bengal AI for the **Meta Global AI Developer Hackathon** (Oct 26 
 
 ## Data sources
 
-- Satellite imagery: Esri World Imagery (Esri, Maxar, Earthstar Geographics), 600 m view around the farmer's location
+- Satellite imagery: Esri World Imagery (Esri, Maxar, Earthstar Geographics). The server fetches a 600 m view around the farmer's location, then crops the centre 225 m and enlarges it 2.7x for SAM 3.1. At the full 600 m view SAM read Bolpur's small plots as one big field; on the close-up it outlined about 47 separate plots
 - Demo plots (used when GPS is off or outside South Asia): Bolpur (West Bengal), Bogura (Bangladesh), Ludhiana (Punjab)
 - Storage: Supabase Postgres + private storage bucket for land photos and satellite tiles; falls back to in-memory storage if not configured
 - Vendors, buyers, shop owners, sensors and shed cameras: **simulated** for the hackathon and labelled as such in the app
@@ -56,7 +63,9 @@ Hosted on Railway, deployed from this repo on every push.
 | `APP_PASSCODE` | Recommended | Protects the API routes on a public URL |
 | `SUPABASE_URL` | For saving | Supabase project URL |
 | `SUPABASE_SECRET_KEY` | For saving | Supabase secret key (server only; `SUPABASE_SERVICE_ROLE_KEY` also accepted) |
-| `SPARK_MODEL`, `VOICE_MODEL`, `SAM_MODEL`, `TTS_MODEL`, `TTS_VOICE` | No | Override model IDs or the voice |
+| `SPARK_MODEL`, `VOICE_MODEL`, `SAM_MODEL`, `TTS_MODEL`, `TTS_VOICE` | No | Override model IDs or the voice. Leave them unset unless you need a different model |
+
+Every variable is cleaned of spaces, line endings and invisible characters when it is read, so values pasted through Railway's Raw editor work as typed.
 
 Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 
@@ -68,6 +77,7 @@ Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 
 | Version | Date | What was built |
 |---|---|---|
+| v0.3.1 | Oct 27 | Zoomed SAM 3.1 scan for small plots (centre 225 m enlarged, concept "field", wide "farm field" fallback); whole-image outlines ignored; re-scan for lands saved with 0 fields; "no farm field here" screen with demo land; agent refuses soil advice where no field was found; acres under 1 shown to 2 decimals; bench shows 0 outlines as WARN and adds the farmer-app scan; all environment variables trimmed. New dependency: `sharp` (image crop) |
 | v0.3.0 | Oct 27 | Farmer app: language picker, home, add land with photo + GPS, SAM 3.1 plot detection and acreage, tap-to-correct field, ask by voice or tap with spoken answers; Supabase storage (`sql/001_core_tables_v0.3.0.sql`); dev bench moved to /check/ |
 | v0.2.1 | Oct 27 | README rewritten for the full product scope; developer documentation kept out of the repo |
 | v0.2.0 | Oct 26 | Talk mode with spoken Bangla/Hindi replies; agent plans only when asked |

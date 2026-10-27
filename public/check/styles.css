@@ -90,6 +90,7 @@ code { font-size: 12px; background: var(--sky); padding: 1px 6px; border-radius:
 .pill.PASS { background: var(--pass); }
 .pill.FAIL { background: var(--fail); }
 .pill.RUNNING { background: var(--wait); }
+.pill.WARN { background: #F2B705; color: #13241A; }
 
 .stage {
   position: relative; width: 100%; max-width: 640px; aspect-ratio: 1; margin: 6px 0;

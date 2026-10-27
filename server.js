@@ -4,20 +4,20 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptText, segmentStream } from './lib/meta.js';
 import { collectSegments } from './lib/segment.js';
-import { fetchSatelliteImage } from './lib/tile.js';
+import { fetchSatelliteImage, zoomCenter } from './lib/tile.js';
+import { scanLand } from './lib/scan.js';
+import { env } from './lib/env.js';
 import { runAgent } from './lib/agent.js';
 import { TTS, hasTtsKey, synthesize } from './lib/tts.js';
-import { pickPlot, withAcres, DEMO_PLACES } from './lib/plot.js';
+import { DEMO_PLACES } from './lib/plot.js';
 import {
   dbConfigured, isId, newId, createLand, listLands, getLand, updateLand, putFile, getFile, listAlerts, pingDb,
 } from './lib/store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-const PORT = process.env.PORT || 3000;
-const VERSION = '0.3.0';
-const PLOT_HALF_SIDE_M = 300; // satellite view 600 m across, centred on the farmer
-const PLOT_IMAGE_PX = 1024;
+const PORT = env('PORT', '3000');
+const VERSION = '0.3.1';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -25,7 +25,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Optional passcode so a public URL can't burn API credits.
 // Images use ?k= because <img> tags can't send headers.
 function guard(req, res, next) {
-  const code = process.env.APP_PASSCODE;
+  const code = env('APP_PASSCODE');
   if (!code) return next();
   if (req.get('x-app-passcode') === code || req.query.k === code) return next();
   return res.status(401).json({ ok: false, error: 'Passcode required' });
@@ -49,7 +49,8 @@ function landView(land) {
   const { tile_path, photo_path, ...rest } = land;
   return {
     ...rest,
-    tileUrl: tile_path ? `/api/lands/${land.id}/image/tile` : null,
+    // ?v= changes when a re-scan stores a new picture, so browsers don't show the old one.
+    tileUrl: tile_path ? `/api/lands/${land.id}/image/tile?v=${encodeURIComponent(String(land.ground_m ?? ''))}-${(land.objects || []).length}` : null,
     photoUrl: photo_path ? `/api/lands/${land.id}/image/photo` : null,
   };
 }
@@ -66,7 +67,7 @@ app.get('/api/health', (req, res) => {
     ok: true,
     version: VERSION,
     keyConfigured: hasKey(),
-    passcodeRequired: Boolean(process.env.APP_PASSCODE),
+    passcodeRequired: Boolean(env('APP_PASSCODE')),
     ttsConfigured: hasTtsKey(),
     dbConfigured: dbConfigured(),
     models: { ...MODELS, tts: TTS.model },
@@ -107,27 +108,10 @@ app.post(
     if (!Number.isFinite(la) || !Number.isFinite(lo)) throw new Error('Location is required');
 
     const id = newId();
-    const tile = await fetchSatelliteImage({ lat: la, lon: lo, halfSideMeters: PLOT_HALF_SIDE_M, size: PLOT_IMAGE_PX });
+    const scan = await scanLand({ lat: la, lon: lo });
+    const plot = scan.plot;
 
-    let objects = [];
-    let samError = null;
-    try {
-      const events = await segmentStream({ imageDataUrl: tile.dataUrl, prompt: 'farm field' });
-      const seg = await collectSegments(events, { point: { x: tile.width / 2, y: tile.height / 2 } });
-      objects = withAcres(seg.objects, tile.groundMeters, tile.width).map((o) => ({
-        id: o.id,
-        box: o.box,
-        confidence: o.confidence,
-        acres: o.acres,
-        containsPoint: o.containsPoint,
-        mask: o.mask,
-      }));
-    } catch (err) {
-      samError = err.message;
-    }
-    const plot = pickPlot(objects, { width: tile.width, height: tile.height });
-
-    const tileImg = dataUrlToBuffer(tile.dataUrl);
+    const tileImg = dataUrlToBuffer(scan.image.dataUrl);
     await putFile(`${id}/tile.jpg`, tileImg.buffer, tileImg.type);
     let photoPath = null;
     const photo = dataUrlToBuffer(photoDataUrl);
@@ -145,13 +129,35 @@ app.post(
       place: source === 'demo' ? place : null,
       acres: plot?.acres ?? null,
       selected_object: plot?.id ?? null,
-      objects,
-      ground_m: tile.groundMeters,
-      image_px: tile.width,
+      objects: scan.objects,
+      ground_m: scan.image.groundMeters,
+      image_px: scan.image.width,
       tile_path: `${id}/tile.jpg`,
       photo_path: photoPath,
     });
-    return { land: landView(land), fields: objects.length, samError };
+    return { land: landView(land), fields: scan.objects.length, samError: scan.sam.error, sam: scan.sam };
+  })
+);
+
+// Runs the v0.3.1 scan again on a saved land (lands saved by v0.3.0 with 0 fields).
+app.post(
+  '/api/lands/:id/rescan',
+  guard,
+  timed(async (req) => {
+    const land = await getLand(req.params.id);
+    if (!land) throw new Error('Land not found');
+    const scan = await scanLand({ lat: land.lat, lon: land.lon });
+    const img = dataUrlToBuffer(scan.image.dataUrl);
+    await putFile(`${land.id}/tile.jpg`, img.buffer, img.type);
+    const updated = await updateLand(land.id, {
+      objects: scan.objects,
+      selected_object: scan.plot?.id ?? null,
+      acres: scan.plot?.acres ?? null,
+      ground_m: scan.image.groundMeters,
+      image_px: scan.image.width,
+      tile_path: `${land.id}/tile.jpg`,
+    });
+    return { land: landView(updated), fields: scan.objects.length, samError: scan.sam.error, sam: scan.sam };
   })
 );
 
@@ -206,9 +212,16 @@ app.post(
     let lat = DEMO_PLACES.bolpur.lat;
     let lon = DEMO_PLACES.bolpur.lon;
     let context = 'no plot added yet';
+    let noField = false;
     if (landId) {
       const land = await getLand(landId);
-      if (land) {
+      if (land && !(land.objects || []).length) {
+        // No field outline at this spot (a town, a river, or a failed scan): no soil or crop advice.
+        lat = land.lat;
+        lon = land.lon;
+        noField = true;
+        context = 'NO FARM FIELD WAS FOUND in the satellite image at this spot, so its soil and size are unknown';
+      } else if (land) {
         lat = land.lat;
         lon = land.lon;
         context = [
@@ -217,7 +230,7 @@ app.post(
         ].join('; ');
       }
     }
-    return runAgent({ userText: String(text).slice(0, 2000), lat, lon, context });
+    return runAgent({ userText: String(text).slice(0, 2000), lat, lon, context, noField });
   })
 );
 
@@ -231,6 +244,16 @@ app.post(
     const { text, lat, lon } = req.body || {};
     if (!text) throw new Error('text is required');
     return runAgent({ userText: String(text).slice(0, 2000), lat: Number(lat), lon: Number(lon) });
+  })
+);
+
+// Same scan the farmer app runs (zoomed pass first), for the bench.
+app.get(
+  '/api/scan',
+  guard,
+  timed(async (req) => {
+    const scan = await scanLand({ lat: Number(req.query.lat), lon: Number(req.query.lon) });
+    return { image: scan.image.dataUrl, imagePx: scan.image.width, objects: scan.objects, plot: scan.plot?.id ?? null, acres: scan.plot?.acres ?? null, sam: scan.sam };
   })
 );
 

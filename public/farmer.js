@@ -1,5 +1,5 @@
-// Khet Saathi farmer app (v0.3.0): language, home, add land (photo + GPS),
-// satellite plot with SAM 3.1 outline, ask Saathi by voice or tap, spoken replies.
+// Khet Saathi farmer app (v0.3.1): language, home, add land (photo + GPS),
+// satellite plot with SAM 3.1 outline (zoomed scan), re-scan, ask Saathi by voice or tap, spoken replies.
 (() => {
   const $ = (id) => document.getElementById(id);
   const I18N = window.KS_I18N;
@@ -19,6 +19,7 @@
   let place = null; // demo place key, or null for GPS
   let gps = null; // { lat, lon }
   let photoDataUrl = null;
+  let lastSam = null; // SAM summary from the latest scan, shown on the no-field notice
 
   const t = (key) => (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key;
   const digits = { bn: '০১২৩৪৫৬৭৮৯', hi: '०१२३४५६७८९' };
@@ -28,6 +29,8 @@
     const d = digits[lang];
     return d ? s.replace(/[0-9]/g, (c) => d[c]) : s;
   };
+  // Small Bengal plots need 2 decimals (0.12 acres would otherwise read 0.1).
+  const acresText = (a) => num(a, a != null && Number(a) < 1 ? 2 : 1);
 
   // ---------- API ----------
   async function api(path, opts = {}) {
@@ -41,7 +44,7 @@
   }
   const postJson = (path, body, method = 'POST') =>
     api(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const imgUrl = (u) => (u ? `${u}?k=${encodeURIComponent(passcode)}` : '');
+  const imgUrl = (u) => (u ? `${u}${u.includes('?') ? '&' : '?'}k=${encodeURIComponent(passcode)}` : '');
 
   function toast(msg) {
     const el = $('toast');
@@ -109,7 +112,7 @@
       b.className = 'land-item';
       const img = document.createElement('img');
       img.alt = '';
-      img.src = imgUrl(`/api/lands/${land.id}/image/tile`);
+      img.src = imgUrl(`/api/lands/${land.id}/image/tile?v=${encodeURIComponent(String(land.ground_m ?? ''))}`);
       const main = document.createElement('div');
       main.className = 'li-main';
       const title = document.createElement('span');
@@ -121,7 +124,7 @@
       main.append(title, sub);
       const acres = document.createElement('span');
       acres.className = 'li-acres';
-      acres.textContent = land.acres ? `${num(land.acres)} ${t('acres')}` : '';
+      acres.textContent = land.acres ? `${acresText(land.acres)} ${t('acres')}` : '';
       b.append(img, main, acres);
       b.addEventListener('click', () => openLand(land.id));
       list.append(b);
@@ -240,23 +243,31 @@
   }
   $('analyseBtn').addEventListener('click', async () => {
     if (!gps && !place) setPlace('bolpur');
+    const body = { kind: captureKind, lang, photoDataUrl };
+    if (place) body.place = place;
+    else Object.assign(body, gps);
+    await scanAndShow(() => postJson('/api/lands', body), 's-capture');
+  });
+
+  // Shows the thinking screen while the server scans, then the land screen.
+  async function scanAndShow(request, backTo) {
     show('s-think');
     const finish = runSteps();
     try {
-      const body = { kind: captureKind, lang, photoDataUrl };
-      if (place) body.place = place;
-      else Object.assign(body, gps);
-      const r = await postJson('/api/lands', body);
+      const r = await request();
       finish();
       if (!r.ok) throw new Error(r.error);
-      if (r.samError || !r.fields) toast(t('noOutline'));
+      lastSam = { landId: r.land.id, ...(r.sam || {}) };
       setTimeout(() => renderLand(r.land), 500);
     } catch (err) {
       finish();
       toast(`${t('error')}: ${err.message}`);
-      show('s-capture');
+      if (backTo === 'land') {
+        if (current) renderLand(current);
+        else goHome();
+      } else show(backTo);
     }
-  });
+  }
 
   // ---------- land ----------
   async function openLand(id) {
@@ -285,8 +296,29 @@
     $('demoBadge').textContent = `${t('demoBadge')} · ${health?.demoPlaces?.[land.place]?.[lang] || ''}`;
     drawFields();
     const objs = land.objects || [];
+    const ground = Number(land.ground_m);
     $('statFields').textContent = num(objs.length, 0);
     $('mapHint').textContent = objs.length > 1 ? t('tapToChange') : '';
+    $('scaleBadge').hidden = !(ground > 0);
+    $('scaleBadge').textContent = t('viewMeters').replace('{m}', num(ground, 0));
+
+    // No outline: a town spot (scanned close up, nothing found) or an old land (wide view only).
+    const noField = objs.length === 0;
+    const nothingHere = noField && ground > 0 && ground < 600;
+    $('landNotice').hidden = !noField;
+    $('landStats').hidden = noField;
+    $('askTitle').hidden = noField;
+    $('askChips').hidden = noField;
+    if (noField) {
+      $('noticeTitle').textContent = nothingHere ? t('noFarmTitle') : t('rescanTitle');
+      $('noticeText').textContent = nothingHere ? t('noFarmText') : t('rescanText');
+      $('demoBtn').hidden = !nothingHere;
+      $('rescanBtn').className = nothingHere ? 'btn wide' : 'btn yellow wide';
+      $('rescanIcoSearch').style.display = nothingHere ? 'none' : '';
+      $('rescanIcoRetry').style.display = nothingHere ? '' : 'none';
+      $('rescanLabel').textContent = nothingHere ? t('tryAgain') : t('rescanBtn');
+      $('samLine').textContent = samLine(land);
+    }
 
     const chips = $('askChips');
     chips.replaceChildren();
@@ -299,6 +331,25 @@
       chips.append(b);
     }
   }
+  // Small technical line for judges: what SAM looked at and what came back.
+  function samLine(land) {
+    const s = lastSam && lastSam.landId === land.id ? lastSam : null;
+    const ground = Number(land.ground_m) || 0;
+    const prompt = s?.prompt || (ground && ground < 600 ? 'field' : 'farm field');
+    let line = `SAM 3.1 · "${prompt}" · 0 fields at ${Math.round(ground)} m view`;
+    if (s?.error) line += ` · ${s.error}`;
+    return line;
+  }
+  $('rescanBtn').addEventListener('click', () => {
+    if (!current) return;
+    const id = current.id;
+    scanAndShow(() => postJson(`/api/lands/${id}/rescan`, {}), 'land');
+  });
+  $('demoBtn').addEventListener('click', () => {
+    const kind = current?.kind || 'empty';
+    scanAndShow(() => postJson('/api/lands', { kind, lang, place: 'bolpur' }), 'land');
+  });
+
   function drawFields() {
     const land = current;
     const svg = $('mapSvg');
@@ -332,8 +383,8 @@
     // Selected field drawn last so its outline sits on top.
     const selEl = svg.querySelector('.field.sel');
     if (selEl) svg.insertBefore(selEl, dot);
-    $('acresBadge').textContent = land.acres ? `${num(land.acres)} ${t('acres')}` : t('yourLand');
-    $('statAcres').textContent = num(land.acres);
+    $('acresBadge').textContent = land.acres ? `${acresText(land.acres)} ${t('acres')}` : t('yourLand');
+    $('statAcres').textContent = acresText(land.acres);
   }
   async function chooseField(id) {
     if (String(id) === String(current.selected_object)) return;
@@ -349,7 +400,7 @@
   $('landListen').addEventListener('click', () => {
     if (!current) return;
     const kind = current.kind === 'empty' ? t('emptyLand') : t('standingCrop');
-    speak(`${t('yourLand')}: ${kind}, ${num(current.acres)} ${t('acres')}.`);
+    speak(`${t('yourLand')}: ${kind}, ${acresText(current.acres)} ${t('acres')}.`);
   });
 
   // ---------- ask Saathi ----------

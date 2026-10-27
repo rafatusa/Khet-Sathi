@@ -3,9 +3,13 @@
 import assert from 'node:assert/strict';
 import { collectSegments } from '../lib/segment.js';
 import { transcriptText, messageText } from '../lib/meta.js';
-import { bboxFor, minHalfSide } from '../lib/tile.js';
+import { bboxFor, minHalfSide, zoomCenter } from '../lib/tile.js';
 import { cleanForSpeech, extractAudio, ensureWav } from '../lib/tts.js';
-import { acresFromPx, pickPlot, inSouthAsia } from '../lib/plot.js';
+import { acresFromPx, pickPlot, inSouthAsia, dropBlobs } from '../lib/plot.js';
+import { env } from '../lib/env.js';
+import { scanLand, choosePass } from '../lib/scan.js';
+import { plotProfile } from '../lib/agent.js';
+import sharp from 'sharp';
 
 // SAM 3.1 sample output from Meta's documentation, split across deltas.
 const outputText =
@@ -106,6 +110,116 @@ check('Satellite: never sharper than Esri allows', () => {
 check('Satellite bbox is square and centred', () => {
   const [x1, y1, x2, y2] = bboxFor(30.91, 75.62, 300);
   assert.ok(Math.abs(x2 - x1 - (y2 - y1)) < 0.01);
+});
+
+
+// ---------- v0.3.1 ----------
+check('Env: Windows line endings and invisible characters removed', () => {
+  process.env.KS_TEST_VAR = 'sam-3.1\r\n';
+  assert.equal(env('KS_TEST_VAR'), 'sam-3.1');
+  process.env.KS_TEST_VAR = '\uFEFFmuse-spark-1.3\u200B ';
+  assert.equal(env('KS_TEST_VAR'), 'muse-spark-1.3');
+  process.env.KS_TEST_VAR = '  \r';
+  assert.equal(env('KS_TEST_VAR', 'fallback'), 'fallback');
+  delete process.env.KS_TEST_VAR;
+  assert.equal(env('KS_TEST_VAR', 'x'), 'x');
+});
+check('Plot: whole-image blob dropped, real fields kept', () => {
+  const objs = [
+    { id: 'blob', areaPx: 0.64 * 1024 * 1024 },
+    { id: 'plot', areaPx: 9000 },
+    { id: 'boxOnly', box: { left: 0, top: 0, right: 100, bottom: 100 } },
+  ];
+  assert.deepEqual(dropBlobs(objs, 1024).map((o) => o.id), ['plot', 'boxOnly']);
+});
+check('Plot: acres on the zoomed 225 m view', () => {
+  // at 225/1024 m per px, 1 acre ≈ 83,830 px
+  assert.equal(acresFromPx(83830, 225, 1024), 1);
+});
+check('Scan: pass covering the farmer point wins', () => {
+  const zoom = { view: 'zoom', objects: [{ id: 'a', containsPoint: false }] };
+  const full = { view: 'full', objects: [{ id: 'b', containsPoint: true }] };
+  assert.equal(choosePass([zoom, full]).view, 'full');
+});
+check('Scan: nothing found keeps the close-up, all errors keep the wide view', () => {
+  assert.equal(choosePass([{ view: 'zoom', objects: [] }, { view: 'full', objects: [] }]).view, 'zoom');
+  assert.equal(choosePass([{ view: 'zoom', objects: [], error: 'x' }, { view: 'full', objects: [], error: 'y' }]).view, 'full');
+});
+check('Agent: no plot profile invented when no field was found', () => {
+  assert.ok(plotProfile({ lat: 1, lon: 2 }, { noField: true }).error);
+  assert.equal(plotProfile({ lat: 1, lon: 2 }).soil, 'alluvial loam');
+});
+
+async function checkAsync(name, fn) {
+  try {
+    await fn();
+    results.push(['PASS', name]);
+  } catch (e) {
+    results.push(['FAIL', `${name} - ${e.message}`]);
+  }
+}
+
+// A 1024 px test picture: left half dark, right half light.
+const testJpeg = await sharp({ create: { width: 1024, height: 1024, channels: 3, background: { r: 40, g: 90, b: 40 } } })
+  .composite([{ input: { create: { width: 512, height: 1024, channels: 3, background: { r: 220, g: 200, b: 150 } } }, left: 512, top: 0 }])
+  .jpeg()
+  .toBuffer();
+const fullImage = { dataUrl: `data:image/jpeg;base64,${testJpeg.toString('base64')}`, width: 1024, height: 1024, groundMeters: 600 };
+
+await checkAsync('Zoom: centre 384 px enlarged to 1024 px covers 225 m', async () => {
+  const z = await zoomCenter(fullImage, { keepPx: 384, outPx: 1024 });
+  const meta = await sharp(Buffer.from(z.dataUrl.split(',')[1], 'base64')).metadata();
+  assert.equal(meta.width, 1024);
+  assert.equal(meta.height, 1024);
+  assert.equal(z.groundMeters, 225);
+});
+
+await checkAsync('Scan: zoomed "field" pass used first; wide pass skipped once the plot is found', async () => {
+  const asked = [];
+  const r = await scanLand({
+    lat: 23.64,
+    lon: 87.73,
+    fetchImage: async () => fullImage,
+    segment: async (image, prompt) => {
+      asked.push(`${image.groundMeters}:${prompt}`);
+      return { objects: [{ id: '7', box: { left: 480, top: 480, right: 560, bottom: 560 }, areaPx: 6400, containsPoint: true }] };
+    },
+  });
+  assert.deepEqual(asked, ['225:field']);
+  assert.equal(r.sam.view, 'zoom');
+  assert.equal(r.image.groundMeters, 225);
+  assert.equal(r.plot.id, '7');
+  assert.ok(r.plot.acres > 0 && r.plot.acres < 0.1);
+});
+
+await checkAsync('Scan: falls back to wide "farm field" when the close-up finds only a blob', async () => {
+  const r = await scanLand({
+    lat: 30.91,
+    lon: 75.62,
+    fetchImage: async () => fullImage,
+    segment: async (image, prompt) =>
+      prompt === 'field'
+        ? { objects: [{ id: 'blob', box: { left: 0, top: 0, right: 1024, bottom: 1024 }, areaPx: 700000, containsPoint: true }] }
+        : { objects: [{ id: '3', box: { left: 400, top: 400, right: 600, bottom: 600 }, areaPx: 40000, containsPoint: true }] },
+  });
+  assert.equal(r.sam.view, 'full');
+  assert.equal(r.image.groundMeters, 600);
+  assert.equal(r.plot.id, '3');
+  assert.deepEqual(r.sam.passes.map((p) => [p.view, p.found, p.kept]), [['zoom', 1, 0], ['full', 1, 1]]);
+});
+
+await checkAsync('Scan: SAM errors are reported, not hidden', async () => {
+  const r = await scanLand({
+    lat: 23.64,
+    lon: 87.73,
+    fetchImage: async () => fullImage,
+    segment: async () => {
+      throw new Error('model_not_found: sam-3.1\r');
+    },
+  });
+  assert.equal(r.objects.length, 0);
+  assert.equal(r.image.groundMeters, 600);
+  assert.match(r.sam.error, /zoom: model_not_found/);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);
