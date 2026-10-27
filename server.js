@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptText, segmentStream, uploadFile, deleteFile, respond, responseText } from './lib/meta.js';
 import { analyseFrames, framesFromSegments, observePrompt, parseObservation, MAX_FRAMES, SAFE_VET_LINE } from './lib/poultry.js';
+import { autoSigns, vetMessage, cleanCall, parseDeaths, parseSince, SIGN_CODES } from './lib/vetcall.js';
 import { readIndex, createClip, putClipVideo, getClip, clipFrames, clipVideo, saveResult, deleteClip, setToday, todayCamera, MAX_CLIPS } from './lib/clips.js';
 import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage, zoomCenter } from './lib/tile.js';
@@ -24,7 +25,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.7.1';
+const VERSION = '0.7.2';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -550,6 +551,42 @@ app.get(
     const shed = latest[SHED_DEVICE] ? Object.fromEntries(SHED_METRICS.filter((m) => latest[SHED_DEVICE][m]).map((m) => [m, latest[SHED_DEVICE][m]])) : null;
     const vets = await listContacts('vet').catch(() => []);
     return { shed, simulated: true, last: lastShed, vet: vets[0] || null, eggTarget: 300 };
+  })
+);
+
+// ---------- symptoms to the vet (v0.7.2; the vet and the call are SIMULATED) ----------
+// Signs Saathi ticks from one camera check: SAM still birds (daytime) + what Spark saw or heard.
+app.post(
+  '/api/vet/signs',
+  guard,
+  timed(async (req) => ({ signs: autoSigns({ count: req.body?.count, observation: req.body?.observation, night: isNight(shedHour()) }), all: SIGN_CODES }))
+);
+
+// The farmer's spoken answer to "since when?" and "any deaths today?".
+app.post(
+  '/api/vet/answer',
+  guard,
+  timed(async (req) => {
+    const text = String(req.body?.text || '').slice(0, 500);
+    return { since: parseSince(text), deaths: parseDeaths(text) };
+  })
+);
+
+// Preview: the exact words Saathi will say. Nothing is sent.
+app.post('/api/vet/message', guard, timed(async (req) => ({ message: vetMessage(req.body || {}) })));
+
+// The simulated call: only with the farmer's consent. No real call is made.
+app.post(
+  '/api/vet/call',
+  guard,
+  timed(async (req) => {
+    if (req.body?.consent !== true) throw new Error('The farmer has to agree before Saathi calls the vet');
+    const call = cleanCall(req.body);
+    const message = vetMessage(call);
+    const vets = await listContacts('vet').catch(() => []);
+    const calledAt = new Date().toISOString();
+    lastShed = { ...(lastShed || {}), vetCall: { ...call, calledAt } };
+    return { message, vet: vets[0] || null, simulated: true, calledAt };
   })
 );
 

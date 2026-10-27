@@ -63,6 +63,7 @@
   function applyLang() {
     document.documentElement.lang = lang || 'bn';
     document.querySelectorAll('[data-t]').forEach((el) => (el.textContent = t(el.dataset.t)));
+    document.querySelectorAll('[data-tl]').forEach((el) => el.setAttribute('aria-label', t(el.dataset.tl)));
     $('langSwitch').textContent = { bn: 'বাংলা', hi: 'हिंदी', en: 'English' }[lang] || 'বাংলা';
     if (health?.demoPlaces) {
       document.querySelectorAll('[data-place]').forEach((b) => {
@@ -747,7 +748,7 @@
   // Video comes from the farmer's phone. Frames are pulled here in the browser (no video tools
   // on the server); SAM counts birds per frame; Muse Spark 1.2 watches the clip with its sound.
   // Shed sensors, egg counter and the vet are SIMULATED. No disease or medicine is ever named.
-  let shed = { vet: null, vetSummary: '', still: 0, resting: false, soundBad: false };
+  let shed = { vet: null, vetSummary: '', still: 0, resting: false, soundBad: false, lastCount: null, lastObs: null };
   $('goShed').addEventListener('click', () => openShed());
 
   function shedProgress(text) {
@@ -874,6 +875,8 @@
     shed.still = 0;
     shed.soundBad = false;
     shed.vetSummary = '';
+    shed.lastCount = null;
+    shed.lastObs = null;
   }
 
   async function loadClips() {
@@ -892,7 +895,6 @@
   function renderClipRow() {
     const row = $('clipRow');
     row.replaceChildren();
-    if (!clips.clips.length) return;
     for (const c of clips.clips) {
       const b = document.createElement('div');
       b.className = `clip${c.id === clipSel ? ' on' : ''}`;
@@ -914,7 +916,7 @@
     const add = document.createElement('button');
     add.className = 'clip add';
     add.textContent = t('clipsNew');
-    add.addEventListener('click', () => $('shedVideoInput').click());
+    add.addEventListener('click', () => $('shedGalleryInput').click());
     row.append(add);
   }
 
@@ -931,6 +933,7 @@
     $('clipChecked').textContent = r?.checkedAt ? fmt('lastChecked', { when: ago(r.checkedAt) }) : t('notChecked');
     $('clipToday').hidden = false;
     $('clipTodayInput').checked = clips.todayId === c.id;
+    shed.lastCount = r?.count ? { still, resting: r.count.resting || isNightNow() } : null;
     if (r?.count) {
       shed.still = still.length;
       shed.resting = r.count.resting || isNightNow();
@@ -1011,7 +1014,7 @@
   });
 
   // A newly picked video: show it, then ask whether to save it or check it once.
-  $('shedVideoInput').addEventListener('change', async (e) => {
+  const onVideoPicked = async (e) => {
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
@@ -1035,7 +1038,9 @@
     } finally {
       shedProgress('');
     }
-  });
+  };
+  $('shedVideoInput').addEventListener('change', onVideoPicked);
+  $('shedGalleryInput').addEventListener('change', onVideoPicked);
 
   $('clipOnceBtn').addEventListener('click', async () => {
     if (!pending) return;
@@ -1078,6 +1083,7 @@
       if (!r.ok) throw new Error(r.error);
       shed.still = r.still.length;
       shed.resting = r.resting;
+      shed.lastCount = { still: r.still, resting: r.resting };
       $('shedStats').hidden = false;
       $('shedCount').textContent = num(r.count, 0);
       $('shedStill').textContent = num(r.resting ? 0 : r.still.length, 0);
@@ -1103,6 +1109,7 @@
     const o = w.observation || {};
     shed.vetLine = w.vetLine;
     if (!o.ok) return;
+    shed.lastObs = o;
     shed.soundBad = o.unusualSound;
     shed.vetSummary = o.vetSummary || '';
     const box = $('shedSound');
@@ -1159,20 +1166,192 @@
     }
   });
 
-  // Vet sheet: simulated contact, no real call.
-  function openVet() {
-    $('vetSheetName').textContent = shed.vet?.name || t('vet');
-    $('vetSheetPlace').textContent = shed.vet?.village || '';
-    $('vetSheetSummary').textContent = shed.vetSummary || '';
-    $('vetSheet').hidden = false;
-    $('vetSheetClose').focus();
+  // ---------- symptoms to the vet (v0.7.2): the vet and the call are SIMULATED ----------
+  // 1. Saathi ticks what the camera showed; the farmer unticks or adds. 2. Two questions, by voice
+  // or buttons. 3. The exact words, the farmer's consent, then a demo call that only plays them.
+  const vet = { signs: new Set(), auto: new Set(), since: null, deaths: null, message: '' };
+  const SIGNS = ['still', 'off_feed', 'crowding', 'twisted_neck', 'wet_litter', 'breathing', 'swollen_face', 'weak', 'drink_less', 'droppings', 'fewer_eggs'];
+
+  function vetStep(n) {
+    [1, 2, 3].forEach((i) => ($(`vetStep${i}`).hidden = i !== n));
+    $('vetTitle').textContent = n === 1 ? t(vet.auto.size ? 'signsTitleAuto' : 'signsTitle') : n === 2 ? t('moreTitle') : shed.vet?.name || t('vet');
   }
-  $('shedVetBtn').addEventListener('click', openVet);
-  $('vetSheetClose').addEventListener('click', () => ($('vetSheet').hidden = true));
-  $('vetSheet').addEventListener('click', (e) => {
-    if (e.target === $('vetSheet')) $('vetSheet').hidden = true;
+
+  async function openVet() {
+    vet.signs = new Set();
+    vet.auto = new Set();
+    vet.since = null;
+    vet.deaths = null;
+    try {
+      const r = await postJson('/api/vet/signs', { count: shed.lastCount, observation: shed.lastObs });
+      if (r.ok) vet.auto = new Set(r.signs);
+    } catch {}
+    vet.signs = new Set(vet.auto);
+    renderSigns();
+    renderSince();
+    $('vetDeaths').textContent = '—';
+    $('vetHeard').hidden = true;
+    $('vetMicLabel').textContent = t('answerHint');
+    $('vetSignsNote').hidden = !vet.auto.size;
+    vetStep(1);
+    $('vetSheet').hidden = false;
+    $('vetNext1').focus();
+  }
+
+  function renderSigns() {
+    const box = $('vetSigns');
+    box.replaceChildren();
+    const stillN = shed.lastCount?.still?.length || 0;
+    for (const code of SIGNS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.setAttribute('aria-pressed', String(vet.signs.has(code)));
+      const label = code === 'still' && stillN ? fmt('sign_still', { n: num(stillN, 0) }) : code === 'still' ? t('sign_still0') : t(`sign_${code}`);
+      b.innerHTML = `${esc(label)}${vet.auto.has(code) ? ` <span class="src">${esc(t('fromVideo'))}</span>` : ''}`;
+      b.addEventListener('click', () => {
+        if (vet.signs.has(code)) vet.signs.delete(code);
+        else vet.signs.add(code);
+        b.setAttribute('aria-pressed', String(vet.signs.has(code)));
+      });
+      box.append(b);
+    }
+  }
+
+  function renderSince() {
+    const box = $('vetSince');
+    box.replaceChildren();
+    for (const code of ['today', 'days', 'week']) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', String(vet.since === code));
+      b.textContent = t(`since_${code}`);
+      b.addEventListener('click', () => {
+        vet.since = code;
+        renderSince();
+      });
+      box.append(b);
+    }
+  }
+
+  const setDeaths = (n) => {
+    vet.deaths = n === null ? null : Math.max(0, Math.min(9999, n));
+    $('vetDeaths').textContent = vet.deaths === null ? '—' : num(vet.deaths, 0);
+  };
+  $('vetDeathsMinus').addEventListener('click', () => setDeaths(vet.deaths === null ? 0 : vet.deaths - 1));
+  $('vetDeathsPlus').addEventListener('click', () => setDeaths((vet.deaths ?? 0) + 1));
+
+  $('vetNext1').addEventListener('click', () => {
+    vetStep(2);
+    speak(`${t('askSince')} ${t('askDeaths')}`);
   });
-  $('vetSheetSay').addEventListener('click', () => speak(shed.vetSummary || $('shedActionText').textContent));
+
+  // Tap to answer by voice, tap again (or 8 seconds) to stop.
+  let vetRec = null;
+  $('vetMic').addEventListener('click', async () => {
+    if (vetRec) return vetRec.state === 'recording' && vetRec.stop();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const parts = [];
+      vetRec = new MediaRecorder(stream);
+      vetRec.ondataavailable = (e) => e.data.size && parts.push(e.data);
+      const stopTimer = setTimeout(() => vetRec?.state === 'recording' && vetRec.stop(), 8000);
+      vetRec.onstop = async () => {
+        clearTimeout(stopTimer);
+        stream.getTracks().forEach((tr) => tr.stop());
+        vetRec = null;
+        $('vetMic').classList.remove('on');
+        $('vetMic').disabled = true;
+        $('vetMicLabel').textContent = t('thinkingShort');
+        try {
+          const wav = await toWav(new Blob(parts, { type: parts[0]?.type || 'audio/webm' }));
+          const tr = await api('/api/transcribe', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: wav });
+          if (!tr.ok || !tr.text) throw new Error('empty');
+          $('vetHeard').textContent = fmt('heardYou', { text: tr.text });
+          $('vetHeard').hidden = false;
+          const a = await postJson('/api/vet/answer', { text: tr.text });
+          if (a.since) {
+            vet.since = a.since;
+            renderSince();
+          }
+          if (a.deaths !== null && a.deaths !== undefined) setDeaths(a.deaths);
+          $('vetMicLabel').textContent = a.since || a.deaths !== null ? t('answerHint') : t('answerNotClear');
+        } catch {
+          $('vetMicLabel').textContent = t('answerNotClear');
+        } finally {
+          $('vetMic').disabled = false;
+        }
+      };
+      vetRec.start();
+      $('vetMic').classList.add('on');
+      $('vetMicLabel').textContent = t('answerListening');
+    } catch (err) {
+      vetRec = null;
+      toast(`Mic: ${err.message}`);
+    }
+  });
+
+  const callBody = () => ({ lang, signs: [...vet.signs], still: shed.lastCount?.still?.length || null, since: vet.since, deaths: vet.deaths });
+
+  $('vetNext2').addEventListener('click', async () => {
+    $('vetNext2').disabled = true;
+    try {
+      const r = await postJson('/api/vet/message', callBody());
+      if (!r.ok) throw new Error(r.error);
+      vet.message = r.message;
+      $('vetMsg').textContent = r.message;
+      $('vetPlace').innerHTML = `${esc(shed.vet?.village || '')} <span class="sample">${esc(t('simulated'))}</span>`;
+      $('vetConsent').checked = false;
+      $('vetCall').disabled = true;
+      $('vetCallBox').hidden = true;
+      vetStep(3);
+    } catch (err) {
+      toast(`${t('error')}: ${err.message}`);
+    } finally {
+      $('vetNext2').disabled = false;
+    }
+  });
+
+  $('vetConsent').addEventListener('change', (e) => ($('vetCall').disabled = !e.target.checked));
+
+  $('vetCall').addEventListener('click', async () => {
+    if (!$('vetConsent').checked) return;
+    $('vetCall').disabled = true;
+    try {
+      const r = await postJson('/api/vet/call', { ...callBody(), consent: true });
+      if (!r.ok) throw new Error(r.error);
+      $('vetCallBox').hidden = false;
+      $('vetCallBox').classList.add('live');
+      $('vetCallState').textContent = t('callLive');
+      await speak(r.message);
+      const done = () => {
+        $('vetCallBox').classList.remove('live');
+        $('vetCallState').textContent = t('callDone');
+      };
+      if (player && !player.ended) player.addEventListener('ended', done, { once: true });
+      else done();
+    } catch (err) {
+      $('vetCallBox').hidden = true;
+      toast(`${t('error')}: ${err.message}`);
+    } finally {
+      $('vetCall').disabled = !$('vetConsent').checked;
+    }
+  });
+
+  const closeVet = () => {
+    if (vetRec?.state === 'recording') vetRec.stop();
+    if (player) player.pause();
+    $('vetSheet').hidden = true;
+  };
+  $('shedVetBtn').addEventListener('click', openVet);
+  $('shedSignsBtn').addEventListener('click', openVet);
+  $('vetClose').addEventListener('click', closeVet);
+  $('vetBack').addEventListener('click', closeVet);
+  $('vetSheet').addEventListener('click', (e) => {
+    if (e.target === $('vetSheet')) closeVet();
+  });
   $('shedSayBtn').addEventListener('click', () => speak(`${$('shedActionTitle').textContent}. ${$('shedActionText').textContent}`));
   $('shedListen').addEventListener('click', () => {
     const parts = [];
@@ -1201,7 +1380,7 @@
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !$('deleteSheet').hidden) closeDeleteSheet();
-    if (e.key === 'Escape' && !$('vetSheet').hidden) $('vetSheet').hidden = true;
+    if (e.key === 'Escape' && !$('vetSheet').hidden) closeVet();
     if (e.key === 'Escape' && !$('clipDelSheet').hidden) $('clipDelSheet').hidden = true;
   });
   $('deleteYes').addEventListener('click', async () => {

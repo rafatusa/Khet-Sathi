@@ -20,6 +20,7 @@ import { analyseFrames, safeText, parseObservation } from '../lib/poultry.js';
 import { responseText } from '../lib/meta.js';
 import { fieldAlerts, shedAlerts, cameraAlerts, dedupe } from '../lib/alerts.js';
 import * as clipsLib from '../lib/clips.js';
+import { autoSigns, vetMessage, cleanCall, parseDeaths, parseSince, SIGN_CODES } from '../lib/vetcall.js';
 import { createEngine } from '../lib/engine.js';
 import * as memStore from '../lib/store.js';
 import sharp from 'sharp';
@@ -495,6 +496,50 @@ await checkAsync('Clips: save, keep result, set as today\'s camera, delete (memo
   assert.deepEqual(idx.clips.map((c) => c.name), ['স্বাভাবিক দিন']);
   for (let i = 0; i < 4; i++) await clipsLib.createClip({ name: `c${i}`, frames: [jpg, jpg] });
   await assert.rejects(clipsLib.createClip({ name: 'sixth', frames: [jpg, jpg] }), /Up to 5/);
+});
+
+// ---------- v0.7.2: symptoms to the vet ----------
+check('Vet signs: only listed codes; still birds by day only; model flags mapped', () => {
+  const obs = parseObservation('{"signs":["twisted_neck","ranikhet","weak","still"],"spilled_water_or_wet_litter":true,"unusual_sound":true}');
+  assert.deepEqual(obs.signs, ['twisted_neck', 'weak'], 'unknown codes and still (SAM only) are dropped');
+  const count = { still: [{}, {}], resting: false };
+  assert.deepEqual(autoSigns({ count, observation: obs }), ['still', 'twisted_neck', 'wet_litter', 'breathing', 'weak']);
+  assert.deepEqual(autoSigns({ count, observation: obs, night: true }), ['twisted_neck', 'wet_litter', 'breathing', 'weak'], 'resting hens at night');
+  assert.deepEqual(autoSigns({}), []);
+  assert.deepEqual(cleanCall({ signs: ['weak', 'bird_flu', 'still', 'weak'], deaths: '-3', since: 'month' }).signs, ['still', 'weak']);
+  assert.equal(cleanCall({ deaths: -3 }).deaths, 0);
+  assert.equal(cleanCall({ since: 'month' }).since, null);
+});
+
+check('Vet message: fixed words in 3 languages, never a disease or medicine', () => {
+  const body = { signs: ['still', 'off_feed', 'twisted_neck'], still: 8, since: 'days', deaths: 2 };
+  const bn = vetMessage({ ...body, lang: 'bn' });
+  assert.match(bn, /^ডাক্তার সাহেব/);
+  assert.match(bn, /২-৩ দিন ধরে খামারি এগুলো দেখছেন: ৮টি মুরগি দিনের বেলা নড়ছে না, কিছু মুরগি খাবারের কাছে যাচ্ছে না, কয়েকটির ঘাড় বাঁকা।/);
+  assert.match(bn, /আজ ২টি মুরগি মারা গেছে।/);
+  assert.match(vetMessage({ ...body, lang: 'en', deaths: 1 }), /For 2-3 days the farmer has seen: 8 birds are not moving.*1 bird died today\./);
+  assert.match(vetMessage({ lang: 'hi', signs: [], deaths: 0 }), /कुछ असामान्य.*आज कोई मुर्गी नहीं मरी।/);
+  assert.doesNotMatch(vetMessage({ lang: 'bn', signs: [] }), /মারা/, 'no deaths line when not answered');
+  for (const lang of ['bn', 'hi', 'en']) {
+    const all = vetMessage({ lang, signs: SIGN_CODES, still: 3, since: 'week', deaths: 4 });
+    assert.equal(safeText(all), all, `${lang}: every sentence passes the disease and medicine filter`);
+  }
+});
+
+check('Vet answers by voice: since when and deaths', () => {
+  assert.equal(parseDeaths('হ্যাঁ, দুটো'), 2);
+  assert.equal(parseDeaths('তিনটা মারা গেছে'), 3);
+  assert.equal(parseDeaths('আজ ৫টা'), 5);
+  assert.equal(parseDeaths('না'), 0);
+  assert.equal(parseDeaths('नहीं, कोई नहीं'), 0);
+  assert.equal(parseDeaths('two of them'), 2);
+  assert.equal(parseDeaths('ঠিক জানি না'), null, 'not sure is not zero');
+  assert.equal(parseDeaths('hmm'), null);
+  assert.equal(parseSince('দুই তিন দিন ধরে'), 'days');
+  assert.equal(parseSince('আজ সকাল থেকে'), 'today');
+  assert.equal(parseSince('এক সপ্তাহ হবে'), 'week');
+  assert.equal(parseSince('कल से'), 'days');
+  assert.equal(parseSince('hmm'), null);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);
