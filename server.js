@@ -11,10 +11,10 @@ import { readIndex, createClip, putClipVideo, getClip, clipFrames, clipVideo, sa
 import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage, zoomCenter } from './lib/tile.js';
 import { scanLand } from './lib/scan.js';
-import { buildPlan, localToday } from './lib/plan.js';
+import { buildPlan, localToday, placeForLand } from './lib/plan.js';
 import { aezFor, calendarRecords, calendarFor } from './lib/calendar.js';
 import { createEngine } from './lib/engine.js';
-import { fieldDevice, SHED_DEVICE, latestByDevice, FIELD_METRICS, SHED_METRICS, isNight } from './lib/sensors.js';
+import { fieldDevice, SHED_DEVICE, latestByDevice, FIELD_METRICS, SHED_METRICS, isNight, eggsPerDay } from './lib/sensors.js';
 import { env } from './lib/env.js';
 import { runAgent } from './lib/agent.js';
 import { TTS, hasTtsKey, synthesize } from './lib/tts.js';
@@ -22,18 +22,27 @@ import { brainChat, openChat, hasOpenKey, OPEN } from './lib/brain.js';
 import { fieldHealth } from './lib/sentinel.js';
 import { fieldPolygonM, areaAcres } from './lib/fieldgeo.js';
 import { DEMO_PLACES } from './lib/plot.js';
+import { nearbyShops, currencyFor } from './lib/place.js';
+import { needsFor, orderCalls, DEMO_SHOP, DEMO_CREW } from './lib/market.js';
 import {
   dbConfigured, isId, newId, createLand, listLands, getLand, updateLand, deleteLand, putFile, getFile, deleteFiles, listAlerts, pingDb,
   recentAlerts, insertAlerts, markAlertRead, insertReadings, latestReadings, listContacts, CLIP_BUCKET, getSellRule, saveSellRule, insertDeal, listDeals,
+  listSheds, createShed, metricHistory,
 } from './lib/store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.10.1';
+const VERSION = '0.11.0';
 
 app.use(express.json({ limit: '15mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+// v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
+const PUB = path.join(__dirname, 'public');
+app.get(['/', '/index.html'], (req, res) => res.sendFile(path.join(PUB, 'app.html')));
+app.get(['/next', '/next/', '/next/index.html'], (req, res) => res.redirect(302, '/'));
+// Express matches /classic and /classic/ alike, so one route tells them apart (relative links need the slash).
+app.get('/classic', (req, res) => (req.originalUrl.split('?')[0] === '/classic' ? res.redirect(301, '/classic/') : res.sendFile(path.join(PUB, 'classic.html'))));
+app.use(express.static(PUB));
 
 // Optional passcode so a public URL can't burn API credits.
 // Images use ?k= because <img> tags can't send headers.
@@ -219,6 +228,11 @@ async function planForLand(land) {
       plan.saveError = err.message; // shown on the bench; the plan itself is still returned
     }
   }
+  // v0.11.0: the place check is kept on the land (needs SQL 005; without it the check reruns, cached in memory).
+  if (plan.placeFresh && plan.place && !plan.place.error) {
+    land.place_info = plan.place;
+    await updateLand(land.id, { place_info: plan.place }).catch((err) => (plan.placeSaveError = err.message));
+  }
   return plan;
 }
 
@@ -252,6 +266,103 @@ app.get(
       healthCache.set(key, { at: Date.now(), health });
     }
     return { outline: rings, outlineFound: Boolean(outline), outlineAcres: Math.round(areaAcres(rings) * 100) / 100, groundM: land.ground_m, imagePx: land.image_px, health };
+  })
+);
+
+// Where a land is and what covers it, also for lands with no field outline (a town is called a town).
+app.get(
+  '/api/lands/:id/place',
+  guard,
+  timed(async (req) => {
+    const land = await getLand(req.params.id);
+    if (!land) throw new Error('Land not found');
+    const { place, fresh } = await placeForLand(land);
+    if (fresh && !place.error) await updateLand(land.id, { place_info: place }).catch(() => null);
+    return { place };
+  })
+);
+
+// ---------- buying for a field (v0.11.0): real shop names, DEMO calls, simulated booking ----------
+app.get(
+  '/api/lands/:id/market',
+  guard,
+  timed(async (req) => {
+    const land = await getLand(req.params.id);
+    if (!land) throw new Error('Land not found');
+    const plan = (land.objects || []).length ? await planForLand(land).catch(() => null) : null;
+    const crop = land.crop || plan?.crops?.[0]?.key || null;
+    const currency = plan?.currency || currencyFor(land.place_info?.cc);
+    const shops = await nearbyShops(Number(land.lat), Number(land.lon)).catch((err) => ({ shops: [], error: err.message }));
+    return {
+      crop,
+      acres: land.acres ?? null,
+      currency,
+      blocked: Boolean(plan?.blocked),
+      needs: crop ? needsFor({ crop, acres: land.acres || 1, currency }) : [],
+      shops: shops.shops,
+      shopSource: shops.source || null,
+      shopError: shops.error || null,
+      demoShop: land.location_source === 'demo' ? DEMO_SHOP : null,
+      demoLand: land.location_source === 'demo',
+      crew: DEMO_CREW,
+      place: plan?.place ? [plan.place.village, plan.place.district].filter(Boolean).join(', ') : null,
+      simulated: true,
+    };
+  })
+);
+
+app.post(
+  '/api/lands/:id/order',
+  guard,
+  timed(async (req) => {
+    const land = await getLand(req.params.id);
+    if (!land) throw new Error('Land not found');
+    const { lines: want = [], shop, crop, cropName, lang, place } = req.body || {};
+    const currency = land.place_info?.currency || currencyFor(land.place_info?.cc);
+    const all = needsFor({ crop: String(crop || land.crop || ''), acres: land.acres || 1, currency });
+    const lines = all.filter((l) => want.includes(l.id));
+    if (!lines.length) throw new Error('Pick at least one thing to buy');
+    const L = ['bn', 'hi', 'en'].includes(lang) ? lang : 'bn';
+    // A real land (the farmer's own GPS or photo): nothing is faked. Saathi only says it will call the
+    // real shop, and the app notes that calling is coming soon. Demo lands keep the scripted demo call.
+    if (land.location_source !== 'demo') {
+      return { comingSoon: true, shop: shop?.real ? { name: String(shop.name).slice(0, 80), km: shop.km ?? null, source: shop.source || null } : null, lines, currency, simulated: false };
+    }
+    const shopName = String(shop?.name || DEMO_SHOP.name[L]).slice(0, 80);
+    const calls = orderCalls({ lines, shop: shopName, crew: DEMO_CREW.name[L], place: String(place || '').slice(0, 80), cropName: String(cropName || crop || '').slice(0, 40), currency, lang: L });
+    const total = lines.reduce((a, l) => a + l.price, 0);
+    const deal = await insertDeal({
+      land_id: land.id,
+      direction: 'buy',
+      items: lines.map((l) => ({ item: l.id, crop: l.crop || null, qty: l.qty, unit: l.unit, price: l.price, currency: currency.code, symbol: currency.symbol, shop: l.id === 'plough' ? DEMO_CREW.name[L] : shopName, shopReal: l.id === 'plough' ? false : Boolean(shop?.real), simulated: true })),
+      total_inr: total,
+      status: 'confirmed',
+    });
+    // The update the farmer sees in Saathi after the (demo) calls.
+    await insertAlerts([{ land_id: land.id, area: 'market', severity: 'info', title: 'order_booked', source: 'demo', body: JSON.stringify({ shop: shopName, total, symbol: currency.symbol, when: calls[0]?.when || '' }) }]).catch(() => null);
+    return { calls, total, currency, deal, simulated: true };
+  })
+);
+
+// ---------- sheds (v0.11.0) ----------
+app.get('/api/sheds', guard, timed(async () => ({ sheds: await listSheds() })));
+app.post(
+  '/api/sheds',
+  guard,
+  timed(async (req) => {
+    const name = String(req.body?.name || '').trim().slice(0, 60);
+    if (!name) throw new Error('Give the shed a name');
+    const n = Number(req.body?.chickens);
+    const lat = Number(req.body?.lat);
+    const lon = Number(req.body?.lon);
+    const shed = await createShed({
+      name,
+      chickens: Number.isFinite(n) && n > 0 ? Math.min(100000, Math.round(n)) : null,
+      lat: Number.isFinite(lat) ? lat : null,
+      lon: Number.isFinite(lon) ? lon : null,
+      lang: ['bn', 'hi', 'en'].includes(req.body?.lang) ? req.body.lang : 'bn',
+    });
+    return { shed };
   })
 );
 
@@ -346,6 +457,7 @@ app.post(
         lat = land.lat;
         lon = land.lon;
         plan = await planForLand(land).catch(() => null);
+        if (plan) plan.demoLand = land.location_source === 'demo';
         context = [
           land.kind === 'empty' ? 'the land is empty, nothing planted yet' : `there is a standing crop${land.crop ? ` (${land.crop})` : ''}`,
           land.acres ? `plot size about ${land.acres} acres (measured from satellite)` : 'plot size unknown',
@@ -353,6 +465,7 @@ app.post(
       }
     }
     if (!landId) plan = await buildPlan({ lat, lon, place: 'bogura' }).catch(() => null);
+    if (!landId && plan) plan.demoLand = true;
     return runAgent({ userText: String(text).slice(0, 2000), lat, lon, context, noField, plan });
   })
 );
@@ -543,6 +656,27 @@ app.delete(
 );
 
 // Frames of a saved clip, for the shed screen.
+// The clip's video (v0.11.0): the Shed tab plays saved clips as camera feeds. Supports Range for Safari.
+app.get('/api/clips/:id/video', guard, async (req, res) => {
+  try {
+    const clip = await getClip(req.params.id);
+    const file = clip ? await clipVideo(clip) : null;
+    if (!file) return res.status(404).end();
+    const buf = file.buffer;
+    const total = buf.length;
+    const type = file.contentType && file.contentType.startsWith('video/') ? file.contentType : 'video/mp4';
+    res.set({ 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=3600' });
+    const m = /bytes=(\d*)-(\d*)/.exec(req.get('range') || '');
+    if (!m) return res.send(buf);
+    const start = m[1] ? Number(m[1]) : 0;
+    const end = m[2] ? Math.min(Number(m[2]), total - 1) : total - 1;
+    if (start >= total || start > end) return res.status(416).set('Content-Range', `bytes */${total}`).end();
+    res.status(206).set('Content-Range', `bytes ${start}-${end}/${total}`).send(buf.subarray(start, end + 1));
+  } catch {
+    res.status(502).end();
+  }
+});
+
 app.get('/api/clips/:id/frame/:n', guard, async (req, res) => {
   try {
     const clip = await getClip(req.params.id);
@@ -589,6 +723,12 @@ app.get(
     const vets = await listContacts('vet').catch(() => []);
     return { shed, simulated: true, last: lastShed, vet: withNames(vets[0]), eggTarget: (await loadRule()).min_count || 300 };
   })
+);
+
+app.get(
+  '/api/shed/eggs',
+  guard,
+  timed(async () => ({ days: eggsPerDay(await metricHistory(SHED_DEVICE, 'eggs_today').catch(() => []), localToday('Asia/Kolkata')), simulated: true }))
 );
 
 // ---------- symptoms to the vet (v0.7.2; the vet and the call are SIMULATED) ----------

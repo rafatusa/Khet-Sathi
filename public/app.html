@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="bn" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Khet Saathi</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Da+2:wght@600;700;800&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hind+Siliguri:wght@400;500;600;700&family=Hind:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/next/ks.css">
+<link rel="stylesheet" href="/next/ks-real.css">
+</head>
+<body>
+<header>
+  <div class="wrap top">
+    <div class="orbit" aria-hidden="true"><div class="earth"></div><div class="sat"><span data-icon="sat"></span></div></div>
+    <div>
+      <div class="brand">Khet <span>Saathi</span></div>
+      <button class="farmbtn" id="farmBtn" data-tl="switchLand"><span class="mchip" id="modeChip"></span><span class="t" id="farmLine"></span><span data-icon="chev"></span></button>
+    </div>
+    <div class="toptabs" id="topTabs"></div>
+    <div class="hbtns">
+      <button class="addbtn" id="addBtn"><span data-icon="plus"></span><span class="t" data-t="addAny"></span></button>
+      <div class="lang" role="group" aria-label="Language"><button data-lang="bn" aria-pressed="true">বাং</button><button data-lang="hi" aria-pressed="false">हिं</button><button data-lang="en" aria-pressed="false">EN</button></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="demo" data-t="demo"></div>
+
+  <!-- PASSCODE -->
+  <section id="pass" role="tabpanel" hidden>
+    <div class="panel passbox">
+      <h2 data-t="passH"></h2>
+      <p class="sub" data-t="passText"></p>
+      <form id="passForm" class="askrow"><input id="passIn" type="password" autocomplete="current-password" data-tp="passPh"><button class="btn" type="submit" data-t="passGo"></button></form>
+    </div>
+  </section>
+
+  <!-- HOME -->
+  <section id="home" role="tabpanel">
+    <div class="strip">
+      <div class="plantmini" id="plantHome"></div>
+      <div class="strip-t"><div class="big" id="heroBig"></div><div class="hi" id="heroSub"></div></div>
+      <button class="cta" id="heroCta"><span data-icon="check" id="heroIc"></span><span id="heroCtaT"></span></button>
+    </div>
+    <div class="dash" id="dash">
+      <div class="card c-score">
+        <div class="lab"><span data-icon="leaf"></span><span data-t="healthH"></span></div>
+        <div class="ringwrap"><svg viewBox="0 0 120 120" class="ring"><circle cx="60" cy="60" r="50" class="rbg" pathLength="100"/><circle cx="60" cy="60" r="50" class="rfg" id="ringFg" pathLength="100"/></svg>
+          <div class="ringv"><b id="scoreV">—</b><span>NDVI</span></div></div>
+        <div class="minis"><span class="pill ok" id="scoreTag"></span></div>
+      </div>
+      <div class="card c-kpi"><div class="kpis" id="kpis"></div></div>
+      <div class="card span2"><div class="lab"><span data-icon="sat"></span><span data-t="ndviH"></span><span class="src-tag" data-t="srcS2"></span></div><div id="chNdvi"></div></div>
+      <div class="card span2"><div class="lab"><span data-icon="eye"></span><span data-t="zonesH"></span><span class="pill warn" style="margin-left:auto" id="zoneTag"></span></div><div class="zones" id="zones"></div><div class="zinfo mono" id="zinfo"></div></div>
+      <div class="card span2"><div class="lab"><span data-icon="sprout"></span><span data-t="growH"></span><span class="src-tag" id="growSrc"></span></div><div class="growlist" id="grow"></div></div>
+      <div class="card span2"><div class="lab"><span data-icon="drop"></span><span data-t="rainH"></span><span class="src-tag">Open-Meteo</span></div><div id="chRain"></div><div class="wx" id="wx"></div></div>
+      <div class="card span2"><div class="lab"><span data-icon="rupee"></span><span data-t="moneyH"></span><span class="src-tag sim" data-t="simulated"></span></div><div class="donutrow"><div class="donut" id="donut"></div><div class="dleg" id="dleg"></div></div></div>
+      <div class="card span2 c-pass"><div class="lab"><span data-icon="sat"></span><span data-t="passH2"></span><span class="src-tag" data-t="estimated"></span></div>
+        <div class="passrow"><div class="orbitbig"><div class="earthb"></div><div class="satb"><span data-icon="sat"></span></div></div><div class="cd" id="cd"></div></div><div class="zinfo mono" id="nextInfo"></div></div>
+      <div class="card c-season">
+        <div class="lab"><span data-icon="clock"></span><span id="journeyH"></span></div>
+        <div class="trackbar"><i id="trackFill"></i></div>
+        <div class="journey" id="journey"></div>
+      </div>
+    </div>
+    <!-- Poultry home (a shed is picked) -->
+    <div class="dash" id="dashShed" hidden>
+      <div class="card sh-kit"><div class="lab"><span data-icon="egg"></span><span data-t="shedNow"></span><span class="src-tag sim" data-t="simulated"></span></div><div class="shedgrid" id="shKit"></div><div class="zinfo" id="shFeed"></div></div>
+      <div class="card sh-eggs"><div class="lab"><span data-icon="egg"></span><span data-t="eggsPerDay"></span><span class="src-tag sim" data-t="simulated"></span></div><div id="shEggs"></div></div>
+      <div class="card sh-cam"><div class="lab"><span data-icon="camera"></span><span data-t="shedCam"></span><span class="src-tag">SAM 3.1 · MUSE SPARK</span></div><div class="clipthumbs" id="shThumbs"></div><div class="btns"><button class="btn" type="button" data-go="shed" data-t="checkShed"></button><button class="btn ghost" type="button" data-pickvideo data-t="fromPhone"></button></div><div class="zinfo" id="shLast"></div></div>
+      <div class="card sh-vet"><div class="lab"><span data-icon="warn"></span><span data-t="unwellH"></span></div><p class="muted small" data-t="unwellT"></p><button class="btn turm" type="button" data-vet data-t="callVet"></button></div>
+      <div class="card sh-sales"><div class="lab"><span data-icon="rupee"></span><span data-t="salesH"></span><span class="src-tag sim" data-t="simulated"></span></div><div class="salesrow" id="shSales"></div><div class="btns"><button class="btn" type="button" data-sell data-t="callShopsNow"></button><button class="btn ghost" type="button" data-rule data-t="changeRule"></button></div></div>
+    </div>
+  </section>
+
+  <!-- SHED (poultry: camera clips from the phone, count, sound, vet) -->
+  <section id="shed" role="tabpanel" hidden>
+    <div class="grid2">
+      <div class="panel">
+        <div class="lab"><span data-icon="camera"></span><span data-t="shedCam"></span><span class="src-tag" id="camTag"></span></div>
+        <div class="shedview" id="shedView"><img id="shFrame" alt="" hidden><svg id="shSvg" hidden></svg><div class="emptybox" id="shEmpty" data-t="shedEmptyNew"></div><div class="maploading" id="shBusy" hidden><span class="spin"></span><span id="shBusyT"></span></div></div>
+        <div class="cliprow" id="clipRow"></div>
+        <div class="btns"><button class="btn" type="button" id="recheckBtn" data-t="checkThis"></button><button class="btn ghost" type="button" data-pickvideo data-t="fromPhone"></button><button class="btn ghost" type="button" id="soundBtn" data-t="listenShed"></button></div>
+        <input type="file" id="videoIn" accept="video/*" hidden>
+        <div class="savebox" id="saveBox" hidden><label><span data-t="nameLabel"></span><input id="clipName" maxlength="40"></label><div class="btns"><button class="btn" type="button" id="clipSaveBtn" data-t="saveBtn"></button><button class="btn ghost" type="button" id="clipOnceBtn" data-t="onceBtn"></button></div></div>
+        <div class="muted small" id="clipInfo"></div>
+      </div>
+      <div class="stack">
+        <div class="panel"><div class="tiles" style="grid-template-columns:1fr 1fr"><div class="tile"><div class="k" data-t="birdsCounted"></div><div class="v" id="shCount">—</div></div><div class="tile" id="shStillBox"><div class="k" data-t="birdsStill"></div><div class="v" id="shStill">—</div></div></div>
+          <p class="note" id="shNote" hidden></p>
+          <div class="action ok" id="shSound" hidden><div class="ah"><span data-icon="mic"></span><b id="shSoundT"></b></div></div>
+          <div class="action" id="shAction" hidden><div class="ah"><span data-icon="warn"></span><b id="shActionT"></b></div><div class="muted small" id="shActionS"></div></div>
+          <div class="btns"><button class="btn turm" type="button" data-vet data-t="callVet"></button></div>
+        </div>
+        <div class="panel"><div class="lab"><span data-icon="egg"></span><span data-t="shedNow"></span><span class="src-tag sim" data-t="simulated"></span></div><div class="shedgrid" id="shKit2"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FIELD -->
+  <section id="field" role="tabpanel" hidden>
+    <div class="grid2">
+      <div class="panel">
+        <div class="layers" id="layers">
+          <button class="chip" data-layer="sat" aria-pressed="true"><span data-icon="eye"></span><span data-t="lSat"></span></button>
+          <button class="chip" data-layer="ndvi" aria-pressed="false"><span data-icon="leaf"></span><span data-t="lNdvi"></span></button>
+          <button class="chip" id="rescanBtn" type="button"><span data-icon="pin"></span><span data-t="rescan"></span></button>
+        </div>
+        <div class="mapwrap" id="mapwrap">
+          <canvas id="map" width="800" height="600" data-tl="mapLabel"></canvas>
+          <div class="scanlabel"><i></i><span id="scanTxt"></span></div>
+          <div class="maptools"><button id="zIn" data-tl="zoomIn">+</button><button id="zOut" data-tl="zoomOut">−</button></div>
+          <div class="narrow" aria-hidden="true">N</div>
+          <div class="scalebar"><i id="sbar"></i><span id="sbarT"></span></div>
+          <div id="satpassHost"></div>
+          <div class="maploading" id="mapLoading" hidden><span class="spin"></span><span data-t="readingSat"></span></div>
+        </div>
+        <div class="legend" id="legendRow"><span id="lgLo"></span><div class="ramp" id="ramp"></div><span id="lgHi"></span></div>
+        <div class="passes" id="passes"></div>
+        <div class="player" id="player">
+          <button class="play" id="play" data-tl="playSeason"><span data-icon="play"></span></button>
+          <input type="range" id="passSlider" min="0" max="0" value="0" data-tl="passDateL">
+          <span class="mono" id="passDate"></span>
+        </div>
+        <div class="attrib" data-t="attrib"></div>
+      </div>
+      <div class="stack">
+        <div class="panel" style="display:grid;grid-template-columns:110px minmax(0,1fr);gap:12px;align-items:center">
+          <div class="plantbox" id="plantField"></div>
+          <div>
+            <div class="mono" style="color:var(--muted)" id="fStageK"></div>
+            <div style="font-family:var(--f-display);font-weight:800;font-size:1.4rem;line-height:1.2" id="fStage"></div>
+            <div class="tiles" style="grid-template-columns:1fr 1fr;margin-top:8px">
+              <div class="tile"><div class="k">NDVI</div><div class="v" id="fNdvi">—</div></div>
+              <div class="tile"><div class="k" data-t="moisture"></div><div class="v" id="fMoist">—</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="lab"><span data-icon="sat"></span><span data-t="statusH"></span></div>
+          <div class="status" id="status"></div>
+        </div>
+        <div class="panel">
+          <div class="lab"><span data-icon="leaf"></span><span data-t="ndviH"></span></div>
+          <svg class="spark" id="spark" viewBox="0 0 320 90" preserveAspectRatio="none"></svg>
+          <p class="note" id="fNote"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SAATHI -->
+  <section id="saathi" role="tabpanel" hidden>
+    <div class="grid2">
+      <div class="panel">
+        <div class="chathead">
+          <div class="avatar"><span data-icon="leaf"></span></div>
+          <div><b>Saathi</b><div class="who" id="brainLine" data-t="online"></div></div>
+        </div>
+        <div class="thread" id="thread" aria-live="polite"></div>
+        <div class="quick" id="quick"></div>
+        <div id="listen" hidden class="listening"><div class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span data-t="listening"></span></div>
+        <form class="askrow" id="askForm">
+          <input id="askInput" autocomplete="off" data-tp="askPh">
+          <button class="mic" type="button" id="mic" data-tl="speak"><span data-icon="mic"></span></button>
+        </form>
+      </div>
+      <div class="stack">
+        <div class="panel"><div class="lab"><span data-icon="bell"></span><span data-t="pendingH"></span></div><div id="pending"></div></div>
+        <div class="panel"><div class="lab"><span data-icon="check"></span><span data-t="howH"></span></div><div id="how" style="display:flex;flex-direction:column;gap:8px"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CAMS / MARKET / MONEY (v0.11.0 brings these into the new shell; the classic screens work meanwhile) -->
+  <section id="market" role="tabpanel" hidden>
+    <div class="grid2" id="mkField">
+      <div class="panel"><div class="lab"><span data-icon="seed"></span><span id="mkCropH"></span><span class="src-tag sim" data-t="samplePrices"></span></div><div id="mkNeeds"></div><div class="mktotal" id="mkTotal"></div>
+        <button class="cta wide" type="button" id="mkCall"><span data-icon="chat"></span><span data-t="callAndBook"></span></button><p class="muted small" data-t="demoCallNote"></p></div>
+      <div class="panel"><div class="lab"><span data-icon="pin"></span><span data-t="nearShops"></span><span class="src-tag" id="mkShopSrc"></span></div><div id="mkShops"></div></div>
+    </div>
+    <div class="grid2" id="mkShed" hidden>
+      <div class="panel"><div class="lab"><span data-icon="egg"></span><span data-t="eggSaleH"></span><span class="src-tag sim" data-t="simulated"></span></div><div class="bigstat" id="mkStock"></div><div class="rulebox" id="mkRule"></div>
+        <div class="btns"><button class="btn" type="button" data-sell data-t="callShopsNow"></button><button class="btn ghost" type="button" data-rule data-t="changeRule"></button></div><p class="muted small" data-t="demoCallNote"></p></div>
+      <div class="panel"><div class="lab"><span data-icon="rupee"></span><span data-t="salesH"></span></div><div class="entries" id="mkDeals"></div></div>
+    </div>
+  </section>
+  <section id="money" role="tabpanel" hidden>
+    <div class="panel">
+      <div class="bars"><div class="b in"><div class="amt" id="mIn">₹0</div><div class="col" id="cIn"></div></div><div class="b out"><div class="amt" id="mOut">₹0</div><div class="col" id="cOut"></div></div></div>
+      <div class="barl"><span data-t="moneyIn"></span><span data-t="moneyOut"></span></div>
+      <div class="entries" id="entries"></div>
+    </div>
+  </section>
+</main>
+
+<!-- ADD LAND -->
+<div class="sheet" id="addSheet" hidden>
+  <div class="wrap sh">
+    <div class="shtop"><button class="iconbtn" id="addClose" data-tl="close">×</button><div class="dots" id="addDots"><i></i><i></i><i></i><i></i></div></div>
+    <div id="a1">
+      <h2 data-t="addH"></h2>
+      <p class="sub" data-t="addSub"></p>
+      <div class="pick2">
+        <label class="bigpick" id="photoPick"><span data-icon="camera"></span><b data-t="pPhoto"></b><input type="file" id="photoIn" accept="image/*" capture="environment" hidden></label>
+        <button class="bigpick" id="gpsPick" type="button"><span data-icon="pin"></span><b data-t="pGps"></b></button>
+      </div>
+      <div class="preview" id="preview" hidden><img id="pimg" alt=""><div class="gps" id="gpsTag"></div></div>
+      <div class="presets" id="presets"></div>
+      <div class="latlon"><label><span data-t="lat"></span><input id="latIn" inputmode="decimal" placeholder="24.88"></label><label><span data-t="lon"></span><input id="lonIn" inputmode="decimal" placeholder="89.33"></label></div>
+      <div class="placeTag" id="placeTag"></div>
+      <button class="cta wide" id="findBtn" disabled><span data-icon="sprout"></span><span data-t="find"></span></button>
+    </div>
+    <div id="a2" hidden>
+      <h2 data-t="anH"></h2>
+      <div class="anvis" id="anvis"></div>
+      <div class="anlist" id="anlist"></div>
+    </div>
+    <div id="a3" hidden>
+      <h2 data-t="resH"></h2>
+      <div class="check" id="placeCheck"></div>
+      <div class="blocked" id="blockedBox" hidden><b data-t="resiH"></b><p data-t="resiT"></p><div class="btns"><button class="btn" type="button" id="pickAgain" data-t="pickOnMap"></button><button class="btn ghost" type="button" id="tryDemo" data-t="tryDemo"></button></div></div>
+      <div class="prof" id="prof"></div>
+      <div class="crops" id="crops"></div>
+      <div class="btns"><button class="btn ghost" id="noCrop" type="button" data-t="justWatch"></button></div>
+    </div>
+    <div id="a4" hidden>
+      <h2 id="planH"></h2>
+      <div class="money3" id="money3"></div>
+      <div class="tl" id="tl"></div>
+      <button class="cta wide" id="startBtn"><span data-icon="sprout"></span><span data-t="start"></span></button>
+    </div>
+  </div>
+</div>
+
+<!-- FARM SWITCHER -->
+<div class="sheet" id="farmSheet" hidden>
+  <div class="wrap sh">
+    <div class="shtop"><button class="iconbtn" id="farmClose" data-tl="close">×</button><h2 style="margin:0" data-t="myFarm"></h2></div>
+    <div class="secl" data-t="fieldsH"></div>
+    <div class="farmlist" id="farmList"></div>
+    <div class="secl" data-t="shedsH"></div>
+    <div class="farmlist" id="shedList"></div>
+    <div class="two"><button class="cta wide" id="addFromList"><span data-icon="plus"></span><span data-t="addField"></span></button><button class="cta wide turm" id="addShedBtn"><span data-icon="plus"></span><span data-t="addShed"></span></button></div>
+  </div>
+</div>
+
+<!-- ADD SHED -->
+<div class="sheet" id="shedSheet" hidden>
+  <div class="wrap sh narrowsh">
+    <div class="shtop"><button class="iconbtn" id="shedClose" data-tl="close">×</button><h2 style="margin:0" data-t="addShed"></h2></div>
+    <p class="sub" data-t="addShedSub"></p>
+    <label class="field"><span data-t="shedName"></span><input id="shedNameIn" maxlength="60"></label>
+    <label class="field"><span data-t="howMany"></span><input id="shedCountIn" inputmode="numeric" placeholder="300"></label>
+    <button class="chip" type="button" id="shedGps"><span data-icon="pin"></span><span data-t="pGps"></span></button> <span class="muted small" id="shedGpsTag"></span>
+    <button class="cta wide" type="button" id="shedSave"><span data-icon="check"></span><span data-t="saveShed"></span></button>
+  </div>
+</div>
+
+<!-- VET: what Saathi saw, two questions, the exact words and the farmer's yes -->
+<div class="sheet" id="vetSheet" hidden>
+  <div class="wrap sh narrowsh">
+    <div class="shtop"><button class="iconbtn" id="vetClose" data-tl="close">×</button><h2 style="margin:0" id="vetTitle"></h2></div>
+    <div id="v1"><p class="muted small" data-t="signsHint"></p><div class="chips" id="vetSigns"></div><p class="muted small" id="vetSignsNote" data-t="signsNote"></p><button class="cta wide" type="button" id="vetNext1"><span data-t="signsOk"></span></button></div>
+    <div id="v2" hidden>
+      <div class="msg bot" data-t="askSince"></div><div class="chips" id="vetSince"></div>
+      <div class="msg bot" data-t="askDeaths"></div>
+      <div class="stepper"><span class="muted small" data-t="deathsLabel"></span><button type="button" class="iconbtn" id="dMinus" data-tl="less">−</button><b id="dVal">—</b><button type="button" class="iconbtn" id="dPlus" data-tl="more">+</button></div>
+      <button class="cta wide" type="button" id="vetNext2"><span data-t="nextStep"></span></button>
+    </div>
+    <div id="v3" hidden>
+      <div class="muted" id="vetPlace"></div><div class="muted small" data-t="saathiWillSay"></div><div class="say" id="vetMsg"></div>
+      <label class="consent"><input type="checkbox" id="vetConsent"><span data-t="consentText"></span></label>
+      <button class="cta wide" type="button" id="vetCall" disabled><span data-icon="chat"></span><span data-t="agreeCall"></span></button>
+    </div>
+  </div>
+</div>
+
+<!-- EGG SALE RULE -->
+<div class="sheet" id="ruleSheet" hidden>
+  <div class="wrap sh narrowsh">
+    <div class="shtop"><button class="iconbtn" id="ruleClose" data-tl="close">×</button><h2 style="margin:0" data-t="ruleTitle"></h2></div>
+    <p class="muted small" data-t="ruleHint"></p>
+    <div class="ruleopt" id="rCountBox"><label><input type="checkbox" id="rCountOn"><span data-t="ruleCount"></span></label><div class="stepper"><button type="button" class="iconbtn" data-rs="min:-30">−</button><b id="rCount"></b><button type="button" class="iconbtn" data-rs="min:30">+</button></div><div class="muted small" id="rCountTrays"></div></div>
+    <div class="ruleopt" id="rDaysBox"><label><input type="checkbox" id="rDaysOn"><span data-t="ruleEvery"></span></label><div class="stepper"><button type="button" class="iconbtn" data-rs="days:-1">−</button><b id="rDays"></b><button type="button" class="iconbtn" data-rs="days:1">+</button></div></div>
+    <div class="ruleopt"><span data-t="ruleFloor"></span><div class="stepper"><button type="button" class="iconbtn" data-rs="floor:-5">−</button><b id="rFloor"></b><button type="button" class="iconbtn" data-rs="floor:5">+</button></div><div class="muted small" id="rFloorHint"></div></div>
+    <b data-t="ruleShops"></b><div class="ruleshops" id="rShops"></div>
+    <label class="ruleopt"><input type="checkbox" id="rAsk"><span data-t="ruleAsk"></span></label>
+    <button class="cta wide" type="button" id="rSave"><span data-icon="check"></span><span data-t="ruleSave"></span></button>
+  </div>
+</div>
+
+<!-- EGG OFFERS -->
+<div class="sheet" id="offerSheet" hidden>
+  <div class="wrap sh narrowsh">
+    <div class="shtop"><button class="iconbtn" id="offerClose" data-tl="close">×</button><h2 style="margin:0" data-t="offersTitle"></h2></div>
+    <div class="offers" id="offers" role="radiogroup"></div>
+    <div class="mktotal" id="offerTotal"></div>
+    <button class="cta wide" type="button" id="offerConfirm"><span data-icon="check"></span><span data-t="sellConfirm"></span></button>
+    <div class="btns"><button class="btn ghost" type="button" id="offerReplay" data-t="hearCalls"></button><button class="btn ghost" type="button" id="offerSkip" data-t="notNow2"></button></div>
+    <p class="muted small" data-t="sellDemoNote2"></p>
+  </div>
+</div>
+
+<!-- DEMO CALL (vet, shops, crews): nobody is really called -->
+<div class="sheet" id="callSheet" hidden>
+  <div class="wrap sh narrowsh">
+    <div class="callhead"><div class="cav" id="callAv"></div><div><b id="callName"></b><div><span class="callstate" id="callState"></span> <span class="pill warn" data-t="demoTag"></span></div></div></div>
+    <div class="callprog" id="callProg"></div>
+    <div class="muted small" id="callInfo"></div>
+    <div class="calllines" id="callLines" aria-live="polite"></div>
+    <div class="callsaid" id="callSaid" hidden><b id="callSaidH"></b><ol id="callSaidList"></ol></div>
+    <div class="btns"><button class="btn bad" type="button" id="callEnd" data-t="endCall"></button><button class="btn" type="button" id="callNext" hidden></button><button class="btn ghost" type="button" id="callReplay" data-t="playAgain" hidden></button></div>
+    <p class="muted small" data-t="demoCallNote"></p>
+  </div>
+</div>
+
+<nav class="bottom"><div class="row" role="tablist" id="tabs">
+  <button role="tab" data-tab="home" aria-selected="true"><span data-icon="home"></span><span data-t="nHome"></span></button>
+  <button role="tab" data-tab="field" aria-selected="false"><span data-icon="sat"></span><span data-t="nField"></span></button>
+  <button role="tab" data-tab="shed" aria-selected="false"><span data-icon="egg"></span><span data-t="nShed"></span></button>
+  <button role="tab" data-tab="saathi" aria-selected="false"><span data-icon="chat"></span><span data-t="nSaathi"></span><span class="badge" id="badge" hidden>0</span></button>
+  <button role="tab" data-tab="market" aria-selected="false"><span data-icon="cart"></span><span data-t="nMarket"></span></button>
+  <button role="tab" data-tab="money" aria-selected="false"><span data-icon="rupee"></span><span data-t="nMoney"></span></button>
+</div></nav>
+<div class="toast" id="toast" hidden></div>
+<script src="/i18n.js"></script>
+<script src="/next/ks-icons.js"></script>
+<script src="/next/ks-text.js"></script>
+<script src="/next/ks.js"></script>
+<script src="/next/ks-shed.js"></script>
+</body>
+</html>

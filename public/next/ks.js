@@ -32,6 +32,8 @@
     const s = Math.round(Math.abs(n)).toLocaleString('en-IN');
     return `${n < 0 ? '−' : ''}${cur}${digits(s)}`;
   };
+  // v0.11.0: the land's currency comes from its country (place check); sheds and egg sales stay in rupees.
+  const curSym = () => S.plan?.currency?.symbol || S.cur?.place_info?.currency?.symbol || '₹';
   const cropName = (key) => t(`crop_${key}`);
 
   // ---------- small helpers from the design ----------
@@ -77,7 +79,7 @@
   const imgUrl = (u) => (u ? `${u}${u.includes('?') ? '&' : '?'}k=${encodeURIComponent(passcode)}` : '');
 
   // ---------- state ----------
-  const S = { tab: 'home', lands: [], cur: null, plan: null, field: null, sensors: null, deals: [], alerts: [], health: null, pass: 0, layer: 'sat', zoom: 1, playing: null, chat: [] };
+  const S = { tab: 'home', mode: 'field', lands: [], sheds: [], cur: null, shed: null, plan: null, field: null, sensors: null, deals: [], alerts: [], health: null, pass: 0, layer: 'sat', zoom: 1, playing: null, chat: [] };
 
   // ---------- text on the page ----------
   function applyLang() {
@@ -98,6 +100,8 @@
 
   // ---------- tabs ----------
   function show(tab) {
+    if (tab === 'field' && S.mode === 'shed') tab = 'shed';
+    if (tab === 'shed' && S.mode === 'field') tab = 'field';
     if (tab !== 'field') stopPlay();
     S.tab = tab;
     $$('[role=tabpanel]').forEach((p) => {
@@ -115,8 +119,26 @@
     if (tab === 'field') renderField();
     if (tab === 'saathi') renderSaathi();
     if (tab === 'money') renderMoney();
+    if (tab === 'shed' || tab === 'market') window.KSShed?.render(tab);
     window.scrollTo({ top: 0, behavior: RM ? 'auto' : 'smooth' });
   }
+  // Field or shed: which tab shows, the header chip and the Home layout.
+  function applyMode() {
+    $$('#tabs [data-tab="field"]').forEach((b) => (b.hidden = S.mode !== 'field'));
+    $$('#tabs [data-tab="shed"]').forEach((b) => (b.hidden = S.mode !== 'shed'));
+    $('#dash').hidden = S.mode !== 'field';
+    $('#dashShed').hidden = S.mode !== 'shed';
+    $('#mkField').hidden = S.mode !== 'field';
+    $('#mkShed').hidden = S.mode !== 'shed';
+    $('#modeChip').textContent = t(S.mode === 'shed' ? 'mPoultry' : 'mField');
+    $('#modeChip').className = `mchip ${S.mode}`;
+    document.body.dataset.mode = S.mode;
+  }
+  // Desktop: the tabs sit in the header; phones keep the bottom bar.
+  const wide = matchMedia('(min-width: 1000px)');
+  const placeTabs = () => (wide.matches ? $('#topTabs') : $('nav.bottom')).appendChild($('#tabs'));
+  wide.addEventListener('change', placeTabs);
+  placeTabs();
   $('#tabs').addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (b) show(b.dataset.tab);
@@ -144,14 +166,29 @@
     const r = await api(`/api/lands/${id}`);
     if (!r.ok) throw new Error(r.error);
     S.cur = r.land;
+    S.mode = 'field';
+    applyMode();
     store.set('ks_land', id);
+    store.set('ks_mode', 'field');
     S.plan = null;
     S.field = null;
     S.pass = 0;
     renderHeader();
     renderAll();
     const jobs = [
-      hasField(S.cur) ? api(`/api/lands/${id}/plan`).then((p) => (S.plan = p.ok ? p.plan : null)).catch(() => null) : null,
+      hasField(S.cur)
+        ? api(`/api/lands/${id}/plan`)
+            .then((p) => {
+              S.plan = p.ok ? p.plan : null;
+              // The place check names the village in the header and the switcher.
+              if (S.plan?.place && S.cur?.id === id) {
+                S.cur.place_info = S.plan.place;
+                const l = S.lands.find((x) => x.id === id);
+                if (l) l.place_info = S.plan.place;
+              }
+            })
+            .catch(() => null)
+        : null,
       api(`/api/sensors?landId=${id}`).then((s) => (S.sensors = s.ok ? s : null)).catch(() => null),
     ].filter(Boolean);
     Promise.all(jobs).then(() => renderAll());
@@ -168,6 +205,23 @@
       .catch(() => null)
       .finally(() => ($('#mapLoading').hidden = true));
   }
+  // A shed is picked: Home, Shed and Market switch to poultry (ks-shed.js draws them).
+  function openShed(id) {
+    stopPlay();
+    S.shed = S.sheds.find((s) => s.id === id) || S.sheds[0] || null;
+    S.mode = 'shed';
+    store.set('ks_shed', S.shed?.id || '');
+    store.set('ks_mode', 'shed');
+    applyMode();
+    if (S.tab === 'field') S.tab = 'shed';
+    show(S.tab === 'pass' ? 'home' : S.tab);
+    renderAll();
+    window.KSShed?.load();
+  }
+  async function loadSheds() {
+    const r = await api('/api/sheds').catch(() => null);
+    S.sheds = r?.ok ? r.sheds || [] : [];
+  }
   async function loadSide() {
     const [d, a, s] = await Promise.all([api('/api/deals').catch(() => null), api('/api/alerts').catch(() => null), api('/api/sell').catch(() => null)]);
     S.sale = s?.ok ? s : null;
@@ -180,20 +234,24 @@
   const clearPasses = () => [...(S.field?.health?.passes || [])].filter((p) => !p.cloudy && p.ndvi).reverse();
   const latest = () => S.field?.health?.latest || null;
   const placeName = (l) => (l?.place ? t(`land_${l.place}`) : l ? `${num(l.lat, 3)}, ${num(l.lon, 3)}` : '');
-  const landTitle = (l) => (l?.place ? t(`land_${l.place}`) : t('yourLand'));
+  const landTitle = (l) => (l?.place ? t(`land_${l.place}`) : l?.place_info?.village || l?.place_info?.district || t('yourLand'));
   const topCrop = () => {
     const key = S.cur?.crop || S.plan?.crops?.[0]?.key;
     return key ? (S.plan?.calendar || []).find((c) => c.key === key) || S.plan?.crops?.find((c) => c.key === key) || null : null;
   };
 
+  const shedName = (s) => (s?.demo || s?.builtIn ? t('demoShedName') : s?.name || '');
+  const shedLine = (s) => (s ? `${shedName(s)}${s.chickens ? ` · ${fmt('aboutChickens', { n: num(s.chickens) })}` : ''}` : '');
   function renderHeader() {
     const l = S.cur;
-    $('#farmLine').textContent = l ? `${landTitle(l)} · ${l.acres ? `${num(l.acres, 2)} ${t('acShort')}` : t('noOutlineShort')}` : t('noLandYet');
+    $('#farmLine').textContent = S.mode === 'shed' ? shedLine(S.shed) : l ? `${landTitle(l)} · ${l.acres ? `${num(l.acres, 2)} ${t('acShort')}` : t('noOutlineShort')}` : t('noLandYet');
   }
   function renderAll() {
     renderHeader();
+    applyMode();
     if (S.tab === 'home') renderHome();
     if (S.tab === 'field') renderField();
+    if (S.tab === 'shed' || S.tab === 'market') window.KSShed?.render(S.tab);
     if (S.tab === 'saathi') renderPending();
     if (S.tab === 'money') renderMoney();
     renderBadge();
@@ -229,15 +287,15 @@
   }
 
   function hero() {
+    if (S.mode === 'shed') return window.KSShed?.hero() || { big: shedLine(S.shed), sub: '', cta: t('checkShed'), icon: 'camera', go: () => show('shed') };
     const l = S.cur;
     if (!l) return { big: t('heroAddH'), sub: t('heroAddS'), cta: t('addLand'), icon: 'plus', go: openAdd };
     if (!hasField(l)) return { big: t('heroNoFieldH'), sub: t('heroNoFieldS'), cta: t('rescan'), icon: 'pin', go: rescan };
-    const sale = S.alerts.find((a) => a.title === 'sell_due' || a.title === 'sell_offers');
-    if (sale) return { big: t(`a_${sale.title}`).replace('{value}', num(JSON.parse(sale.body || '{}').value)), sub: t(`b_${sale.title}`), cta: t('seeIt'), icon: 'rupee', go: () => show('saathi') };
+    if (S.plan?.blocked) return { big: t('resiH'), sub: placeLine(S.plan.place), cta: t('addField'), icon: 'pin', go: openAdd };
     const c = S.plan?.crops?.[0];
     if (c) {
-      const sub = c.status === 'soon' ? fmt('startsIn', { n: num(c.daysUntil) }) : fmt('sowBy', { date: fd(c.windowEnd), n: num(c.daysLeft) });
-      return { big: fmt('heroSow', { crop: cropName(c.key) }), sub, cta: t('askSaathi'), icon: 'chat', go: () => ask(fmt('qPlan', { crop: cropName(c.key) })) };
+      const sub = [placeLine(S.plan.place), whenText(c)].filter(Boolean).join(' · ');
+      return { big: fmt(c.status === 'later' ? 'heroNextSow' : 'heroSow', { crop: cropName(c.key) }), sub, cta: t('askSaathi'), icon: 'chat', go: () => ask(fmt('qPlan', { crop: cropName(c.key) })) };
     }
     return { big: t('heroWatchH'), sub: t('heroWatchS'), cta: t('askSaathi'), icon: 'chat', go: () => ask(t('qField')) };
   }
@@ -251,12 +309,12 @@
     $('#heroSub').textContent = h.sub;
     $('#heroCtaT').textContent = h.cta;
     $('#heroIc').innerHTML = I[h.icon] || '';
-    updatePlant($('#plantHome'), latest()?.ndvi?.mean);
+    updatePlant($('#plantHome'), S.mode === 'shed' ? 0.8 : latest()?.ndvi?.mean);
+    if (S.mode === 'shed') return window.KSShed?.renderHome();
     renderScore();
     renderKpis();
     renderNdviChart();
     renderZones();
-    renderShed();
     renderGrow();
     renderRain();
     renderDonut();
@@ -293,7 +351,7 @@
     const days = S.plan?.weather?.days || [];
     const cp = clearPasses();
     const nd = cp.map((p) => p.ndvi.mean);
-    const kitM = S.sensors?.field?.soil_moisture?.value;
+    const kitM = S.cur?.location_source === 'demo' ? S.sensors?.field?.soil_moisture?.value : null; // the soil kit is a demo: real lands never show it
     const om = S.plan?.weather?.soilMoisture;
     const rain7 = days.slice(0, 7).reduce((a, d) => a + (d.rainMm || 0), 0);
     const k = [
@@ -382,49 +440,52 @@
     $('#zinfo').textContent = `${t('zone')} ${zoneName(i)} · NDVI ${num(z[i], 2)} · ${fd(latest().date)}`;
   });
 
-  // Poultry shed summary (v0.10.1): the simulated shed kit and the egg stock; the full shed opens in the classic screen until v0.11.0.
-  function renderShed() {
-    const sh = S.sensors?.shed;
-    const cells = [
-      ['shed_temp', 's_shed_temp', (v) => `${num(v, 1)}°`, (v) => v > 32 || v < 16],
-      ['shed_humidity', 's_shed_humidity', (v) => `${num(v)}%`, (v) => v > 80 || v < 40],
-      ['ammonia_ppm', 's_ammonia_ppm', (v) => num(v), (v) => v > 25],
-      ['water_pct', 's_water_pct', (v) => `${num(v)}%`, (v) => v < 20],
-      ['feed_pct', 's_feed_pct', (v) => `${num(v)}%`, (v) => v < 20],
-      ['eggs_today', 'eggsToday', (v) => num(v), () => false],
-    ];
-    const html = sh
-      ? cells.filter(([m]) => sh[m]).map(([m, k, f, bad]) => `<div class="tile ${bad(sh[m].value) ? 'warn' : ''}"><div class="k">${esc(t(k))}</div><div class="v">${esc(f(sh[m].value))}</div></div>`).join('')
-      : emptyBox(t('shedWaiting'));
-    const st = S.sale;
-    const info = st ? fmt('eggStockText', { n: num(st.stock), trays: num(st.trays) }) : '';
-    for (const [g, i] of [['#shedGrid', '#shedInfo'], ['#camsGrid', '#camsInfo']]) {
-      $(g).innerHTML = html;
-      $(i).textContent = info;
-    }
+  // v0.11.0 helpers: where the land is (OpenStreetMap), when a crop is sown, and a sample profit in local money.
+  const placeLine = (pl) => (pl ? [pl.village, pl.district, pl.country].filter(Boolean).join(', ') : '');
+  const whenText = (c) => (c.status === 'open' || c.status === 'closing' ? fmt('sowBy', { date: fd(c.windowEnd), n: num(c.daysLeft) }) : c.daysUntil <= 30 ? fmt('startsIn', { n: num(c.daysUntil) }) : fmt('sowFrom', { date: fd(c.windowStart) }));
+  // The district (or state) whose crop data is used, else the country.
+  const cropArea = (p) => (p?.calendar?.[0]?.areaScope && p.calendar[0].areaScope !== 'country' ? p.calendar[0].areaName : p?.place?.country) || '';
+  const cropSrc = (p) => (p?.aez ? 'FAO' : p?.calendar?.length ? 'MIRCA-OS' : '');
+  function profitText(c, p) {
+    if (!c.sampleProfitBdtPerAcre) return '';
+    const cur = p?.currency || { symbol: '৳', perUsd: 120 };
+    return money((c.sampleProfitBdtPerAcre / 120) * (cur.perUsd || 120), cur.symbol);
   }
-
+  function blockedBox(p) {
+    return `<div class="blocked"><b>${esc(t(p.place?.verdict === 'water' ? 'waterH' : 'resiH'))}</b><p>${esc(t('resiT'))}</p><div class="muted small">${esc(coverLine(p.place))}</div></div>`;
+  }
+  function coverLine(pl) {
+    const c = pl?.cover;
+    if (!c) return '';
+    return Object.entries(c)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([k, v]) => `${t(`lc_${k}`)} ${num(v * 100)}%`)
+      .join(' · ');
+  }
   function renderGrow() {
     const p = S.plan;
     const box = $('#grow');
-    $('#growSrc').textContent = p?.aez ? 'FAO' : '';
+    $('#growSrc').textContent = cropSrc(p);
     if (!S.cur) return (box.innerHTML = emptyBox(t('heroAddS')));
     if (!hasField(S.cur)) return (box.innerHTML = emptyBox(t('heroNoFieldS')));
     if (!p) return (box.innerHTML = emptyBox(t('loadingPlan')));
-    if (!p.aez) {
+    if (p.blocked) return (box.innerHTML = blockedBox(p));
+    if (!p.calendar?.length) {
       box.innerHTML = `${emptyBox(t('noFaoHere'))}<button class="btn ghost" id="aiEstimate">${esc(t('aiEstimate'))}</button>`;
       $('#aiEstimate').addEventListener('click', () => ask(t('qAiEstimate')));
       return;
     }
-    const cur = p.aez && S.cur.place !== 'bogura' && S.cur.place ? '₹' : '৳';
     box.innerHTML =
       (p.crops || [])
         .map((c) => {
-          const when = c.status === 'soon' ? fmt('startsIn', { n: num(c.daysUntil) }) : fmt('sowBy', { date: fd(c.windowEnd), n: num(c.daysLeft) });
           const harvest = c.growDays ? fmt('harvestIn', { a: num(c.growDays.min), b: num(c.growDays.max) }) : '';
-          return `<button class="growrow" data-crop="${c.key}"><span class="gname">${esc(cropName(c.key))}</span><span class="gwhen">${esc(when)}<br><small>${esc(harvest)}</small></span><span class="gp">${esc(money(c.sampleProfitBdtPerAcre || 0, cur))}<small>${esc(t('perAcreSample'))}</small></span></button>`;
+          const why = c.why?.[lang] || '';
+          const pr = profitText(c, p);
+          return `<button class="growrow" data-crop="${c.key}"><span class="gname">${esc(cropName(c.key))}${why ? `<small class="why">${esc(why)}</small>` : ''}</span><span class="gwhen">${esc(whenText(c))}<br><small>${esc(harvest)}</small></span><span class="gp">${pr ? `${esc(pr)}<small>${esc(t('perAcreSample'))}</small>` : ''}</span></button>`;
         })
         .join('') || emptyBox(t('noCropsText'));
+    if (p.picksBy) box.insertAdjacentHTML('beforeend', `<div class="muted small">${esc(fmt('picksBy', { model: p.picksBy, area: cropArea(p) }))}</div>`);
     box.querySelectorAll('[data-crop]').forEach((b) => b.addEventListener('click', () => ask(fmt('qPlan', { crop: cropName(b.dataset.crop) }))));
   }
 
@@ -462,8 +523,12 @@
       .join('');
   }
 
+  // Money follows the place: a field's buys and sells, or the shed's egg sales.
+  const isEggDeal = (d) => (d.items || [])[0]?.item === 'eggs';
+  const dealCur = (d) => (d.items || [])[0]?.symbol || '₹';
+  const mc = () => (S.mode === 'shed' ? '₹' : curSym());
   function dealTotals() {
-    const conf = S.deals.filter((d) => d.status === 'confirmed');
+    const conf = S.deals.filter((d) => d.status === 'confirmed').filter((d) => (S.mode === 'shed' ? isEggDeal(d) : !isEggDeal(d) && (!d.land_id || d.land_id === S.cur?.id)));
     const inc = conf.filter((d) => d.direction === 'sell').reduce((a, d) => a + Number(d.total_inr || 0), 0);
     const out = conf.filter((d) => d.direction === 'buy').reduce((a, d) => a + Number(d.total_inr || 0), 0);
     return { conf, inc, out };
@@ -473,8 +538,8 @@
     const tot = Math.max(inc + out, 1);
     const box = $('#donut');
     const pIn = (inc / tot) * 100;
-    box.innerHTML = `<svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="48" stroke="var(--line)" pathLength="100"/><circle cx="60" cy="60" r="48" pathLength="100" stroke="var(--leaf)" stroke-dasharray="${Math.max(pIn - 0.6, 0)} ${100 - pIn}"/><circle cx="60" cy="60" r="48" pathLength="100" stroke="var(--soil)" stroke-dasharray="${Math.max(100 - pIn - 0.6, 0)} ${pIn}" stroke-dashoffset="${-pIn}" ${out ? '' : 'hidden'}/></svg><div class="c"><b>${esc(money(inc - out))}</b><span>${esc(t('net'))}</span></div>`;
-    $('#dleg').innerHTML = `<div><i style="background:var(--leaf)"></i>${esc(t('moneyIn'))}<b class="in-c">${inc ? `+${esc(money(inc))}` : '—'}</b></div><div><i style="background:var(--soil)"></i>${esc(t('moneyOut'))}<b class="out-c">${out ? `−${esc(money(out))}` : '—'}</b></div><div class="muted small">${esc(fmt('dealsN', { n: num(conf.length) }))}</div>`;
+    box.innerHTML = `<svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="48" stroke="var(--line)" pathLength="100"/><circle cx="60" cy="60" r="48" pathLength="100" stroke="var(--leaf)" stroke-dasharray="${Math.max(pIn - 0.6, 0)} ${100 - pIn}"/><circle cx="60" cy="60" r="48" pathLength="100" stroke="var(--soil)" stroke-dasharray="${Math.max(100 - pIn - 0.6, 0)} ${pIn}" stroke-dashoffset="${-pIn}" ${out ? '' : 'hidden'}/></svg><div class="c"><b>${esc(money(inc - out, mc()))}</b><span>${esc(t('net'))}</span></div>`;
+    $('#dleg').innerHTML = `<div><i style="background:var(--leaf)"></i>${esc(t('moneyIn'))}<b class="in-c">${inc ? `+${esc(money(inc, mc()))}` : '—'}</b></div><div><i style="background:var(--soil)"></i>${esc(t('moneyOut'))}<b class="out-c">${out ? `−${esc(money(out, mc()))}` : '—'}</b></div><div class="muted small">${esc(fmt('dealsN', { n: num(conf.length) }))}</div>`;
   }
 
   let cdT;
@@ -525,8 +590,18 @@
     const steps = seasonSteps(c, today);
     $('#journeyH').textContent = c ? fmt('seasonOf', { crop: cropName(c.key) }) : t('seasonNone');
     if (!steps.length) {
-      $('#journey').innerHTML = emptyBox(S.cur ? t('loadingPlan') : t('heroAddS'));
+      // No crop to plan: still loading, no FAO calendar for this area (offer the AI estimate), or no open window.
+      const p = S.plan;
+      const box = $('#journey');
       $('#trackFill').style.width = '0%';
+      if (!S.cur) box.innerHTML = emptyBox(t('heroAddS'));
+      else if (!hasField(S.cur)) box.innerHTML = emptyBox(t('heroNoFieldS'));
+      else if (!p) box.innerHTML = emptyBox(t('loadingPlan'));
+      else if (p.blocked) box.innerHTML = emptyBox(t('resiH'));
+      else if (!p.calendar?.length) {
+        box.innerHTML = `${emptyBox(t('noFaoHere'))}<button class="btn ghost" id="aiEstimate2">${esc(t('aiEstimate'))}</button>`;
+        $('#aiEstimate2').addEventListener('click', () => ask(t('qAiEstimate')));
+      } else box.innerHTML = emptyBox(t('seasonNoCrop'));
       return;
     }
     const next = steps.find((s) => s.date >= today) || steps.at(-1);
@@ -711,7 +786,7 @@
     if (soil) soilRows.push(sRow(t('soilType'), t(`soil_${soil.texture}`)));
     if (soil?.ph) soilRows.push(sRow('pH', num(soil.ph, 1), clamp((soil.ph - 4) / 5, 0, 1)));
     if (w) soilRows.push(sRow(t('rain10'), `${num(w.rainNext10Mm)} ${t('mm')}`));
-    if (kit?.soil_moisture) soilRows.push(sRow(`${t('kitProbe')} · ${t('simulated')}`, `${num(kit.soil_moisture.value)}%`, kit.soil_moisture.value / 60, 'sky'));
+    if (kit?.soil_moisture && S.cur?.location_source === 'demo') soilRows.push(sRow(`${t('kitProbe')} · ${t('simulated')}`, `${num(kit.soil_moisture.value)}%`, kit.soil_moisture.value / 60, 'sky'));
     sec.push(['drop', t('secSoil'), soilRows.length ? soilRows : [sRow(t('soilType'), S.plan ? t('soilUnknown') : '…')]]);
     const wxRows = [];
     if (d0) {
@@ -719,7 +794,7 @@
       wxRows.push(sRow(t('humidity'), `${num(d0.humidity)}%`, d0.humidity / 100, 'sky'));
       wxRows.push(sRow(t('rainChance'), `${num(d0.rainChance)}%`, d0.rainChance / 100, 'sky'));
     }
-    if (kit?.air_temp) wxRows.push(sRow(`${t('kitAir')} · ${t('simulated')}`, `${num(kit.air_temp.value, 1)}°`));
+    if (kit?.air_temp && S.cur?.location_source === 'demo') wxRows.push(sRow(`${t('kitAir')} · ${t('simulated')}`, `${num(kit.air_temp.value, 1)}°`));
     sec.push(['sun', t('secWx'), wxRows.length ? wxRows : [sRow(t('tempToday'), '…')]]);
     sec.push(['eye', t('secField'), [sRow(t('fieldSize'), acres ? `${num(acres, 2)} ${t('acShort')}` : '—'), sRow(t('outlineBy'), S.field?.outlineFound ? 'SAM 3.1' : t('noOutlineShort')), sRow(t('place'), placeName(S.cur))]]);
     $('#status').innerHTML = sec.map(([ic, h, rows], i) => `<div class="ssec" style="animation-delay:${i * 60}ms"><h5>${I[ic]}${esc(h)}</h5>${rows.join('')}</div>`).join('');
@@ -952,7 +1027,7 @@
     try {
       v = JSON.parse(a.body || '{}');
     } catch {}
-    const vars = { land: landTitle(S.cur), chance: num(v.chance ?? 0), mm: num(v.mm ?? 0), humidity: num(v.humidity ?? 0), value: num(v.value ?? 0, a.title === 'soil_dry' || a.title.startsWith('sell_') ? 0 : 1), days: num(v.days ?? 0), crop: v.crop ? cropName(v.crop) : '', date: v.date ? fd(v.date) : '' };
+    const vars = { shop: v.shop || '', total: v.total != null ? money(v.total, v.symbol || '') : '', when: v.when || '', land: landTitle(S.cur), chance: num(v.chance ?? 0), mm: num(v.mm ?? 0), humidity: num(v.humidity ?? 0), value: num(v.value ?? 0, a.title === 'soil_dry' || a.title.startsWith('sell_') ? 0 : 1), days: num(v.days ?? 0), crop: v.crop ? cropName(v.crop) : '', date: v.date ? fd(v.date) : '' };
     return { title: fmt(`a_${a.title}`, vars), body: fmt(`b_${a.title}`, vars) };
   }
   function renderPending() {
@@ -962,9 +1037,11 @@
       .slice(0, 6)
       .map((a) => {
         const { title, body } = alertText(a);
-        return `<div class="action"><div class="ah">${I[a.area === 'market' ? 'rupee' : a.area === 'shed' ? 'warn' : a.source === 'weather' ? 'rain' : 'drop']}<div><b>${esc(title)}</b><div class="muted small">${esc(body)}</div></div></div><div class="btns"><button class="btn ghost" data-read="${a.id}">${esc(t('gotIt'))}</button>${a.area === 'market' ? `<a class="btn" href="/#sell">${esc(t('seeIt'))}</a>` : ''}</div></div>`;
+        return `<div class="action"><div class="ah">${I[a.area === 'market' ? 'rupee' : a.area === 'shed' ? 'warn' : a.source === 'weather' ? 'rain' : 'drop']}<div><b>${esc(title)}</b><div class="muted small">${esc(body)}</div></div></div><div class="btns"><button class="btn ghost" data-read="${a.id}">${esc(t('gotIt'))}</button>${a.title.startsWith('sell_') ? `<button class="btn" data-goshed="market">${esc(t('seeIt'))}</button>` : a.title === 'order_booked' ? `<button class="btn" data-gotab="money">${esc(t('seeIt'))}</button>` : ''}</div></div>`;
       })
       .join('');
+    box.querySelectorAll('[data-goshed]').forEach((b) => b.addEventListener('click', () => (S.mode === 'shed' ? show('market') : openShed(S.shed?.id || S.sheds[0]?.id))));
+    box.querySelectorAll('[data-gotab]').forEach((b) => b.addEventListener('click', () => show(b.dataset.gotab)));
     box.querySelectorAll('[data-read]').forEach((b) =>
       b.addEventListener('click', async () => {
         await postJson(`/api/alerts/${b.dataset.read}/read`, {}).catch(() => null);
@@ -986,33 +1063,43 @@
   function renderMoney() {
     const { conf, inc, out } = dealTotals();
     const mx = Math.max(inc, out, 1);
-    $('#mIn').textContent = money(inc);
-    $('#mOut').textContent = money(out);
+    $('#mIn').textContent = money(inc, mc());
+    $('#mOut').textContent = money(out, mc());
     $('#cIn').style.height = `${(inc / mx) * 100}%`;
     $('#cOut').style.height = `${(out / mx) * 100}%`;
     $('#entries').innerHTML = conf.length
       ? conf
           .map((d) => {
             const it = (d.items || [])[0] || {};
-            const label = it.item === 'eggs' ? fmt('dealEggs', { trays: num(it.trays), shop: it.shop || '' }) : it.item || d.direction;
-            return `<div class="entry">${I[d.direction === 'sell' ? 'rupee' : 'cart']}<div class="t"><b>${esc(label)}</b><div class="who">${esc(new Date(d.created_at).toLocaleDateString(loc(), { day: 'numeric', month: 'short' }))} · ${esc(t('simulated'))}</div></div><span class="a ${d.direction === 'sell' ? 'in-c' : 'out-c'}">${d.direction === 'sell' ? '+' : '−'}${esc(money(Number(d.total_inr || 0)))}</span></div>`;
+            const label = it.item === 'eggs' ? fmt('dealEggs', { trays: num(it.trays), shop: it.shop || '' }) : ['seed', 'fert', 'plough'].includes(it.item) ? `${(d.items || []).map((x) => t(`buy_${x.item}`)).join(' + ')} · ${it.shop || ''}` : it.item || d.direction;
+            return `<div class="entry">${I[d.direction === 'sell' ? 'rupee' : 'cart']}<div class="t"><b>${esc(label)}</b><div class="who">${esc(new Date(d.created_at).toLocaleDateString(loc(), { day: 'numeric', month: 'short' }))} · ${esc(t('simulated'))}</div></div><span class="a ${d.direction === 'sell' ? 'in-c' : 'out-c'}">${d.direction === 'sell' ? '+' : '−'}${esc(money(Number(d.total_inr || 0), dealCur(d)))}</span></div>`;
           })
           .join('')
       : `<div class="muted" style="text-align:center;padding:16px">${esc(t('noMoney'))}</div>`;
   }
 
   // ================= LAND SWITCHER =================
-  $('#farmBtn').addEventListener('click', () => {
+  // My farm: fields and poultry sheds, each its own place (v0.11.0).
+  function openFarm() {
     $('#farmList').innerHTML = S.lands.length
-      ? S.lands.map((l, i) => `<button class="fitem ${l.id === S.cur?.id ? 'on' : ''}" data-id="${l.id}" style="animation-delay:${i * 60}ms"><span class="th">${I.sprout}</span><span class="m"><b>${esc(landTitle(l))}</b><div>${esc(l.acres ? `${num(l.acres, 2)} ${t('acShort')}` : t('noOutlineShort'))}${l.crop ? ` · ${esc(cropName(l.crop))}` : ''} · ${esc(new Date(l.created_at).toLocaleDateString(loc(), { day: 'numeric', month: 'short' }))}</div></span></button>`).join('')
+      ? S.lands.map((l, i) => `<button class="fitem ${S.mode === 'field' && l.id === S.cur?.id ? 'on' : ''}" data-id="${l.id}" style="animation-delay:${i * 60}ms"><span class="th">${I.sprout}</span><span class="m"><b>${esc(landTitle(l))}</b><div>${esc(l.acres ? `${num(l.acres, 2)} ${t('acShort')}` : t('noOutlineShort'))}${l.crop ? ` · ${esc(cropName(l.crop))}` : ''} · ${esc(new Date(l.created_at).toLocaleDateString(loc(), { day: 'numeric', month: 'short' }))}</div></span></button>`).join('')
       : `<div class="muted">${esc(t('noLands'))}</div>`;
+    $('#shedList').innerHTML = S.sheds.length
+      ? S.sheds.map((s, i) => `<button class="fitem shed ${S.mode === 'shed' && s.id === S.shed?.id ? 'on' : ''}" data-shed="${s.id}" style="animation-delay:${i * 60}ms"><span class="th">${I.egg}</span><span class="m"><b>${esc(shedName(s))}</b><div>${esc(s.chickens ? fmt('aboutChickens', { n: num(s.chickens) }) : '')} · ${esc(t('simKit'))}</div></span></button>`).join('')
+      : `<div class="muted">${esc(t('noSheds'))}</div>`;
     $('#farmSheet').hidden = false;
-  });
-  $('#farmList').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-id]');
+  }
+  $('#farmBtn').addEventListener('click', openFarm);
+  $('#farmSheet').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-id],[data-shed]');
     if (!b) return;
     $('#farmSheet').hidden = true;
-    openLand(b.dataset.id);
+    if (b.dataset.shed) openShed(b.dataset.shed);
+    else openLand(b.dataset.id).then(() => S.tab === 'shed' && show('field'));
+  });
+  $('#addShedBtn').addEventListener('click', () => {
+    $('#farmSheet').hidden = true;
+    window.KSShed?.openAddShed();
   });
   $('#farmClose').addEventListener('click', () => ($('#farmSheet').hidden = true));
   $('#addFromList').addEventListener('click', () => {
@@ -1038,7 +1125,7 @@
     $('#addSheet').hidden = false;
     stepTo(1);
   }
-  $('#addBtn').addEventListener('click', openAdd);
+  $('#addBtn').addEventListener('click', openFarm);
   $('#addClose').addEventListener('click', () => ($('#addSheet').hidden = true));
   function setLoc(lat, lon, { place = null, label = '' } = {}) {
     AD.lat = lat;
@@ -1155,7 +1242,7 @@
     return null;
   }
 
-  const AN_STEPS = ['anSat', 'anSam', 'anSoil', 'anWx', 'anCal'];
+  const AN_STEPS = ['anSat', 'anSam', 'anPlace', 'anSoil', 'anWx', 'anCal'];
   function anProgress(n, failed) {
     $('#anlist').innerHTML = AN_STEPS.map((k, i) => `<div class="anrow ${i === n && failed ? 'fail' : ''}"><span class="st">${i < n ? I.check : i === n && !failed ? '<span class="spin"></span>' : i === n ? I.warn : '<span class="dotx"></span>'}</span><span class="k">${esc(t(k))}</span></div>`).join('');
   }
@@ -1176,13 +1263,19 @@
       anProgress(2);
       $('#anvis').innerHTML = `<div class="anmap"><img src="${imgUrl(r.land.tileUrl)}" alt=""><div class="mono">${esc(r.fields ? fmt('fieldsFound', { n: num(r.fields), ac: num(r.land.acres, 2) }) : t('noFieldFound'))}</div></div>`;
       if (!r.fields) {
+        // No field outline: still say where this is and what covers it, so a town is called a town.
+        const pc = await api(`/api/lands/${r.land.id}/place`).catch(() => null);
         anProgress(1, true);
-        $('#anlist').insertAdjacentHTML('beforeend', `<p class="sub">${esc(t('heroNoFieldS'))}</p><button class="btn" id="anUseAnyway">${esc(t('useAnyway'))}</button>`);
+        const pl = pc?.ok ? pc.place : null;
+        const blocked = pl && (pl.verdict === 'built' || pl.verdict === 'water');
+        $('#anlist').insertAdjacentHTML('beforeend', `${pl ? `<div class="check">${[[pl.cc ? 'ok' : 'warn', placeLine(pl), 'OpenStreetMap'], ...(pl.cover ? [[blocked ? 'bad' : 'ok', blocked ? t(pl.verdict === 'water' ? 'waterH' : 'coverBuilt') : t('coverMixed'), `${coverLine(pl)} · ESA WorldCover 10 m`]] : [])].map(([s, a, b]) => `<div class="ln"><span class="dot ${s}">${s === 'ok' ? I.check : '!'}</span><div><b>${esc(a)}</b><small>${esc(b)}</small></div></div>`).join('')}</div>` : ''}${blocked ? `<div class="blocked"><b>${esc(t('resiH'))}</b><p>${esc(t('resiT'))}</p></div>` : `<p class="sub">${esc(t('heroNoFieldS'))}</p>`}<div class="btns"><button class="btn" id="anAgain">${esc(t('pickOnMap'))}</button><button class="btn ghost" id="anUseAnyway">${esc(t('useAnyway'))}</button></div>`);
         $('#anUseAnyway').addEventListener('click', finishAdd);
+        $('#anAgain').addEventListener('click', () => stepTo(1));
         return;
       }
+      anProgress(3);
       const p = await api(`/api/lands/${r.land.id}/plan`);
-      anProgress(5);
+      anProgress(AN_STEPS.length);
       AD.plan = p.ok ? p.plan : null;
       setTimeout(showResults, 500);
     } catch (err) {
@@ -1191,10 +1284,30 @@
       toast(`${t('error')}: ${err.message}`);
     }
   });
+  // Check the place first (v0.11.0): where it is, what covers it, which calendar, and the nearest shops.
+  function renderPlaceCheck(p) {
+    const pl = p?.place;
+    const rows = [];
+    if (pl) {
+      rows.push([pl.cc ? 'ok' : 'warn', placeLine(pl) || t('placeUnknown'), 'OpenStreetMap']);
+      if (pl.cover) rows.push([p.blocked ? 'bad' : 'ok', p.blocked ? t(pl.verdict === 'water' ? 'waterH' : 'coverBuilt') : pl.verdict === 'cropland' ? t('coverCrop') : t('coverMixed'), `${coverLine(pl)} · ESA WorldCover 10 m`]);
+      if (!p.blocked) rows.push([p.calendar?.length ? 'ok' : 'warn', p.calendar?.length ? fmt('cropsForCountry', { area: cropArea(p) }) : t('noFaoHere'), p.aez ? 'FAO crop calendar' : 'MIRCA-OS crop calendar' + (p.picksBy ? ` · ${p.picksBy}` : '')]);
+    }
+    $('#placeCheck').innerHTML = rows.map(([s, a, b]) => `<div class="ln"><span class="dot ${s}">${s === 'ok' ? I.check : '!'}</span><div><b>${esc(a)}</b><small>${esc(b)}</small></div></div>`).join('');
+    $('#blockedBox').hidden = !p?.blocked;
+    $('#prof').hidden = Boolean(p?.blocked);
+    $('#noCrop').textContent = t(p?.blocked ? 'keepAnyway' : 'justWatch');
+  }
+  $('#pickAgain').addEventListener('click', () => stepTo(1));
+  $('#tryDemo').addEventListener('click', () => {
+    stepTo(1);
+    $('#presets [data-pre]')?.click();
+  });
   function showResults() {
     stepTo(3);
     const p = AD.plan;
     const w = p?.weather;
+    renderPlaceCheck(p);
     $('#prof').innerHTML = [
       [I.eye, t('fieldSize'), AD.land?.acres ? `${num(AD.land.acres, 2)} ${t('acShort')}` : '—'],
       [I.soil, t('soilType'), p?.soil ? `${t(`soil_${p.soil.texture}`)} · pH ${num(p.soil.ph, 1)}` : t('soilUnknown')],
@@ -1205,8 +1318,8 @@
       .join('');
     const crops = p?.crops || [];
     $('#crops').innerHTML = crops.length
-      ? crops.map((c, i) => `<button class="crop ${i === 0 ? 'top' : ''}" data-crop="${c.key}" style="animation-delay:${i * 90}ms"><span class="cic">${I.sprout}</span><div><h4>${esc(cropName(c.key))}${i === 0 ? `<span class="pill ok">${esc(t('bestNow'))}</span>` : ''}</h4><div class="who">${esc(c.status === 'soon' ? fmt('startsIn', { n: num(c.daysUntil) }) : fmt('sowBy', { date: fd(c.windowEnd), n: num(c.daysLeft) }))}</div><div class="who">${esc(fmt('harvestIn', { a: num(c.growDays?.min), b: num(c.growDays?.max) }))} · ${esc(t(`water_${c.water}`))}</div></div><div class="go"><span class="profit">${esc(money(c.sampleProfitBdtPerAcre || 0, '৳'))}</span><span class="who">${esc(t('perAcreSample'))}</span><span class="btn">${esc(t('grow'))}</span></div></button>`).join('')
-      : `<div class="emptybox">${esc(p?.aez ? t('noCropsText') : t('noFaoHere'))}</div>`;
+      ? crops.map((c, i) => `<button class="crop ${i === 0 ? 'top' : ''}" data-crop="${c.key}" style="animation-delay:${i * 90}ms"><span class="cic">${I.sprout}</span><div><h4>${esc(cropName(c.key))}${i === 0 ? `<span class="pill ok">${esc(t('bestNow'))}</span>` : ''}</h4><div class="who">${esc(whenText(c))}</div><div class="who">${esc(fmt('harvestIn', { a: num(c.growDays?.min), b: num(c.growDays?.max) }))} · ${esc(t(`water_${c.water}`))}</div>${c.why?.[lang] ? `<div class="who why">${esc(c.why[lang])}</div>` : ''}</div><div class="go">${profitText(c, p) ? `<span class="profit">${esc(profitText(c, p))}</span><span class="who">${esc(t('perAcreSample'))}</span>` : ''}<span class="btn">${esc(t('grow'))}</span></div></button>`).join('')
+      : p?.blocked ? '' : `<div class="emptybox">${esc(p?.calendar?.length ? t('noCropsText') : t('noFaoHere'))}</div>`;
     $('#crops')
       .querySelectorAll('[data-crop]')
       .forEach((b) =>
@@ -1223,7 +1336,7 @@
     const today = AD.plan?.today || new Date().toISOString().slice(0, 10);
     $('#planH').textContent = fmt('seasonOf', { crop: cropName(c.key) });
     const steps = seasonSteps(c, today);
-    $('#money3').innerHTML = [[t('sowWindow'), `${fd(c.windowStart)} – ${fd(c.windowEnd)}`], [t('harvestL'), fmt('harvestIn', { a: num(c.growDays?.min), b: num(c.growDays?.max) })], [t('perAcreSample'), money(c.sampleProfitBdtPerAcre || 0, '৳')]].map(([k, v]) => `<div class="tile"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join('');
+    $('#money3').innerHTML = [[t('sowWindow'), `${fd(c.windowStart)} – ${fd(c.windowEnd)}`], [t('harvestL'), fmt('harvestIn', { a: num(c.growDays?.min), b: num(c.growDays?.max) })], ...(profitText(c, AD.plan) ? [[t('perAcreSample'), profitText(c, AD.plan)]] : [[t('cropSrcL'), cropSrc(AD.plan)]])].map(([k, v]) => `<div class="tile"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join('');
     $('#tl').innerHTML = steps.map((s, i) => `<div class="tli" style="animation-delay:${i * 110}ms"><span class="ic">${I[s.icon]}</span><div><b>${esc(t(`step_${s.id}`))}</b><div class="d">${esc(fd(s.date))}</div></div><span class="a">${s.date === steps[0].date && i === 0 ? esc(t('next')) : ''}</span></div>`).join('');
   }
   $('#startBtn').addEventListener('click', async () => {
@@ -1242,16 +1355,35 @@
     applyLang();
     icons();
     try {
-      await loadLands();
+      await Promise.all([loadLands(), loadSheds()]);
     } catch {
       return;
     }
     show('home');
     const want = store.get('ks_land');
     const pick = S.lands.find((l) => l.id === want) || S.lands[0];
-    if (pick) await openLand(pick.id).catch((e) => toast(e.message));
+    S.shed = S.sheds.find((s) => s.id === store.get('ks_shed')) || S.sheds[0] || null;
+    if (store.get('ks_mode') === 'shed' && S.shed) openShed(S.shed.id);
+    else if (pick) await openLand(pick.id).catch((e) => toast(e.message));
     else renderAll();
     loadSide();
   }
-  boot();
+
+  // Shared with ks-shed.js (poultry, egg sale, buying for a field, demo calls).
+  window.KS = {
+    S, $, $$, I, t, fmt, num, esc, fd, loc, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, cropName, placeLine, shedLine,
+    lang: () => lang, show, ask, speak, toWav, renderAll, renderHeader, loadSide, loadSheds, openShed, openFarm, bubble, count, mini, lineChart,
+    playUrl: (url) =>
+      new Promise((done) => {
+        if (!url) return done();
+        if (player) player.pause();
+        player = new Audio(url);
+        player.onended = done;
+        player.onerror = done;
+        player.play().catch(done);
+      }),
+    stopAudio: () => player && player.pause(),
+  };
+  // ks-shed.js loads after this file; boot once both are in.
+  window.addEventListener('DOMContentLoaded', boot);
 })();

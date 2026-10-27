@@ -1,6 +1,6 @@
 # Khet Saathi (খেত সাথী · खेत साथी)
 
-**One voice, every farm decision.** A voice-first AI farm agent for smallholder farmers in India and Bangladesh.
+**One voice, every farm decision.** A voice-first AI farm agent for smallholder farmers, built first for India and Bangladesh and working anywhere on Earth.
 The farmer talks in Bangla or Hindi; the agent watches their land from space, listens to their shed, plans the
 season, and handles buying and selling, with the farmer confirming every deal.
 
@@ -16,7 +16,11 @@ in each version and when.
 
 | Feature | Status |
 |---|---|
-| Farmer app: Bangla / Hindi / English, big picture buttons, hold-to-talk on every screen | Live |
+| Farmer app at `/`: Bangla / Hindi / English; fields and poultry sheds are separate places in one switcher, each with its own Home and tabs; tabs in the header on desktop, bottom bar on phones (the earlier app stays at `/classic/`) | Live |
+| Check the place first: OpenStreetMap says where the land is, ESA WorldCover 10 m says what covers it; houses or water get "no crops here" and Saathi never suggests a crop there | Live (real data) |
+| Crops anywhere: the farmer's own district crops, hectares and sowing months (MIRCA-OS 2020); Muse Spark keeps the ones farmers there sow this season; money in the country's currency | Live (real data; FAO calendar still used in Bangladesh) |
+| Market for a field: seed, fertilizer and plough crew sized to the field, the real seed and fertilizer shops near it (OpenStreetMap); on a real land "Saathi will call" is marked coming soon and nothing is faked; demo lands play a scripted demo call | Live (calling and email **coming soon**) |
+| Shed camera wall: saved shed clips play as camera feeds with a clock; connect CCTV is coming soon | Live (**demo feed** for the demo shed) |
 | Add land: photo + GPS → satellite view → SAM 3.1 finds the farmer's field and measures its acres | Live |
 | Small-plot scan: SAM 3.1 runs on an enlarged 225 m close-up, so tiny Bengal plots are outlined one by one; wide 600 m view as fallback | Live |
 | Honest empty states: "no farm field here" for a town spot, re-scan for older lands, SAM's answer shown on screen | Live |
@@ -55,11 +59,15 @@ in each version and when.
 - Field health: ESA Copernicus Sentinel-2 L2A (free cloud-optimised images on AWS, Earth Search STAC by Element 84, no key). For the farmer's own SAM outline the server reads red, near-infrared and the scene classification (cloud mask) for every pass in 150 days and computes NDVI per 10 m pixel, zones and a season curve; cached 6 hours per land
 - Soil: ISRIC SoilGrids 250 m (CC BY 4.0), topsoil 0-15 cm texture and pH, looked up once per land and saved; dated copies for the demo plots in case the service is down
 - Weather: Open-Meteo (CC BY 4.0), 10-day rain chance and amount, temperature and topsoil moisture, refreshed hourly
-- Sowing windows: FAO Crop Calendar for Bangladesh by farming zone (AEZ), fetched daily, with a copy saved on Oct 27, 2026 as a fallback. FAO has no calendar for India, so Indian plots show soil and weather only. FAO publishes no zone map, so only the Bogura demo plot is placed in its exact zone; other Bangladesh points use the same zone and say so on screen
+- Sowing windows, Bangladesh: FAO Crop Calendar by farming zone (AEZ), fetched daily, with a copy saved on Oct 27, 2026 as a fallback. FAO publishes no zone map, so only the Bogura demo plot is placed in its exact zone; other Bangladesh points use the same zone and say so on screen
+- Sowing windows, everywhere else: MIRCA-OS v2 (Kebede et al. 2026, CC BY 4.0), 2020 crop calendars and growing areas by district or state, plus its 5 arc-minute gridded calendars where the district name does not match; FAOSTAT (CC BY 4.0) country areas rank crops when no district matches. Built offline by `tools/build_crop_data.py` into `lib/data/`. Known data issue: MIRCA-OS lists some South Asian winter crops (wheat, barley, mustard, potato on the plains) as sown in June on irrigated land; the app moves those to their usual winter months
+- Place: OpenStreetMap Nominatim reverse geocoding (ODbL) and ESA WorldCover 2021 10 m land cover (CC BY 4.0, read from its cloud-optimised GeoTIFFs on AWS)
+- Shops near a field: OpenStreetMap shops (agrarian, farm, garden centre, seeds, fertilizer) through the Overpass API, or Google Places when `GOOGLE_PLACES_KEY` is set
 - Profit per acre on crop cards is a **sample figure**, labelled on screen, until a market price source is added
 - Demo plots (used when GPS is off or outside South Asia): Bogura (Bangladesh, default for empty land), Bolpur (West Bengal), Ludhiana (Punjab)
 - Storage: Supabase Postgres + private storage bucket for land photos and satellite tiles; falls back to in-memory storage if not configured
-- Vendors, buyers, shop owners, sensors and shed cameras: **simulated** for the hackathon and labelled as such in the app. The sensor kit simulator starts from each plot's real weather and soil moisture and drifts in small steps every 10 minutes
+- Real lands (the farmer's own GPS or photo) show only real data: no sample prices, no demo shops, no fake calls. The demo lands (Bogura, Bolpur, Ludhiana presets) and the demo shed keep their labelled demo calls
+- Vendors, buyers, shop owners, sensors and shed cameras on the demo lands and the demo shed: **simulated** for the hackathon and labelled as such in the app. The sensor kit simulator starts from each plot's real weather and soil moisture and drifts in small steps every 10 minutes
 - Orders and deals are drafts until the farmer confirms. Nothing is bought, sold or paid in this prototype
 
 ## Safety
@@ -95,6 +103,7 @@ Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 |---|---|---|
 | v0.10.0 | Oct 28 | New app shell at `/next/` in the team's Khet_Saathi.html design (bottom nav, land switcher, বাং/हिं/EN): Home and Field on real data (Sentinel-2 NDVI per pass with clouds masked, zones, season curve and timelapse, next pass, Esri map with the SAM outline, soil, weather, FAO crops, season steps), Saathi chat on Muse Spark Open, add land in 4 steps; plus the shopkeeper currency fix, the bench model-list warning and the never-sow-after-the-window rule. The classic app stays at `/` until v0.11.0 |
 | v0.10.1 | Oct 28 | New shell fits wide screens (1320 px, 6-column dashboard on laptops) and zones follow the field's real shape, so a small field shows 2 x 2 instead of empty cells. Poultry is back in the new shell: a Poultry tab and a shed card on Home (simulated shed kit, eggs today, egg stock) with buttons to the full shed and the egg sale |
+| v0.11.0 | Oct 28 | The new app is the main app at `/` (classic at `/classic/`). Fields and poultry sheds are separate places with their own Home and tabs; add a shed. Full-width desktop with tabs in the header. Check the place first (OpenStreetMap, ESA WorldCover): no crops for houses or water. Crops for any country from MIRCA-OS district data, picked by Muse Spark, in local currency. Market: seed, fertilizer and crew for a field with real nearby shops; poultry Market with the egg sale. Shed tab: camera wall of saved clips, count, sound, vet. Real lands never fake a call (coming soon note); demo lands keep demo calls. SQL 005 |
 | v0.9.0 | Oct 28 | Open weights: Saathi's agent and the egg-sale shopkeepers run on Muse Spark Open (`meta-models/muse-spark-open-1026`) on Baseten when `BASETEN_API_KEY` is set, falling back to Muse Spark 1.3; each answer shows which model answered; bench row for a real open-weights tool call |
 | v0.8.0 | Oct 28 | Egg sale: the farmer's sell rule (eggs reach N and/or every N days, lowest price per tray, shops, ask first), a simulated egg stock, Saathi calls the shops and bargains by fixed rules (never below the lowest price) while Muse Spark voices the shopkeepers, offers side by side, one tap saves the deal; `sql/004_sell_rules_v0.8.0.sql` |
 | v0.7.5 | Oct 28 | Simulated vet name and village in the farmer's language; Saathi tells the vet "about N chickens in the shed" (source shown below the line); English text says chickens instead of birds |

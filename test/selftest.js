@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import { seedField, stepField, stepShed, seedShed, latestByDevice, fieldDevice, lightScheduled, isNight } from '../lib/sensors.js';
 import { analyseFrames, safeText, parseObservation } from '../lib/poultry.js';
 import { responseText } from '../lib/meta.js';
-import { fieldAlerts, shedAlerts, cameraAlerts, dedupe } from '../lib/alerts.js';
+import { fieldAlerts, shedAlerts, cameraAlerts, dedupe, realOnly } from '../lib/alerts.js';
 import * as clipsLib from '../lib/clips.js';
 import { parsePath, fieldPolygonM, inRings, areaAcres } from '../lib/fieldgeo.js';
 import { passesFromStac, readPass, zonesFrom, zoneShape, nextPass, fieldHealth } from '../lib/sentinel.js';
@@ -30,6 +30,11 @@ import { createEngine } from '../lib/engine.js';
 import * as memStore from '../lib/store.js';
 import sharp from 'sharp';
 import { createLand, getLand, putFile, getFile, deleteLand, deleteFiles } from '../lib/store.js';
+import { addressParts, coverShares, verdictFrom, worldCoverTile, shopsFromOverpass, currencyFor } from '../lib/place.js';
+import { worldCalendar, worldCrops, cellCrops, matchUnit, normName, fixSeason, knownCountry } from '../lib/cropworld.js';
+import { parsePicks, pickPrompt } from '../lib/croppick.js';
+import { needsFor, orderCalls } from '../lib/market.js';
+import { eggsPerDay } from '../lib/sensors.js';
 
 // SAM 3.1 sample output from Meta's documentation, split across deltas.
 const outputText =
@@ -310,6 +315,14 @@ check('Recommend: heavy clay drops potato and mustard', () => {
 });
 
 // Fake network: answers SoilGrids, Open-Meteo and FAO from the saved real responses.
+// v0.11.0: the place check (OpenStreetMap + ESA WorldCover) and Muse Spark crop picks, offline.
+const fakePlace = (cc, country, cover = { crop: 0.4, tree: 0.3, grass: 0.3 }) => ({
+  fetchImpl: async () => ({ ok: true, json: async () => ({ category: 'place', type: 'village', address: { village: 'Test village', state: 'Test state', country, country_code: cc.toLowerCase() } }) }),
+  landCover: async () => cover,
+});
+const noThink = async () => {
+  throw new Error('offline');
+};
 const fakeFetch = (fail = []) => async (url) => {
   const u = String(url);
   const which = u.includes('soilgrids') ? 'soil' : u.includes('open-meteo') ? 'weather' : 'fao';
@@ -321,7 +334,7 @@ const fakeFetch = (fail = []) => async (url) => {
 };
 
 await checkAsync('Plan: Bogura demo land end to end (soil, weather, zone, 3 crops)', async () => {
-  const p = await buildPlan({ place: 'bogura', lat: 24.88, lon: 89.33 }, { fetchImpl: fakeFetch(['fao']), today: TODAY });
+  const p = await buildPlan({ place: 'bogura', lat: 24.88, lon: 89.33 }, { fetchImpl: fakeFetch(['fao']), today: TODAY, placeDeps: fakePlace('BD', 'Bangladesh'), think: noThink });
   assert.equal(p.soil.texture, 'silty_clay_loam');
   assert.equal(p.weather.soilMoistureLevel, 'dry');
   assert.equal(p.rain.rainDate, '2026-10-29');
@@ -329,12 +342,114 @@ await checkAsync('Plan: Bogura demo land end to end (soil, weather, zone, 3 crop
   assert.match(p.calendarSource, /saved copy/);
   assert.equal(p.crops.length, 3);
 });
-await checkAsync('Plan: Bolpur gets soil and weather but no crops (no FAO data for India)', async () => {
-  const p = await buildPlan({ place: 'bolpur', lat: 23.64, lon: 87.73 }, { fetchImpl: fakeFetch(), today: TODAY });
+await checkAsync('Plan v0.11.0: Bolpur (India) gets Indian crops from FAOSTAT + GGCMI, in rupees', async () => {
+  const p = await buildPlan({ place: 'bolpur', lat: 23.64, lon: 87.73 }, { fetchImpl: fakeFetch(), today: TODAY, placeDeps: fakePlace('IN', 'India'), think: noThink });
   assert.equal(p.soil.texture, 'clay_loam');
   assert.ok(p.weather);
   assert.equal(p.aez, null);
+  assert.equal(p.place.cc, 'IN');
+  assert.equal(p.currency.code, 'INR');
+  assert.ok(p.crops.length >= 1);
+  assert.ok(p.calendar.every((c) => c.status && c.windowStart));
+  assert.match(p.calendarSource, /MIRCA-OS/);
+  assert.ok(!p.crops.some((c) => c.key === 'soybean' && c.status === 'later'));
+});
+await checkAsync('Plan v0.11.0: a residential spot gets no crops at all', async () => {
+  const p = await buildPlan({ lat: 23.7465, lon: 90.376 }, { fetchImpl: fakeFetch(), today: TODAY, placeDeps: fakePlace('BD', 'Bangladesh', { built: 0.89, tree: 0.01 }), think: noThink });
+  assert.equal(p.blocked, true);
+  assert.equal(p.place.verdict, 'built');
   assert.deepEqual(p.crops, []);
+  assert.deepEqual(p.calendar, []);
+  assert.equal(cropWindows({ plan: p }).crops.length, 0);
+  assert.match(plotProfile({}, { plan: p }).is_farmland, /^NO/);
+});
+await checkAsync('Plan v0.11.0: an Iowa farm gets US crops only, in dollars; Muse Spark picks from that list', async () => {
+  const think = async () => ({ label: 'stub', resp: { choices: [{ message: { content: '{"picks":[{"key":"wheat","why_en":"winter wheat goes in now"},{"key":"jute","why_en":"not in list"}]}' } }] } });
+  const p = await buildPlan({ lat: 42.03, lon: -93.6 }, { fetchImpl: fakeFetch(), today: TODAY, placeDeps: fakePlace('US', 'United States', { crop: 0.6, grass: 0.2 }), think });
+  assert.equal(p.currency.symbol, '$');
+  assert.ok(p.calendar.length && p.calendar.every((c) => c.key !== 'mustard'));
+  if (p.calendar.some((c) => c.key === 'wheat' && c.status !== 'later')) {
+    assert.deepEqual(p.crops.map((c) => c.key), ['wheat']);
+    assert.equal(p.picksBy, 'stub');
+  }
+});
+check('Place: address parts, cover shares, verdicts, WorldCover tile names, currencies', () => {
+  const a = addressParts({ category: 'landuse', type: 'residential', address: { village: 'Bolpur', state_district: 'Birbhum', state: 'West Bengal', country: 'India', country_code: 'in' } });
+  assert.equal(a.cc, 'IN');
+  assert.equal(a.district, 'Birbhum');
+  assert.deepEqual(coverShares([40, 40, 50, 10]), { crop: 0.5, built: 0.25, tree: 0.25 });
+  assert.equal(verdictFrom({ cover: { built: 0.89 } }), 'built');
+  assert.equal(verdictFrom({ cover: { water: 0.7 } }), 'water');
+  assert.equal(verdictFrom({ cover: { crop: 0.5 } }), 'cropland');
+  assert.equal(verdictFrom({ cover: { tree: 0.5, grass: 0.4 } }), 'mixed');
+  assert.equal(verdictFrom({ cover: { crop: 0.05, tree: 0.3 }, osmClass: 'landuse', osmType: 'residential' }), 'built');
+  assert.match(worldCoverTile(23.68, 87.68), /_N21E087_Map\.tif$/);
+  assert.match(worldCoverTile(42.03, -93.6), /_N42W096_Map\.tif$/);
+  assert.match(worldCoverTile(-1.3, 36.8), /_S03E036_Map\.tif$/);
+  assert.equal(currencyFor('bd').symbol, '৳');
+  assert.equal(currencyFor('ZZ').code, 'USD');
+});
+check('Place: real shops from OpenStreetMap, nearest first, unnamed dropped', () => {
+  const s = shopsFromOverpass({ elements: [{ type: 'node', id: 1, lat: 23.65, lon: 87.73, tags: { shop: 'agrarian', name: 'Far shop' } }, { type: 'way', id: 2, center: { lat: 23.641, lon: 87.731 }, tags: { shop: 'agrarian', name: 'Near shop' } }, { type: 'node', id: 3, lat: 23.64, lon: 87.73, tags: { shop: 'agrarian' } }] }, { lat: 23.64, lon: 87.73 });
+  assert.deepEqual(s.map((x) => x.name), ['Near shop', 'Far shop']);
+  assert.ok(s.every((x) => x.real && x.source === 'OpenStreetMap'));
+});
+check('Crops anywhere: MIRCA-OS district crops and months, no foreign crops', () => {
+  assert.ok(knownCountry('IN') && knownCountry('US') && !knownCountry('ZZ'));
+  assert.equal(normName('Bogura District'), 'bogura');
+  assert.equal(matchUnit('BD', { state: 'Rajshahi Division', district: 'Bogura District' }).name, 'Bogra');
+  assert.equal(matchUnit('IN', { state: 'West Bengal', district: 'Birbhum' }).scope, 'district');
+  assert.equal(matchUnit('US', { state: 'Iowa', county: 'Story County' }).name, 'Story');
+  // Birbhum in late October: mustard closing, then rabi rice, pulses, potato, wheat in November.
+  const wb = worldCalendar({ cc: 'IN', lat: 23.64, lon: 87.73, today: '2026-10-28', place: { state: 'West Bengal', district: 'Birbhum' } });
+  assert.equal(wb[0].key, 'mustard');
+  assert.equal(wb[0].status, 'closing');
+  assert.ok(['wheat', 'pulses', 'potato'].every((k) => wb.some((c) => c.key === k && c.status === 'soon')));
+  // Story County, Iowa: maize and soybean only, sown in spring; nothing Bangladeshi.
+  const ia = worldCalendar({ cc: 'US', lat: 42.03, lon: -93.6, today: '2026-10-28', place: { state: 'Iowa', county: 'Story County' } });
+  assert.deepEqual([...new Set(ia.map((c) => c.key))].sort(), ['maize', 'soybean']);
+  assert.ok(ia.every((c) => c.status === 'later'));
+  assert.deepEqual(worldCrops(ia, null).map((c) => c.key), ['maize', 'soybean']);
+  // Ludhiana wheat is a winter crop even where MIRCA-OS lists it in June.
+  assert.deepEqual(fixSeason('IN', 'Punjab', 'wheat', 6, 10), [11, 3]);
+  assert.deepEqual(fixSeason('IN', 'Himachal Pradesh', 'potato', 6, 10), [6, 10]);
+  const pb = worldCalendar({ cc: 'IN', lat: 30.91, lon: 75.62, today: '2026-10-28', place: { state: 'Punjab', district: 'Ludhiana' } });
+  assert.ok(pb.some((c) => c.key === 'wheat' && c.windowStart.slice(5, 7) === '11'));
+  // No district match: the 9 km cell's crops, ranked by the country.
+  assert.ok(cellCrops(23.64, 87.73).length > 5);
+  assert.equal(worldCalendar({ cc: 'ZZ', lat: 0, lon: -30, today: TODAY }).length, 0);
+});
+check('Crop picks: only keys from the data list, three at most', () => {
+  const cands = [{ key: 'wheat' }, { key: 'mustard' }, { key: 'potato' }, { key: 'lentil' }];
+  assert.deepEqual(parsePicks('x {"picks":[{"key":"jute"},{"key":"mustard","why_en":"a"},{"key":"mustard"},{"key":"wheat"},{"key":"potato"},{"key":"lentil"}]} y', cands).map((p) => p.key), ['mustard', 'wheat', 'potato']);
+  assert.equal(parsePicks('no json', cands), null);
+  assert.match(pickPrompt({ place: { village: 'Bolpur', country: 'India' }, today: TODAY, candidates: [{ key: 'wheat', windowStart: '2026-10-24', windowEnd: '2026-11-23', status: 'open', growDays: { min: 110, max: 130 } }] }), /Bolpur, India/);
+});
+check('Market: quantities from the field size, sample prices in local money, scripted demo calls', () => {
+  const n = needsFor({ crop: 'mustard', acres: 0.5, currency: { perUsd: 120 } });
+  assert.deepEqual(n.map((l) => l.id), ['seed', 'fert', 'plough']);
+  assert.equal(n[0].qty, 1);
+  assert.ok(n.every((l) => l.price > 0));
+  const calls = orderCalls({ lines: n, shop: 'Shop A', crew: 'Crew B', place: 'Bogura', cropName: 'সরিষা', currency: { symbol: '৳' }, lang: 'bn' });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].to, 'Shop A');
+  assert.match(calls[0].turns[2].text, /৳/);
+  assert.equal(orderCalls({ lines: [n[2]], shop: 'S', crew: 'C', currency: {}, lang: 'en' }).length, 1);
+});
+await checkAsync('Engine v0.11.0: a real land never gets an alert from the simulated soil kit', async () => {
+  const real = { id: 'r', location_source: 'gps', lat: 1, lon: 1 };
+  const plan = { blocked: false, crops: [], weather: { days: [] }, today: TODAY };
+  const rows = fieldAlerts(real, plan, [5, 5, 40]);
+  assert.ok(rows.some((a) => a.title === 'soil_dry'));
+  assert.equal(realOnly(real, rows).length, 0);
+  assert.equal(realOnly({ ...real, location_source: 'demo' }, rows).length, rows.length);
+});
+check('Shed: eggs per day keeps the highest count of each day, 7 days', () => {
+  const d = eggsPerDay([{ at: '2026-10-27T10:00:00Z', value: 120 }, { at: '2026-10-27T12:00:00Z', value: 212 }, { at: '2026-10-25T12:00:00Z', value: 199 }], '2026-10-27');
+  assert.equal(d.length, 7);
+  assert.equal(d.at(-1).eggs, 212);
+  assert.equal(d.at(-3).eggs, 199);
+  assert.equal(d.at(-2).eggs, null);
 });
 await checkAsync('Plan: SoilGrids down uses the dated demo copy; saved soil is reused', async () => {
   const r = await soilForLand({ place: 'bogura', lat: 24.88, lon: 89.33 }, { fetchImpl: fakeFetch(['soil']) });
@@ -346,7 +461,7 @@ await checkAsync('Plan: SoilGrids down uses the dated demo copy; saved soil is r
   assert.equal(none.soil, null);
 });
 await checkAsync('Agent tools: real profile and crop windows from the plan', async () => {
-  const p = await buildPlan({ place: 'bogura', lat: 24.88, lon: 89.33 }, { fetchImpl: fakeFetch(['fao']), today: TODAY });
+  const p = await buildPlan({ place: 'bogura', lat: 24.88, lon: 89.33 }, { fetchImpl: fakeFetch(['fao']), today: TODAY, placeDeps: fakePlace('BD', 'Bangladesh'), think: noThink });
   const prof = plotProfile({}, { plan: p });
   assert.equal(prof.soil.texture, 'silty_clay_loam');
   assert.equal(prof.rain_warning.day, '2026-10-29');
@@ -392,7 +507,7 @@ check('Alerts: shed limits and 12-hour dedupe', () => {
 });
 
 await checkAsync('Engine: seeds kits, then a forced dry soil raises one alert, never twice', async () => {
-  const land = await memStore.createLand({ kind: 'empty', place: 'bogura', lat: 24.88, lon: 89.33, objects: [{ id: '1' }] });
+  const land = await memStore.createLand({ kind: 'empty', place: 'bogura', location_source: 'demo', lat: 24.88, lon: 89.33, objects: [{ id: '1' }] });
   const w = summarizeForecast(fx('om_bogura'));
   const plan = { today: '2026-10-27', weather: { ...w, days: w.days.map((d) => ({ ...d, rainChance: 5, rainMm: 0 })) }, crops: [] };
   const engine = createEngine({ store: memStore, planForLand: async () => plan, rand: half });

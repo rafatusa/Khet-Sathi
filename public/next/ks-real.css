@@ -46,8 +46,12 @@
 .brand{white-space:nowrap}
 @media (max-width:440px){.brand{font-size:1.15rem}.lang button{padding:6px 7px;min-width:34px}}
 .addbtn{color:var(--ink)}
-/* v0.10.1: wider layout on laptops and desktops (6-column dashboard, 1320 px) */
-@media (min-width:1200px){.wrap{max-width:1320px}.dash{grid-template-columns:repeat(6,minmax(0,1fr))}.c-score{grid-column:span 2}.c-kpi{grid-column:span 4}.grid2{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}}
+/* v0.10.2: season plan sits in the dashboard (full row; next to the satellite card on wide screens). Wide screens use the full width. */
+.c-season{grid-column:1/-1}
+@media (min-width:761px) and (max-width:1199px){.c-pass{grid-column:1/-1}}
+.journey>.emptybox{grid-column:1/-1}
+.journey>.btn{grid-column:1/-1;justify-self:center}
+@media (min-width:1200px){.wrap{max-width:none;padding-left:32px;padding-right:32px}.dash{grid-template-columns:repeat(6,minmax(0,1fr))}.c-score{grid-column:span 2}.c-kpi{grid-column:span 4}.grid2{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}}
 .zones .zc{min-height:28px}
 .zones{grid-auto-rows:44px}
 .zones .zc{aspect-ratio:auto;height:100%;min-height:0}
@@ -59,3 +63,125 @@
 #shedCard .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .panel.soon .shedgrid{width:100%;max-width:520px;text-align:left}
 .panel.soon .btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+/* ===== v0.11.0: field / poultry places, desktop top tabs, shed camera wall, market, demo calls ===== */
+.mchip{font:700 .7rem var(--f-body);border-radius:999px;padding:1px 8px;flex:none}
+.mchip.field{background:var(--leaf-soft);color:#1f4d22}.mchip.shed{background:var(--turmeric-soft);color:#5c4400}
+.farmbtn{gap:6px}
+.toptabs{display:none}
+@media (min-width:1000px){
+  .toptabs{display:block;margin-left:28px}
+  .toptabs .row{display:flex;gap:4px}
+  .toptabs button{border:0;background:none;color:var(--muted);font:600 .95rem var(--f-body);padding:10px 14px;border-radius:12px;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:44px;position:relative}
+  .toptabs button svg{width:22px;height:22px}
+  .toptabs button[aria-selected="true"]{background:var(--leaf-soft);color:var(--leaf)}
+  .toptabs button:focus-visible{outline:3px solid var(--sky-ink);outline-offset:2px}
+  .toptabs .badge{position:absolute;top:2px;right:2px}
+  nav.bottom{display:none}
+  main{padding-bottom:32px}
+}
+nav.bottom .row{grid-template-columns:repeat(5,1fr)!important}
+nav.bottom button[hidden],.toptabs button[hidden]{display:none}
+/* poultry home grid */
+#dashShed .sh-kit,#dashShed .sh-eggs{grid-column:span 2}
+#dashShed .sh-cam,#dashShed .sh-vet,#dashShed .sh-sales{grid-column:span 4}
+@media (min-width:1200px){#dashShed .sh-kit,#dashShed .sh-eggs{grid-column:span 3}#dashShed .sh-cam{grid-column:span 4}#dashShed .sh-vet{grid-column:span 2}#dashShed .sh-sales{grid-column:1/-1}}
+@media (max-width:760px){#dashShed .card{grid-column:auto!important}}
+.btn.turm,.cta.turm{background:var(--turmeric);color:var(--ink)}
+.btn.bad{background:var(--alert);color:#fff}
+.clipthumbs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.clipthumbs .emptybox{grid-column:1/-1}
+.thumb{border:0;padding:0;background:#3b3a33;border-radius:12px;overflow:hidden;position:relative;aspect-ratio:16/10;cursor:pointer}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb span{position:absolute;left:6px;bottom:5px;right:6px;color:#fff;font:600 .72rem var(--f-body);text-shadow:0 1px 2px #000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.salesrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+/* shed camera wall */
+.shedview{position:relative;background:#1b1d18;border-radius:14px;overflow:hidden;aspect-ratio:16/9;margin-top:6px;display:grid;place-items:center}
+.shedview video,.shedview img{width:100%;height:100%;object-fit:contain;display:block;grid-area:1/1}
+.shedview svg{position:absolute;inset:0;width:100%;height:100%}
+.shedview .still{fill:none;stroke:var(--turmeric);stroke-width:4}
+.shedview .emptybox{grid-area:1/1;color:#d8dccf;border-color:#4a4d44;margin:16px}
+.camov{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;gap:8px;padding:8px 10px;color:#fff;font:600 .78rem var(--f-body);background:linear-gradient(#000a,#0000);pointer-events:none}
+.camname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cliprow{display:flex;gap:8px;overflow-x:auto;padding:10px 0 2px}
+.clipb{flex:none;display:flex;flex-direction:column;align-items:flex-start;border:2px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:6px 30px 6px 10px;font:inherit;font-size:.8rem;cursor:pointer;position:relative;min-height:44px}
+.clipb b{font-size:.72rem;color:var(--muted)}
+.clipb.on{border-color:var(--leaf);background:var(--leaf-soft)}
+.clipb .del{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--surface);border:1px solid var(--line);font-size:1rem}
+#cctvBtn{margin:4px 0 0}
+.savebox{border:2px dashed var(--line);border-radius:14px;padding:12px;margin-top:10px}
+.savebox label,.field{display:flex;flex-direction:column;gap:4px;font-weight:600;margin:10px 0}
+.savebox input,.field input{font:16px var(--f-body);padding:10px 12px;border:2px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);min-height:44px}
+#shStillBox.warn{background:var(--turmeric-soft)}
+/* place check */
+.check{display:flex;flex-direction:column;margin:8px 0 12px}
+.check .ln{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line)}
+.check .ln:last-child{border-bottom:0}
+.check .ln b{display:block}.check .ln small{color:var(--muted)}
+.dot{width:24px;height:24px;border-radius:50%;flex:none;display:grid;place-items:center;font:800 .8rem var(--f-body);color:#fff;background:var(--leaf)}
+.dot svg{width:15px;height:15px}
+.dot.warn{background:var(--turmeric);color:var(--ink)}.dot.bad{background:var(--alert)}
+.blocked{background:var(--alert-soft);border-radius:14px;padding:12px 14px;margin:8px 0}
+.blocked b{font-family:var(--f-display);font-size:1.08rem}
+.blocked p{margin:4px 0}
+.why{display:block;font:500 .78rem var(--f-body);color:var(--muted);margin-top:2px}
+/* farm sheet */
+.secl{font:700 .75rem var(--f-body);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-top:14px}
+.fitem.shed .th{background:var(--turmeric-soft);color:#7a5600}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.two .cta{justify-content:center;margin:0}
+.narrowsh{max-width:640px}
+/* vet, rule, offers */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.chips .chip{min-height:44px}
+.chips .src{font:500 .66rem var(--f-mono);color:var(--leaf)}
+.stepper{display:flex;align-items:center;gap:10px;margin:8px 0}
+.stepper b{font-family:var(--f-display);font-size:1.3rem;min-width:70px;text-align:center}
+.say{background:var(--leaf-soft);border-radius:14px;padding:12px;margin:8px 0;white-space:pre-line}
+.consent{display:flex;gap:10px;align-items:flex-start;margin:10px 0}
+.consent input,.ruleopt input[type=checkbox],.need input,.ruleshops input{width:22px;height:22px;flex:none;accent-color:var(--leaf)}
+.ruleopt{border:2px solid var(--line);border-radius:14px;padding:10px 12px;margin:10px 0;display:block}
+.ruleopt>label{display:flex;gap:10px;align-items:center;font-weight:600}
+.ruleshops{display:flex;flex-direction:column;gap:8px;margin:8px 0}
+.ruleshops label{display:flex;gap:10px;align-items:center;min-height:44px}
+.offers{display:flex;flex-direction:column;gap:8px}
+.offer{display:flex;justify-content:space-between;gap:10px;align-items:center;border:2px solid var(--line);border-radius:14px;padding:12px;background:var(--surface);color:var(--ink);font:inherit;text-align:left;cursor:pointer;min-height:56px}
+.offer[aria-checked="true"]{border-color:var(--leaf);background:var(--leaf-soft)}
+.offer:disabled{opacity:.6;cursor:default}
+.mktotal{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:12px 0;font-size:1rem}
+.mktotal b{font-family:var(--f-display);font-size:1.4rem}
+/* demo call */
+.callhead{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+.cav{width:52px;height:52px;border-radius:50%;background:var(--turmeric-soft);color:#5c4400;display:grid;place-items:center;font:800 1.2rem var(--f-display);flex:none}
+.callhead b{font-family:var(--f-display);font-size:1.15rem}
+.callstate{font:500 .8rem var(--f-mono);color:var(--muted)}
+.callstate.live{color:var(--leaf)}
+.callprog{display:flex;gap:6px;margin:6px 0}
+.callprog span{height:6px;flex:1;border-radius:3px;background:var(--line)}
+.callprog .done{background:var(--leaf)}.callprog .now{background:var(--turmeric)}
+.calllines{display:flex;flex-direction:column;gap:8px;margin:10px 0;max-height:52vh;overflow-y:auto}
+.cl{display:flex}.cl .b{max-width:86%;padding:10px 13px;border-radius:16px;white-space:pre-line}
+.cl.me .b{background:var(--leaf-soft)}
+.cl.them{justify-content:flex-end}.cl.them .b{background:var(--turmeric-soft)}
+.cl.now .b{box-shadow:0 0 0 2px var(--leaf)}
+.cl .src{display:block;font:500 .66rem var(--f-mono);color:var(--muted);margin-top:4px}
+.callsaid{background:var(--bg);border-radius:14px;padding:10px 14px}
+.callsaid ol{margin:6px 0 0;padding-left:20px}
+/* market */
+.need{display:flex;gap:12px;align-items:center;border:2px solid var(--line);border-radius:14px;padding:10px 12px;margin:8px 0;cursor:pointer;min-height:56px}
+.need .nm{flex:1;min-width:0}.need .nm small{display:block;color:var(--muted)}
+.need .pr{font-family:var(--f-display)}
+.shopb{display:flex;gap:10px;align-items:center;width:100%;border:2px solid var(--line);border-radius:14px;padding:10px 12px;margin:6px 0;background:var(--surface);color:var(--ink);font:inherit;text-align:left;cursor:pointer;min-height:56px}
+.shopb.on{border-color:var(--leaf);background:var(--leaf-soft)}
+.shopb svg{width:22px;height:22px;color:var(--leaf);flex:none}
+.shopb .nm small{display:block;color:var(--muted)}
+.bigstat{display:flex;flex-direction:column;gap:2px;margin:6px 0}
+.bigstat b{font-family:var(--f-display);font-size:1.8rem}
+.rulebox{color:var(--muted);font-size:.9rem;margin:6px 0}
+.soonbox{text-align:center;padding:20px 8px}
+.soonic svg{width:56px;height:56px;color:var(--leaf)}
+.soonbox h2{font-family:var(--f-display);margin:10px 0 6px}
+.soonbox p{color:var(--muted)}
+.sh-eggs .chart{max-height:220px;width:100%}
+#dashShed .sh-kit .zinfo{margin-top:8px}
+header .top>div:nth-child(2){min-width:0;flex:1 1 auto}
+.farmbtn{max-width:100%}
