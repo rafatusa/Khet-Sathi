@@ -22,6 +22,8 @@ in each version and when.
 | Honest empty states: "no farm field here" for a town spot, re-scan for older lands, SAM's answer shown on screen | Live |
 | Tap a different field on the map if the guess is wrong | Live |
 | Delete a saved land (asks once, removes its pictures too) | Live |
+| Saathi speaks up on its own: alerts feed on Home for rain (skip irrigation), fungus weather, dry soil, sowing window closing and shed limits, each with a speaker button | Live (weather and sowing data real; sensor readings simulated) |
+| Village sensor kit: field and shed readings in the format a real ESP32 kit would send | **Simulated** (no physical devices in this hackathon build) |
 | Talk mode: farmer speaks Bangla/Hindi → agent → spoken reply | Live |
 | Agent plans with tools: plot profile → input prices → draft order | Live (demo vendor data) |
 | Empty land, what to grow: real soil (SoilGrids), 10-day rain and soil moisture (Open-Meteo) and FAO sowing windows pick 3 crops, with days left to sow, days to harvest and when to sow around rain | Live (Bangladesh; profit figures are samples) |
@@ -50,7 +52,7 @@ in each version and when.
 - Profit per acre on crop cards is a **sample figure**, labelled on screen, until a market price source is added
 - Demo plots (used when GPS is off or outside South Asia): Bogura (Bangladesh, default for empty land), Bolpur (West Bengal), Ludhiana (Punjab)
 - Storage: Supabase Postgres + private storage bucket for land photos and satellite tiles; falls back to in-memory storage if not configured
-- Vendors, buyers, shop owners, sensors and shed cameras: **simulated** for the hackathon and labelled as such in the app
+- Vendors, buyers, shop owners, sensors and shed cameras: **simulated** for the hackathon and labelled as such in the app. The sensor kit simulator starts from each plot's real weather and soil moisture and drifts in small steps every 10 minutes
 - Orders and deals are drafts until the farmer confirms. Nothing is bought, sold or paid in this prototype
 
 ## Safety
@@ -83,6 +85,7 @@ Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 
 | Version | Date | What was built |
 |---|---|---|
+| v0.5.0 | Oct 27 | Simulated village sensor kit (field and shed) and the alerts engine: rules on real weather, FAO sowing windows and simulated sensor readings write alerts every 10 minutes; Home shows them as traffic-light cards with a speaker and a read tick; bench buttons for one tick and demo values (dry soil, hot shed). No database change |
 | v0.4.0 | Oct 27 | What to grow (Scenario 1): soil from SoilGrids, weather from Open-Meteo, sowing windows from the FAO crop calendar; top 3 crops by window and soil, rain-aware sowing advice; the agent's plot and crop tools now use this real data; bench rows for soil, weather and calendar; `sql/002_land_soil_v0.4.0.sql` |
 | v0.3.2 | Oct 27 | Delete a saved land from its screen, with a confirm sheet; removes the land and both of its pictures from storage. Visible keyboard focus on buttons |
 | v0.3.1 | Oct 27 | Zoomed SAM 3.1 scan for small plots (centre 225 m enlarged, concept "field", wide "farm field" fallback); whole-image outlines ignored; re-scan for lands saved with 0 fields; "no farm field here" screen with demo land; agent refuses soil advice where no field was found; acres under 1 shown to 2 decimals; bench shows 0 outlines as WARN and adds the farmer-app scan; all environment variables trimmed. New dependency: `sharp` (image crop) |

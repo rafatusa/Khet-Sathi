@@ -7,18 +7,21 @@ import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage, zoomCenter } from './lib/tile.js';
 import { scanLand } from './lib/scan.js';
 import { buildPlan } from './lib/plan.js';
+import { createEngine } from './lib/engine.js';
+import { fieldDevice, SHED_DEVICE, latestByDevice, FIELD_METRICS, SHED_METRICS } from './lib/sensors.js';
 import { env } from './lib/env.js';
 import { runAgent } from './lib/agent.js';
 import { TTS, hasTtsKey, synthesize } from './lib/tts.js';
 import { DEMO_PLACES } from './lib/plot.js';
 import {
   dbConfigured, isId, newId, createLand, listLands, getLand, updateLand, deleteLand, putFile, getFile, deleteFiles, listAlerts, pingDb,
+  recentAlerts, insertAlerts, markAlertRead, insertReadings, latestReadings,
 } from './lib/store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.4.0';
+const VERSION = '0.5.0';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -284,7 +287,80 @@ app.post(
   })
 );
 
-app.get('/api/alerts', guard, timed(async () => ({ alerts: await listAlerts(5) })));
+// ---------- alerts + simulated village sensor kit ----------
+const engine = createEngine({
+  store: { listLands, getLand, latestReadings, insertReadings, recentAlerts, insertAlerts },
+  planForLand,
+  log: (m) => console.log(m),
+});
+const ENGINE_EVERY_MS = 10 * 60 * 1000;
+setTimeout(() => engine.run().catch((e) => console.error('engine', e.message)), 30000).unref();
+setInterval(() => engine.run().catch((e) => console.error('engine', e.message)), ENGINE_EVERY_MS).unref();
+
+async function newestFieldLand() {
+  for (const l of await listLands()) {
+    const full = await getLand(l.id).catch(() => null);
+    if (full && (full.objects || []).length) return full;
+  }
+  return null;
+}
+
+// Home: unread alerts, newest first. Runs the engine first if it has not run in 2 minutes.
+app.get(
+  '/api/alerts',
+  guard,
+  timed(async () => {
+    await engine.runIfStale().catch(() => null);
+    return { alerts: await listAlerts(8), engine: engine.status() };
+  })
+);
+
+app.post(
+  '/api/alerts/:id/read',
+  guard,
+  timed(async (req) => ({ read: await markAlertRead(req.params.id) }))
+);
+
+// Latest kit readings for the newest field and the shed (Home card and bench).
+app.get(
+  '/api/sensors',
+  guard,
+  timed(async () => {
+    const land = await newestFieldLand();
+    const device = land ? fieldDevice(land.id) : null;
+    const latest = latestByDevice(await latestReadings([device, SHED_DEVICE].filter(Boolean), 60));
+    const pick = (dev, metrics) => (latest[dev] ? Object.fromEntries(metrics.filter((m) => latest[dev][m]).map((m) => [m, latest[dev][m]])) : null);
+    return {
+      simulated: true,
+      land: land ? { id: land.id, place: land.place } : null,
+      field: device ? pick(device, FIELD_METRICS) : null,
+      shed: pick(SHED_DEVICE, SHED_METRICS),
+      engine: engine.status(),
+    };
+  })
+);
+
+// Bench: one simulator tick now.
+app.post('/api/sensors/tick', guard, timed(async () => ({ summary: await engine.run() })));
+
+// Bench demo control: hold one reading out of range for two ticks so an alert fires on camera.
+app.post(
+  '/api/sensors/force',
+  guard,
+  timed(async (req) => {
+    const { target, metric, value } = req.body || {};
+    const allowed = target === 'shed' ? SHED_METRICS : FIELD_METRICS;
+    if (!allowed.includes(metric)) throw new Error(`metric must be one of ${allowed.join(', ')}`);
+    if (!Number.isFinite(Number(value))) throw new Error('value must be a number');
+    let device = SHED_DEVICE;
+    if (target !== 'shed') {
+      const land = await newestFieldLand();
+      if (!land) throw new Error('Add a land with a field first');
+      device = fieldDevice(land.id);
+    }
+    return { device, summary: await engine.force(device, metric, Number(value)) };
+  })
+);
 
 // ---------- model-check bench (/check/) ----------
 app.post(

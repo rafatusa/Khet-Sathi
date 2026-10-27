@@ -46,6 +46,17 @@
       <button class="chip-btn" id="langSwitch" aria-label="Language"></button>
     </header>
 
+    <div id="alertsBox" hidden>
+      <h2 class="section-title alerts-head"><span data-t="alertsTitle"></span><span class="muted small" id="alertsCount"></span></h2>
+      <div class="alert-list" id="alertList"></div>
+    </div>
+
+    <div class="kit" id="kitCard" hidden>
+      <div class="kit-top"><span data-t="kitTitle"></span><span class="sample" data-t="simulated"></span></div>
+      <div class="kit-grid" id="kitGrid"></div>
+      <div class="muted small" id="kitWhen"></div>
+    </div>
+
     <div class="tiles">
       <button class="tile tile-green" id="goEmpty">
         <svg class="tile-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 19h18"/><path d="M12 19v-7"/><path d="M12 12c-3 0-5-2-5-5 3 0 5 2 5 5z"/><path d="M12 12c0-3 2-5 5-5 0 3-2 5-5 5z"/><circle cx="18.5" cy="4.5" r="1.5"/></svg>

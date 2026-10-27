@@ -1,4 +1,4 @@
-// Khet Saathi farmer app (v0.4.0): language, home, add land (photo + GPS),
+// Khet Saathi farmer app (v0.5.0): language, home, add land (photo + GPS),
 // satellite plot with SAM 3.1 outline (zoomed scan), re-scan, ask Saathi by voice or tap, spoken replies.
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -92,6 +92,8 @@
   async function goHome() {
     show('s-home');
     $('homeAnswer').hidden = true;
+    loadAlerts();
+    loadKit();
     const list = $('landList');
     try {
       const r = await api('/api/lands');
@@ -532,6 +534,102 @@
     for (const c of plan.crops) parts.push(`${t(`crop_${c.key}`)}, ${cropTag(c)}.`);
     speak(parts.filter(Boolean).join(' '));
   });
+
+  // ---------- alerts feed + simulated village sensor kit (Home) ----------
+  const ALERT_ICONS = {
+    weather: '<path d="M7 15a4 4 0 1 1 .9-7.9A5 5 0 0 1 17.5 9 3.5 3.5 0 0 1 17 16H7z"/><path d="M9 19l-1 2M13 19l-1 2"/>',
+    sensor: '<path d="M12 3c3 4 6 7 6 11a6 6 0 0 1-12 0c0-4 3-7 6-11z"/>',
+    calendar: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/>',
+    shed: '<path d="M3 11l9-7 9 7v9H3z"/><path d="M9 20v-6h6v6"/>',
+  };
+  const ago = (iso) => {
+    const s = Math.round((Date.parse(iso) - Date.now()) / 1000);
+    const rtf = new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' });
+    if (Math.abs(s) < 3600) return rtf.format(Math.round(s / 60), 'minute');
+    if (Math.abs(s) < 86400) return rtf.format(Math.round(s / 3600), 'hour');
+    return rtf.format(Math.round(s / 86400), 'day');
+  };
+  const landLabel = (place) => (place ? t(`land_${place}`) : t('landYour'));
+  function alertText(a) {
+    let v = {};
+    try { v = JSON.parse(a.body || '{}'); } catch {}
+    const vars = {
+      land: landLabel(v.place),
+      chance: num(v.chance ?? 0, 0),
+      mm: num(v.mm ?? 0, 0),
+      humidity: num(v.humidity ?? 0, 0),
+      value: num(v.value ?? 0, a.title === 'soil_dry' ? 0 : 1),
+      days: num(v.days ?? 0, 0),
+      crop: v.crop ? t(`crop_${v.crop}`) : '',
+      date: v.date ? longDate(v.date) : '',
+    };
+    return { title: fmt(`a_${a.title}`, vars), body: fmt(`b_${a.title}`, vars) };
+  }
+
+  async function loadAlerts() {
+    let r;
+    try {
+      r = await api('/api/alerts');
+    } catch {
+      return;
+    }
+    const list = r.ok ? r.alerts || [] : [];
+    $('alertsBox').hidden = !list.length;
+    $('alertsCount').textContent = list.length ? fmt('alertsNew', { n: num(list.length, 0) }) : '';
+    const box = $('alertList');
+    box.replaceChildren();
+    for (const a of list) {
+      const { title, body } = alertText(a);
+      const kind = a.area === 'shed' ? 'shed' : a.source || 'sensor';
+      const el = document.createElement('div');
+      el.className = `alert sev-${a.severity}`;
+      el.innerHTML = `
+        <div class="a-ico" aria-hidden="true"><svg viewBox="0 0 24 24">${ALERT_ICONS[kind] || ALERT_ICONS.sensor}</svg></div>
+        <div class="a-main">
+          <div class="a-title">${esc(title)}</div>
+          <div class="a-body">${esc(body)}</div>
+          <div class="a-meta">${esc(t(`src_${a.source}`))}${a.source === 'sensor' ? ` <span class="sample">${esc(t('simulated'))}</span>` : ''} · ${esc(ago(a.created_at))}</div>
+        </div>
+        <div class="a-btns">
+          <button data-say aria-label="${esc(t('listen'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></button>
+          <button data-read aria-label="${esc(t('gotIt'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></button>
+        </div>`;
+      el.querySelector('[data-say]').addEventListener('click', () => speak(`${title}. ${body}`));
+      el.querySelector('[data-read]').addEventListener('click', async () => {
+        el.remove();
+        const left = box.children.length;
+        $('alertsCount').textContent = left ? fmt('alertsNew', { n: num(left, 0) }) : '';
+        $('alertsBox').hidden = !left;
+        try { await postJson(`/api/alerts/${a.id}/read`, {}); } catch {}
+      });
+      box.append(el);
+    }
+  }
+
+  async function loadKit() {
+    let r;
+    try {
+      r = await api('/api/sensors');
+    } catch {
+      return;
+    }
+    const f = r.ok ? r.field : null;
+    $('kitCard').hidden = !f;
+    if (!f) return;
+    const grid = $('kitGrid');
+    grid.replaceChildren();
+    const units = { soil_moisture: '%', soil_temp: '°', air_temp: '°', humidity: '%' };
+    let newest = null;
+    for (const m of ['soil_moisture', 'soil_temp', 'air_temp', 'humidity']) {
+      if (!f[m]) continue;
+      if (!newest || f[m].at > newest) newest = f[m].at;
+      const c = document.createElement('div');
+      c.className = `kit-cell${m === 'soil_moisture' && f[m].value < 18 ? ' warn' : ''}`;
+      c.innerHTML = `<strong>${esc(num(f[m].value, 0))}${units[m]}</strong><span class="muted small">${esc(t(`m_${m}`))}</span>`;
+      grid.append(c);
+    }
+    $('kitWhen').textContent = newest ? fmt('kitWhen', { ago: ago(newest) }) : '';
+  }
 
   // ---------- delete a land ----------
   function openDeleteSheet() {

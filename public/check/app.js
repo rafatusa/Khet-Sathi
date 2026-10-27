@@ -1,4 +1,4 @@
-// Khet Saathi v0.4.0 - browser side of the model check.
+// Khet Saathi v0.5.0 - browser side of the model check.
 (() => {
   const $ = (id) => document.getElementById(id);
 
@@ -30,6 +30,8 @@
     ['soil', 'Soil at this point', 'ISRIC SoilGrids'],
     ['weather', '10-day weather + soil moisture', 'Open-Meteo'],
     ['calendar', 'Sowing windows + top 3 crops', 'FAO Crop Calendar'],
+    ['sensors', 'Village sensor kit (simulated)', 'simulator'],
+    ['alerts', 'Alerts engine', 'rules'],
     ['vision', 'Scene description from image', 'spark'],
     ['agent', 'Agent plan with tool calls', 'spark'],
     ['voice', 'Speech → text', 'muse-voice-transcribe-1.0'],
@@ -209,6 +211,23 @@
     const crops = p.crops.map((c) => `${c.faoName} (${c.status}${c.daysLeft != null ? `, ${c.daysLeft} d left` : `, in ${c.daysUntil} d`})`).join(', ');
     mark('calendar', p.crops.length ? (p.calendarError ? 'WARN' : 'PASS') : 'WARN',
       `${p.aez}${p.aezAssumed ? ' (assumed)' : ''} · ${crops || 'nothing to sow now'} · ${p.calendarSource}`, r.ms);
+  }
+
+  // Simulated sensor kit + alerts engine.
+  function markEngine(r, what) {
+    if (!r.ok) return ['sensors', 'alerts'].forEach((k) => mark(k, 'FAIL', r.error, r.ms));
+    const s = r.summary || {};
+    mark('sensors', s.readings ? 'PASS' : 'WARN', `${what} · ${s.lands ?? 0} field kit(s) + shed · ${s.readings ?? 0} readings saved${s.errors?.length ? ` · ${s.errors.join('; ')}` : ''}`, r.ms);
+    mark('alerts', 'PASS', s.alerts?.length ? `new: ${s.alerts.join(', ')}` : 'no new alerts (rules quiet, or already raised in the last 12 h)', r.ms);
+  }
+  async function simTick() {
+    ['sensors', 'alerts'].forEach((k) => mark(k, 'RUNNING'));
+    markEngine(await api('/api/sensors/tick', { method: 'POST' }), 'tick');
+  }
+  async function force(target, metric, value) {
+    ['sensors', 'alerts'].forEach((k) => mark(k, 'RUNNING'));
+    const r = await api('/api/sensors/force', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target, metric, value }) });
+    markEngine(r, `forced ${metric} = ${value}`);
   }
 
   // The same scan the farmer app runs: centre 225 m enlarged, "field", then the wide view.
@@ -418,6 +437,9 @@
   $('describe').addEventListener('click', busy($('describe'), runVision));
   $('zoomScan').addEventListener('click', busy($('zoomScan'), runZoomScan));
   $('planCheck').addEventListener('click', busy($('planCheck'), runPlanCheck));
+  $('simTick').addEventListener('click', busy($('simTick'), simTick));
+  $('forceDry').addEventListener('click', busy($('forceDry'), () => force('field', 'soil_moisture', 12)));
+  $('forceHot').addEventListener('click', busy($('forceHot'), () => force('shed', 'shed_temp', 35)));
   $('runAgent').addEventListener('click', busy($('runAgent'), () => runAgent()));
   $('runAll').addEventListener(
     'click',
@@ -431,6 +453,7 @@
       await Promise.all([runSegment(), runVision(), runAgent()]);
       await runZoomScan();
       await runPlanCheck();
+      await simTick();
       const v = $(`row-voice`).children[2].textContent;
       if (v === 'NOT RUN') mark('voice', 'NOT RUN', 'Hold the mic button and speak to test');
     })

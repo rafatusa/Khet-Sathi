@@ -15,6 +15,10 @@ import { windowState, windowsFor, aezFor, normalizeFao } from '../lib/calendar.j
 import { recommendCrops } from '../lib/recommend.js';
 import { buildPlan } from '../lib/plan.js';
 import { readFileSync } from 'node:fs';
+import { seedField, stepField, stepShed, seedShed, latestByDevice, fieldDevice } from '../lib/sensors.js';
+import { fieldAlerts, shedAlerts, dedupe } from '../lib/alerts.js';
+import { createEngine } from '../lib/engine.js';
+import * as memStore from '../lib/store.js';
 import sharp from 'sharp';
 import { createLand, getLand, putFile, getFile, deleteLand, deleteFiles } from '../lib/store.js';
 
@@ -340,6 +344,58 @@ await checkAsync('Agent tools: real profile and crop windows from the plan', asy
   const win = cropWindows({ plan: p });
   assert.equal(win.crops[0].crop, 'Mustard');
   assert.equal(win.crops[0].days_left_to_sow, 3);
+});
+
+// ---------- v0.5.0: simulated sensor kit + alerts ----------
+const half = () => 0.5; // no random jitter
+check('Sensors: field kit starts from real weather and drifts', () => {
+  const w = summarizeForecast(fx('om_bogura'));
+  const s = seedField(w);
+  assert.equal(s.soil_moisture, Math.round(w.soilMoisture * 1000) / 10);
+  const n = stepField(s, { rand: half });
+  assert.equal(n.soil_moisture, Math.round((s.soil_moisture - 0.4) * 10) / 10);
+  assert.ok(stepField(s, { raining: true, rand: half }).soil_moisture > s.soil_moisture);
+});
+check('Sensors: shed water and feed run down, then get refilled', () => {
+  let s = seedShed(28);
+  for (let i = 0; i < 40; i++) s = stepShed(s, { rand: half });
+  assert.ok(s.water_pct > 0 && s.water_pct <= 100 && s.feed_pct > 0);
+  assert.deepEqual(latestByDevice([{ device: 'd', metric: 'x', value: 2, at: '2' }, { device: 'd', metric: 'x', value: 1, at: '1' }]).d.x.value, 2);
+});
+check('Alerts: rain tomorrow, dry soil twice, sowing closing', () => {
+  const plan = { today: '2026-10-27', weather: { days: [{ date: '2026-10-27', rainChance: 10, rainMm: 0 }, { date: '2026-10-28', rainChance: 73, rainMm: 8.5 }] }, crops: [{ key: 'mustard', status: 'closing', daysLeft: 3, windowEnd: '2026-10-30' }] };
+  const a = fieldAlerts({ id: 'L', kind: 'empty', place: 'bogura' }, plan, [14, 15]);
+  assert.deepEqual(a.map((x) => x.title), ['rain_skip', 'soil_dry', 'sow_closing']);
+  assert.equal(a[0].severity, 'info');
+  assert.equal(fieldAlerts({ id: 'L', kind: 'empty' }, plan, [14, 22]).some((x) => x.title === 'soil_dry'), false, 'one dry reading is not enough');
+});
+check('Alerts: fungus weather needs two warm wet days; advice has no dose', () => {
+  const day = (date) => ({ date, humidity: 90, tMax: 30, tMin: 22 });
+  const plan = { today: '2026-10-27', weather: { days: [day('2026-10-27'), day('2026-10-28')] }, crops: [] };
+  assert.ok(fieldAlerts({ id: 'L', kind: 'crop' }, plan).some((x) => x.title === 'fungus_watch'));
+  plan.weather.days[1].humidity = 70;
+  assert.ok(!fieldAlerts({ id: 'L', kind: 'crop' }, plan).some((x) => x.title === 'fungus_watch'));
+});
+check('Alerts: shed limits and 12-hour dedupe', () => {
+  const s = shedAlerts({ shed_temp: 35, ammonia_ppm: 30, water_pct: 10, feed_pct: 50 });
+  assert.deepEqual(s.map((x) => x.title), ['shed_hot', 'shed_ammonia', 'shed_water']);
+  assert.equal(dedupe(s, [{ land_id: null, title: 'shed_hot' }]).length, 2);
+});
+
+await checkAsync('Engine: seeds kits, then a forced dry soil raises one alert, never twice', async () => {
+  const land = await memStore.createLand({ kind: 'empty', place: 'bogura', lat: 24.88, lon: 89.33, objects: [{ id: '1' }] });
+  const w = summarizeForecast(fx('om_bogura'));
+  const plan = { today: '2026-10-27', weather: { ...w, days: w.days.map((d) => ({ ...d, rainChance: 5, rainMm: 0 })) }, crops: [] };
+  const engine = createEngine({ store: memStore, planForLand: async () => plan, rand: half });
+  const first = await engine.run();
+  assert.ok(first.lands >= 1 && first.readings >= 10);
+  const forced = await engine.force(fieldDevice(land.id), 'soil_moisture', 12);
+  const all = (await memStore.listAlerts(20)).filter((a) => a.land_id === land.id && a.title === 'soil_dry');
+  assert.equal(all.length, 1);
+  assert.equal(JSON.parse(all[0].body).value, 12);
+  await engine.force(fieldDevice(land.id), 'soil_moisture', 11);
+  assert.equal((await memStore.listAlerts(20)).filter((a) => a.land_id === land.id && a.title === 'soil_dry').length, 1, 'deduped for 12 h');
+  assert.ok(forced.readings > 0);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);
