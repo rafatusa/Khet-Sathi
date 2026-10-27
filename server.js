@@ -33,7 +33,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.11.0';
+const VERSION = '0.11.1';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -325,16 +325,17 @@ app.post(
     const L = ['bn', 'hi', 'en'].includes(lang) ? lang : 'bn';
     // A real land (the farmer's own GPS or photo): nothing is faked. Saathi only says it will call the
     // real shop, and the app notes that calling is coming soon. Demo lands keep the scripted demo call.
-    if (land.location_source !== 'demo') {
+    // v0.11.1: a real shop is never put in a demo call, even on a demo land; only the fictional demo shop is.
+    if (land.location_source !== 'demo' || shop?.real) {
       return { comingSoon: true, shop: shop?.real ? { name: String(shop.name).slice(0, 80), km: shop.km ?? null, source: shop.source || null } : null, lines, currency, simulated: false };
     }
-    const shopName = String(shop?.name || DEMO_SHOP.name[L]).slice(0, 80);
+    const shopName = DEMO_SHOP.name[L];
     const calls = orderCalls({ lines, shop: shopName, crew: DEMO_CREW.name[L], place: String(place || '').slice(0, 80), cropName: String(cropName || crop || '').slice(0, 40), currency, lang: L });
     const total = lines.reduce((a, l) => a + l.price, 0);
     const deal = await insertDeal({
       land_id: land.id,
       direction: 'buy',
-      items: lines.map((l) => ({ item: l.id, crop: l.crop || null, qty: l.qty, unit: l.unit, price: l.price, currency: currency.code, symbol: currency.symbol, shop: l.id === 'plough' ? DEMO_CREW.name[L] : shopName, shopReal: l.id === 'plough' ? false : Boolean(shop?.real), simulated: true })),
+      items: lines.map((l) => ({ item: l.id, crop: l.crop || null, qty: l.qty, unit: l.unit, price: l.price, currency: currency.code, symbol: currency.symbol, shop: l.id === 'plough' ? DEMO_CREW.name[L] : shopName, shopReal: false, simulated: true })),
       total_inr: total,
       status: 'confirmed',
     });

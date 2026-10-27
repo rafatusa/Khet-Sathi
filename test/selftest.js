@@ -30,7 +30,7 @@ import { createEngine } from '../lib/engine.js';
 import * as memStore from '../lib/store.js';
 import sharp from 'sharp';
 import { createLand, getLand, putFile, getFile, deleteLand, deleteFiles } from '../lib/store.js';
-import { addressParts, coverShares, verdictFrom, worldCoverTile, shopsFromOverpass, currencyFor } from '../lib/place.js';
+import { addressParts, coverShares, verdictFrom, worldCoverTile, shopsFromOverpass, currencyFor, cleanShopName, nearbyShops } from '../lib/place.js';
 import { worldCalendar, worldCrops, cellCrops, matchUnit, normName, fixSeason, knownCountry } from '../lib/cropworld.js';
 import { parsePicks, pickPrompt } from '../lib/croppick.js';
 import { needsFor, orderCalls } from '../lib/market.js';
@@ -418,6 +418,23 @@ check('Crops anywhere: MIRCA-OS district crops and months, no foreign crops', ()
   // No district match: the 9 km cell's crops, ranked by the country.
   assert.ok(cellCrops(23.64, 87.73).length > 5);
   assert.equal(worldCalendar({ cc: 'ZZ', lat: 0, lon: -30, today: TODAY }).length, 0);
+});
+await checkAsync('Shops v0.11.1: Google Places names cleaned, only within 15 km, nearest first', async () => {
+  assert.equal(cleanShopName('🌱🌾Maa Durga krishi Bhander🌾🌱'), 'Maa Durga krishi Bhander');
+  assert.equal(cleanShopName('Ma tara  krishi ( ) bhandar'), 'Ma tara krishi bhandar');
+  const before = process.env.GOOGLE_PLACES_KEY;
+  process.env.GOOGLE_PLACES_KEY = 'test-key';
+  const places = [
+    { id: 'a', displayName: { text: 'Far shop' }, location: { latitude: 23.83, longitude: 87.73 } },
+    { id: 'b', displayName: { text: '🌾Near shop' }, location: { latitude: 23.65, longitude: 87.73 } },
+    { id: 'c', displayName: { text: 'Mid shop' }, location: { latitude: 23.7, longitude: 87.73 } },
+  ];
+  const r = await nearbyShops(23.6401, 87.7301, { fetchImpl: async () => ({ ok: true, json: async () => ({ places }) }) });
+  if (before == null) delete process.env.GOOGLE_PLACES_KEY;
+  else process.env.GOOGLE_PLACES_KEY = before;
+  assert.equal(r.source, 'Google Places');
+  assert.deepEqual(r.shops.map((s) => s.name), ['Near shop', 'Mid shop']);
+  assert.ok(r.shops.every((s) => s.real && s.km <= 15));
 });
 check('Crop picks: only keys from the data list, three at most', () => {
   const cands = [{ key: 'wheat' }, { key: 'mustard' }, { key: 'potato' }, { key: 'lentil' }];

@@ -787,7 +787,9 @@
     const r = await api(`/api/lands/${id}/market`).catch(() => null);
     if (S.cur?.id !== id) return;
     P.market = r?.ok ? { ...r, landId: id } : { error: r?.error || 'error', landId: id };
-    P.shop = (P.market.shops || [])[0] || (P.market.demoShop ? { ...P.market.demoShop, name: P.market.demoShop.name[L()] } : null);
+    // Demo land: the fictional demo shop is picked (the only one a demo call can go to). Real land: the nearest real shop.
+    const demoShop = P.market.demoShop ? { ...P.market.demoShop, name: P.market.demoShop.name[L()] } : null;
+    P.shop = (P.market.demoLand && demoShop) || (P.market.shops || [])[0] || null;
     renderFieldMarket();
   }
   const unitText = (l) => (l.unit === 'bag50' ? t('bags50') : l.unit === 'acre' ? t('acShort') : l.unit === 'kg' ? t('kgShort') : t('cuttings'));
@@ -814,10 +816,11 @@
         .join('');
       const tot = m.needs.filter((l) => P.pick.has(l.id)).reduce((a, l) => a + l.price, 0);
       $('#mkTotal').innerHTML = demo ? `<span>${esc(t('sampleTotal'))}</span><b>${esc(money(tot, sym))}</b>` : `<span class="muted small">${esc(t('noLivePrices'))}</span>`;
-      $('#mkCall').querySelector('[data-t]').textContent = t(demo ? 'callAndBook' : 'askSaathiCall');
+      $('#mkCall').querySelector('[data-t]').textContent = t(demo && !P.shop?.real ? 'callAndBook' : 'askSaathiCall');
     }
-    $('#mkShopSrc').textContent = m.shops?.length ? m.shopSource || '' : demo ? t('demoTag') : '';
-    const shops = m.shops?.length ? m.shops : demo && m.demoShop ? [{ ...m.demoShop, name: m.demoShop.name[L()] }] : [];
+    $('#mkShopSrc').textContent = m.shops?.length ? m.shopSource || '' : '';
+    // Demo land: the demo shop first, then the real shops near the field for information. Real land: real shops only.
+    const shops = [...(demo && m.demoShop ? [{ ...m.demoShop, name: m.demoShop.name[L()] }] : []), ...(m.shops || [])];
     $('#mkShops').innerHTML = shops.length
       ? shops.map((s, i) => `<button type="button" class="shopb ${P.shop?.id === s.id ? 'on' : ''}" data-shopi="${i}"><span>${I.pin}</span><span class="nm"><b>${esc(s.name)}</b><small>${esc([s.km != null ? fmt('kmAway', { km: num(s.km, 1) }) : '', s.address || '', s.real ? s.source : t('demoTag')].filter(Boolean).join(' · '))}</small></span></button>`).join('')
       : `<div class="emptybox">${esc(m.shopError ? t('shopSearchDown') : t('noShopsNear'))}</div>`;
@@ -839,8 +842,8 @@
   $('#mkCall').addEventListener('click', async () => {
     const m = P.market;
     if (!m || !P.pick.size) return toast(t('pickSomething'));
-    if (!m.demoLand) {
-      // Real land: no call is made and nothing is faked.
+    if (!m.demoLand || P.shop?.real) {
+      // Real land, or a real shop on a demo land: no call is made and nothing is faked.
       return comingSoon(P.shop ? fmt('willCall', { shop: P.shop.name }) : t('callSoonH'), t('callSoonT'));
     }
     $('#mkCall').disabled = true;
