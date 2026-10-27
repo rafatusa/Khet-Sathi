@@ -3,12 +3,12 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptText, segmentStream, uploadFile, deleteFile, respond, responseText } from './lib/meta.js';
-import { analyseFrames, framesFromSegments, observePrompt, parseObservation, MAX_FRAMES, SAFE_VET_LINE } from './lib/poultry.js';
+import { analyseFrames, framesFromSegments, observePrompt, parseObservation, MAX_FRAMES, SAFE_VET_LINE, safeText } from './lib/poultry.js';
 import { autoSigns, vetMessage, vetScript, withNames, cleanCall, parseDeaths, parseSince, SIGN_CODES } from './lib/vetcall.js';
 import { DEFAULT_RULE, TRAY, cleanRule, sellDue, planDeal, shopPrompt, voiceDeal, parseLines, rankOffers } from './lib/sell.js';
 import { withNames as namesOf } from './lib/names.js';
-import { readIndex, createClip, putClipVideo, getClip, clipFrames, clipVideo, saveResult, deleteClip, setToday, todayCamera, MAX_CLIPS, setClipNames } from './lib/clips.js';
-import { threeNames } from './lib/translate.js';
+import { readIndex, createClip, putClipVideo, getClip, clipFrames, clipVideo, saveResult, deleteClip, setToday, todayCamera, MAX_CLIPS, setClipNames, setClipNotes } from './lib/clips.js';
+import { threeNames, threeNotes } from './lib/translate.js';
 import { shedFacts, shedAnswer } from './lib/shedchat.js';
 import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage, zoomCenter } from './lib/tile.js';
@@ -36,7 +36,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.12.1';
+const VERSION = '0.12.2';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -810,12 +810,24 @@ function nameClip(clip) {
     .catch(() => null)
     .finally(() => setTimeout(() => naming.delete(clip.id), 10 * 60 * 1000));
 }
+// v0.12.2: a checked clip's note and vet summary in the other two languages, in the background (once each).
+const noting = new Set();
+function noteClip(clip) {
+  const o = clip?.result?.observation;
+  if (!o?.note || o.notes || noting.has(clip.id)) return;
+  noting.add(clip.id);
+  threeNotes(o, clip.result.lang || 'bn', { filter: safeText })
+    .then((n) => n && setClipNotes(clip.id, clip.result.checkedAt, n))
+    .catch(() => null)
+    .finally(() => setTimeout(() => noting.delete(clip.id), 10 * 60 * 1000));
+}
 app.get(
   '/api/clips',
   guard,
   timed(async () => {
     const index = await readIndex();
     index.clips.forEach(nameClip);
+    index.clips.forEach(noteClip);
     return { ...index, max: MAX_CLIPS };
   })
 );
@@ -861,6 +873,7 @@ app.post(
       }
     }
     const saved = await saveResult(clip.id, { count, observation, videoError, lang });
+    noteClip(saved);
     const index = await readIndex();
     if (index.todayId === clip.id) engine.run().catch(() => null); // today's camera: raise its warnings now
     return { clip: saved, vetLine: SAFE_VET_LINE[lang] };

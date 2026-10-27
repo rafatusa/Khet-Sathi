@@ -36,7 +36,7 @@ import { addressParts, coverShares, verdictFrom, worldCoverTile, shopsFromOverpa
 import { worldCalendar, worldCrops, cellCrops, matchUnit, normName, fixSeason, knownCountry } from '../lib/cropworld.js';
 import { parsePicks, pickPrompt } from '../lib/croppick.js';
 import { needsFor, orderCalls } from '../lib/market.js';
-import { parseNames, namesPrompt } from '../lib/translate.js';
+import { parseNames, namesPrompt, parseNotes, threeNotes } from '../lib/translate.js';
 import { shedFacts, shedAnswer } from '../lib/shedchat.js';
 import { eggsPerDay } from '../lib/sensors.js';
 
@@ -968,6 +968,19 @@ await checkAsync('harvest: amount in the local unit, sample price, demo bargaini
   assert.throws(() => cleanCropRule({}), /lowest price/);
   const rule = cleanCropRule({ floor_price: '1250', qty: 60.04, when: 'hold30', ask_first: false });
   assert.deepEqual([rule.floor_price, rule.qty, rule.when, rule.ask_first], [1250, 60, 'hold30', false]);
+});
+
+await checkAsync('shed notes: written in all three languages, filtered, original kept on failure', async () => {
+  const obs = { note: 'Many chicks are crowded at the feeder.', vetSummary: 'Chicks crowded at the trough. No audio was received.' };
+  const reply = JSON.stringify({ note: { bn: 'অনেক বাচ্চা খাবারের পাত্রে ভিড় করেছে।', hi: 'यह बीमारी जैसा दिखता है।', en: 'x' }, vet: { bn: 'বাচ্চারা ভিড় করেছে।', hi: 'चूज़े भीड़ में हैं।', en: 'y' } });
+  const think = async () => ({ resp: { choices: [{ message: { content: `ok ${reply}` } }] }, provider: 'test' });
+  const out = await threeNotes(obs, 'en', { think, filter: safeText });
+  assert.ok(out, 'parsed');
+  assert.equal(out.notes.en, obs.note, 'the checked language keeps the original sentence');
+  assert.equal(out.notes.bn, 'অনেক বাচ্চা খাবারের পাত্রে ভিড় করেছে।');
+  assert.equal(out.notes.hi, obs.note, 'a sentence naming a disease is dropped and the original kept');
+  assert.equal(out.vetSummaries.hi, 'चूज़े भीड़ में हैं।');
+  assert.equal(parseNotes('no json here', { lang: 'en', note: 'a' }), null);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

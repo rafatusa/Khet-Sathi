@@ -322,7 +322,8 @@
     $('#shStillBox').classList.toggle('warn', Boolean(r?.count && !r.count.resting && r.count.still.length));
     const notes = [];
     if (r?.count?.resting) notes.push(t('restingNight'));
-    if (r?.observation?.note) notes.push(r.observation.note);
+    // v0.12.2: the note in the app language (written in the background after a check), else as saved.
+    if (r?.observation?.note) notes.push(r.observation.notes?.[L()] || r.observation.note);
     $('#shNote').textContent = notes.join(' ');
     $('#shNote').hidden = !notes.length;
     const o = r?.observation;
