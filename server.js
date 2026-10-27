@@ -12,7 +12,7 @@ import { TTS, hasTtsKey, synthesize } from './lib/tts.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));

@@ -4,3 +4,9 @@ node_modules/
 !.env.example
 .DS_Store
 *.log
+
+# Developer documentation is kept outside the repo
+*Developer_Documentation*.docx
+*Developer_Documentation*.pdf
+docs/private/
+~$*.docx
