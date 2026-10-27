@@ -34,6 +34,7 @@ import { addressParts, coverShares, verdictFrom, worldCoverTile, shopsFromOverpa
 import { worldCalendar, worldCrops, cellCrops, matchUnit, normName, fixSeason, knownCountry } from '../lib/cropworld.js';
 import { parsePicks, pickPrompt } from '../lib/croppick.js';
 import { needsFor, orderCalls } from '../lib/market.js';
+import { parseNames, namesPrompt } from '../lib/translate.js';
 import { eggsPerDay } from '../lib/sensors.js';
 
 // SAM 3.1 sample output from Meta's documentation, split across deltas.
@@ -435,6 +436,12 @@ await checkAsync('Shops v0.11.1: Google Places names cleaned, only within 15 km,
   assert.equal(r.source, 'Google Places');
   assert.deepEqual(r.shops.map((s) => s.name), ['Near shop', 'Mid shop']);
   assert.ok(r.shops.every((s) => s.real && s.km <= 15));
+});
+check('Clip names v0.11.2: three languages from Muse Spark, nothing missing', () => {
+  assert.deepEqual(parseNames('ok {"bn":"সমস্যা","hi":"समस्या","en":"Problem"}'), { bn: 'সমস্যা', hi: 'समस्या', en: 'Problem' });
+  assert.equal(parseNames('{"bn":"x","en":"y"}'), null);
+  assert.equal(parseNames('no json'), null);
+  assert.match(namesPrompt('সমস্যা'), /Bangla, Hindi and English/);
 });
 check('Crop picks: only keys from the data list, three at most', () => {
   const cands = [{ key: 'wheat' }, { key: 'mustard' }, { key: 'potato' }, { key: 'lentil' }];

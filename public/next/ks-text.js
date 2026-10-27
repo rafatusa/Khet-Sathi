@@ -2,6 +2,7 @@
 window.KS_TEXT = {
   bn: {
     // v0.11.0
+    addClipVideo: "এই ক্লিপের ভিডিও দিন",
     heroNextSow: "পরের বোনা: {crop}",
     demoShedName: "ডেমো শেড",
     mField: "জমি",
@@ -177,6 +178,7 @@ window.KS_TEXT = {
   },
   hi: {
     // v0.11.0
+    addClipVideo: "इस क्लिप का वीडियो जोड़ें",
     heroNextSow: "अगली बुवाई: {crop}",
     demoShedName: "डेमो शेड",
     mField: "खेत",
@@ -352,6 +354,7 @@ window.KS_TEXT = {
   },
   en: {
     // v0.11.0
+    addClipVideo: "Add this clip's video",
     heroNextSow: "Next to sow: {crop}",
     demoShedName: "Demo shed",
     mField: "Field",

@@ -14,6 +14,8 @@
 
   const P = { poultry: null, clips: { clips: [], todayId: null, max: 5 }, eggs: [], sel: null, pending: null, market: null, pick: new Set(['seed', 'fert', 'plough']), shop: null, feedIdx: 0, showResult: false };
   const last = { count: null, obs: null, birds: null, still: 0, resting: false, soundBad: false, vetLine: '' };
+  // A clip's name follows the app language (names saved by the server in bn, hi, en; v0.11.2).
+  const clipName = (c) => c?.names?.[L()] || c?.name || '';
   const myClips = () => P.clips.clips.filter((c) => (isDemoShed() ? !c.shedId : c.shedId === S.shed?.id));
   const ago = (iso) => {
     const s = Math.round((Date.parse(iso) - Date.now()) / 1000);
@@ -109,7 +111,7 @@
     $('#shEggs').innerHTML = eggChart(P.eggs);
     const cl = myClips();
     $('#shThumbs').innerHTML = cl.length
-      ? cl.slice(0, 4).map((c) => `<button class="thumb" type="button" data-clip="${c.id}"><img src="${imgUrl(`/api/clips/${c.id}/frame/${Math.max(0, c.frames - 1)}`)}" alt=""><span>${esc(c.name)}</span></button>`).join('')
+      ? cl.slice(0, 4).map((c) => `<button class="thumb" type="button" data-clip="${c.id}"><img src="${imgUrl(`/api/clips/${c.id}/frame/${Math.max(0, c.frames - 1)}`)}" alt=""><span>${esc(clipName(c))}</span></button>`).join('')
       : emptyBox(t('noClipsYet'));
     const r = cl.find((c) => c.id === P.sel)?.result;
     $('#shLast').textContent = r?.count ? fmt('lastCheckLine', { n: num(r.count.count), s: num(r.count.resting ? 0 : r.count.still.length), when: ago(r.checkedAt) }) : '';
@@ -187,13 +189,15 @@
   function renderShedTab() {
     ensureCam();
     camClock();
+    $('#cctvBtn span').textContent = t('connectCctv'); // follows a language switch
     const cl = myClips();
     const c = cl.find((x) => x.id === P.sel);
     const v = $('#shVideo');
+    if ($('#addVidBtn')) $('#addVidBtn').hidden = true;
     $('#camTag').textContent = isDemoShed() ? t('demoFeed') : t('yourClips');
     $('#camTag').className = `src-tag ${isDemoShed() ? 'sim' : ''}`;
     $('#clipRow').innerHTML =
-      cl.map((x, i) => `<button class="clipb ${x.id === P.sel ? 'on' : ''}" type="button" data-sel="${x.id}"><b>${esc(fmt('camN', { n: num(i + 1) }))}</b><span>${esc(x.name)}</span>${x.id === P.sel ? `<span class="del" data-del="${x.id}" role="button" aria-label="${esc(t('clipDelete'))}">×</span>` : ''}</button>`).join('') ||
+      cl.map((x, i) => `<button class="clipb ${x.id === P.sel ? 'on' : ''}" type="button" data-sel="${x.id}"><b>${esc(fmt('camN', { n: num(i + 1) }))}</b><span>${esc(clipName(x))}</span>${x.id === P.sel && !isDemoShed() ? `<span class="del" data-del="${x.id}" role="button" aria-label="${esc(t('clipDelete'))}">×</span>` : ''}</button>`).join('') ||
       `<span class="muted small">${esc(t('noClipsYet'))}</span>`;
     if (P.pending) {
       v.hidden = true;
@@ -214,7 +218,7 @@
       return;
     }
     $('#shEmpty').hidden = true;
-    $('#camName').textContent = `${fmt('camN', { n: num(cl.indexOf(c) + 1) })} · ${c.name}${isDemoShed() ? ` · ${t('demoFeed')}` : ''}`;
+    $('#camName').textContent = `${fmt('camN', { n: num(cl.indexOf(c) + 1) })} · ${clipName(c)}${isDemoShed() ? ` · ${t('demoFeed')}` : ''}`;
     const r = c.result;
     const still = r?.count && !r.count.resting ? r.count.still : [];
     if (c.hasVideo && !P.showResult) {
@@ -236,7 +240,46 @@
       drawRings({ width: c.width, height: c.height }, still);
     }
     $('#clipInfo').textContent = r?.checkedAt ? fmt('lastChecked', { when: ago(r.checkedAt) }) : t('notChecked');
+    // A clip saved without its video (an upload that did not finish) shows its last frame and offers to add the video.
+    addVidBtn().hidden = Boolean(c.hasVideo);
+    addVidBtn().textContent = t('addClipVideo');
     showResult(r);
+  }
+  // Add the video to a saved clip whose video upload never finished.
+  function addVidBtn() {
+    let b = $('#addVidBtn');
+    if (b) return b;
+    b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'addVidBtn';
+    b.className = 'btn turm';
+    b.textContent = t('addClipVideo');
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'video/*';
+    inp.hidden = true;
+    b.addEventListener('click', () => inp.click());
+    inp.addEventListener('change', async () => {
+      const file = inp.files[0];
+      inp.value = '';
+      if (!file || !P.sel) return;
+      if (file.size > 50 * 1024 * 1024) return toast(t('videoTooBig'));
+      busy(t('saving'));
+      try {
+        const up = await api(`/api/clips/${P.sel}/video`, { method: 'PUT', headers: { 'Content-Type': file.type === 'video/quicktime' ? 'video/quicktime' : 'video/mp4' }, body: file });
+        if (!up.ok) throw new Error(up.error);
+        P.clips.clips = P.clips.clips.map((x) => (x.id === up.clip.id ? up.clip : x));
+        P.showResult = false;
+        renderShedTab();
+      } catch (err) {
+        toast(`${t('error')}: ${err.message}`);
+      } finally {
+        busy('');
+      }
+    });
+    $('#recheckBtn').before(b);
+    b.after(inp);
+    return b;
   }
   $('#clipRow').addEventListener('click', async (e) => {
     const del = e.target.closest('[data-del]');

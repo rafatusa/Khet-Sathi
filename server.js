@@ -7,7 +7,8 @@ import { analyseFrames, framesFromSegments, observePrompt, parseObservation, MAX
 import { autoSigns, vetMessage, vetScript, withNames, cleanCall, parseDeaths, parseSince, SIGN_CODES } from './lib/vetcall.js';
 import { DEFAULT_RULE, TRAY, cleanRule, sellDue, planDeal, shopPrompt, voiceDeal, parseLines, rankOffers } from './lib/sell.js';
 import { withNames as namesOf } from './lib/names.js';
-import { readIndex, createClip, putClipVideo, getClip, clipFrames, clipVideo, saveResult, deleteClip, setToday, todayCamera, MAX_CLIPS } from './lib/clips.js';
+import { readIndex, createClip, putClipVideo, getClip, clipFrames, clipVideo, saveResult, deleteClip, setToday, todayCamera, MAX_CLIPS, setClipNames } from './lib/clips.js';
+import { threeNames } from './lib/translate.js';
 import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage, zoomCenter } from './lib/tile.js';
 import { scanLand } from './lib/scan.js';
@@ -33,7 +34,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.11.1';
+const VERSION = '0.11.2';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -595,13 +596,35 @@ app.post(
 );
 
 // ---------- saved shed clips: the simulated shed camera (v0.7.1) ----------
-app.get('/api/clips', guard, timed(async () => ({ ...(await readIndex()), max: MAX_CLIPS })));
+// v0.11.2: clips without names in all three languages get them in the background (once each).
+const naming = new Set();
+function nameClip(clip) {
+  if (!clip || clip.names || naming.has(clip.id)) return;
+  naming.add(clip.id);
+  threeNames(clip.name)
+    .then((n) => n && setClipNames(clip.id, n))
+    .catch(() => null)
+    .finally(() => setTimeout(() => naming.delete(clip.id), 10 * 60 * 1000));
+}
+app.get(
+  '/api/clips',
+  guard,
+  timed(async () => {
+    const index = await readIndex();
+    index.clips.forEach(nameClip);
+    return { ...index, max: MAX_CLIPS };
+  })
+);
 
 // Step 1: name + frames (from the phone). Step 2: PUT the video. Step 3: check.
 app.post(
   '/api/clips',
   guard,
-  timed(async (req) => ({ clip: await createClip(req.body || {}) }))
+  timed(async (req) => {
+    const clip = await createClip(req.body || {});
+    nameClip(clip);
+    return { clip };
+  })
 );
 
 app.put(
@@ -653,7 +676,12 @@ app.post(
 app.delete(
   '/api/clips/:id',
   guard,
-  timed(async (req) => ({ deleted: await deleteClip(req.params.id) }))
+  timed(async (req) => {
+    // v0.11.2: the demo shed's clips are its built-in demo camera feeds and cannot be deleted.
+    const clip = await getClip(req.params.id);
+    if (clip && !clip.shedId) throw new Error('This is a built-in demo camera and cannot be deleted');
+    return { deleted: await deleteClip(req.params.id) };
+  })
 );
 
 // Frames of a saved clip, for the shed screen.
