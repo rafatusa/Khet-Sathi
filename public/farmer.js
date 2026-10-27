@@ -1895,7 +1895,13 @@
       $('passInput').value = '';
       return show('s-pass');
     }
-    goHome();
+    await goHome();
+    // Links from the new app shell (/next/, v0.10.0): #shed opens the poultry shed, #sell the egg sale.
+    if (location.hash === '#shed') openShed();
+    if (location.hash === '#sell') {
+      await openShed();
+      openSale('offers');
+    }
   }
   start();
 })();

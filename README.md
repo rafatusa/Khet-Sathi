@@ -52,6 +52,7 @@ in each version and when.
 ## Data sources
 
 - Satellite imagery: Esri World Imagery (Esri, Maxar, Earthstar Geographics). The server fetches a 600 m view around the farmer's location, then crops the centre 225 m and enlarges it 2.7x for SAM 3.1. At the full 600 m view SAM read Bolpur's small plots as one big field; on the close-up it outlined about 47 separate plots
+- Field health: ESA Copernicus Sentinel-2 L2A (free cloud-optimised images on AWS, Earth Search STAC by Element 84, no key). For the farmer's own SAM outline the server reads red, near-infrared and the scene classification (cloud mask) for every pass in 150 days and computes NDVI per 10 m pixel, zones and a season curve; cached 6 hours per land
 - Soil: ISRIC SoilGrids 250 m (CC BY 4.0), topsoil 0-15 cm texture and pH, looked up once per land and saved; dated copies for the demo plots in case the service is down
 - Weather: Open-Meteo (CC BY 4.0), 10-day rain chance and amount, temperature and topsoil moisture, refreshed hourly
 - Sowing windows: FAO Crop Calendar for Bangladesh by farming zone (AEZ), fetched daily, with a copy saved on Oct 27, 2026 as a fallback. FAO has no calendar for India, so Indian plots show soil and weather only. FAO publishes no zone map, so only the Bogura demo plot is placed in its exact zone; other Bangladesh points use the same zone and say so on screen
@@ -92,6 +93,7 @@ Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 
 | Version | Date | What was built |
 |---|---|---|
+| v0.10.0 | Oct 28 | New app shell at `/next/` in the team's Khet_Saathi.html design (bottom nav, land switcher, বাং/हिं/EN): Home and Field on real data (Sentinel-2 NDVI per pass with clouds masked, zones, season curve and timelapse, next pass, Esri map with the SAM outline, soil, weather, FAO crops, season steps), Saathi chat on Muse Spark Open, add land in 4 steps; plus the shopkeeper currency fix, the bench model-list warning and the never-sow-after-the-window rule. The classic app stays at `/` until v0.11.0 |
 | v0.9.0 | Oct 28 | Open weights: Saathi's agent and the egg-sale shopkeepers run on Muse Spark Open (`meta-models/muse-spark-open-1026`) on Baseten when `BASETEN_API_KEY` is set, falling back to Muse Spark 1.3; each answer shows which model answered; bench row for a real open-weights tool call |
 | v0.8.0 | Oct 28 | Egg sale: the farmer's sell rule (eggs reach N and/or every N days, lowest price per tray, shops, ask first), a simulated egg stock, Saathi calls the shops and bargains by fixed rules (never below the lowest price) while Muse Spark voices the shopkeepers, offers side by side, one tap saves the deal; `sql/004_sell_rules_v0.8.0.sql` |
 | v0.7.5 | Oct 28 | Simulated vet name and village in the farmer's language; Saathi tells the vet "about N chickens in the shed" (source shown below the line); English text says chickens instead of birds |

@@ -91,6 +91,9 @@
     const r = await api('/api/models');
     if (!r.ok) return mark('models', 'FAIL', r.error, r.ms);
     const missing = r.needed.filter((n) => !n.accessible).map((n) => n.id);
+    // Meta's model list has come back empty while every call still worked (Oct 28), so an empty list
+    // is a warning: the rows below test each model with a real call.
+    if (!r.available?.length) return mark('models', 'WARN', "Meta's model list came back empty; the rows below test each model with a real call", r.ms);
     mark('models', missing.length ? 'FAIL' : 'PASS', missing.length ? `Not accessible: ${missing.join(', ')}` : r.needed.map((n) => n.id).join(', '), r.ms);
   }
 

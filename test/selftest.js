@@ -20,6 +20,8 @@ import { analyseFrames, safeText, parseObservation } from '../lib/poultry.js';
 import { responseText } from '../lib/meta.js';
 import { fieldAlerts, shedAlerts, cameraAlerts, dedupe } from '../lib/alerts.js';
 import * as clipsLib from '../lib/clips.js';
+import { parsePath, fieldPolygonM, inRings, areaAcres } from '../lib/fieldgeo.js';
+import { passesFromStac, readPass, zonesFrom, nextPass, fieldHealth } from '../lib/sentinel.js';
 import { brainChat, OPEN } from '../lib/brain.js';
 import { runAgent } from '../lib/agent.js';
 import { DEFAULT_RULE, TRAY, cleanRule, sellDue, planDeal, voiceDeal, parseLines, rankOffers, shopPrompt } from '../lib/sell.js';
@@ -636,6 +638,9 @@ check('Shopkeeper voice: Spark words used only when safe; prices always from the
   assert.equal(bad.turns.find((t) => t.who === 'shop').by, 'script', 'a model line with its own number is replaced');
   assert.equal(voiceDeal(plan, 'en', null).spark, 0, 'no model: scripted lines');
   assert.deepEqual(parseLines('x {"lines":["a","b"]} y'), ['a', 'b']);
+  const dbl = voiceDeal(plan, 'bn', good.map((g, i) => (i === 0 ? 'প্রতি ট্রে ₹{price} টাকা দেব।' : i === 1 ? '{price} টাকার বেশি পারব না।' : g)));
+  assert.doesNotMatch(dbl.turns.map((t) => t.text).join(' '), /টাকা\s*টাকা|₹/, 'currency written once (v0.9.1)');
+  assert.match(dbl.turns.filter((t) => t.who === 'shop')[1].text, /^[০-৯]+ টাকার বেশি/);
   for (const t of voiceDeal(plan, 'en', null).turns) assert.doesNotMatch(t.text, /\{price\}|\{pickup\}|undefined/);
 });
 
@@ -705,6 +710,50 @@ await checkAsync('Brain: Muse Spark Open when the key is set, Meta fallback on e
     if (saved.b === undefined) delete process.env.BASETEN_API_KEY; else process.env.BASETEN_API_KEY = saved.b;
     if (saved.m === undefined) delete process.env.MODEL_API_KEY; else process.env.MODEL_API_KEY = saved.m;
   }
+});
+
+// ---------- v0.10.0: field outline and Sentinel-2 NDVI ----------
+check('Field outline: SAM mask path to a polygon in metres around the point', () => {
+  assert.deepEqual(parsePath('M0 0L10 0L10 10L0 10Z M20 20L21 20L21 21Z'), [[[0, 0], [10, 0], [10, 10], [0, 10]], [[20, 20], [21, 20], [21, 21]]]);
+  // A 1024 px tile covering 225 m; the mask covers pixels 412-612 (centre 512) = 44 m square.
+  const land = { image_px: 1024, ground_m: 225, selected_object: 1, objects: [{ id: 1, mask: { width: 10, height: 10, bounds: { left: 412, top: 412, right: 612, bottom: 612 }, svgPath: 'M0 0L10 0L10 10L0 10Z' } }] };
+  const rings = fieldPolygonM(land);
+  assert.ok(inRings(rings, 0, 0), 'centre is inside');
+  assert.ok(!inRings(rings, 30, 0));
+  assert.ok(Math.abs(areaAcres(rings) - (43.95 ** 2) / 4046.86) < 0.02);
+  assert.equal(fieldPolygonM({ objects: [] }), null);
+});
+
+await checkAsync('Sentinel-2: clouds masked, NDVI stats, zones, passes, next pass', async () => {
+  const stac = { features: [
+    { id: 'S2C_45RYH_20261025_0_L2A', properties: { datetime: '2026-10-25T04:40:00Z', 'eo:cloud_cover': 2, 'proj:epsg': 32645, 'earthsearch:boa_offset_applied': true }, assets: { red: { href: 'r1' }, nir: { href: 'n1' }, scl: { href: 's1' } } },
+    { id: 'S2B_45RYH_20261020_0_L2A', properties: { datetime: '2026-10-20T04:40:00Z', 'eo:cloud_cover': 95, 'proj:epsg': 32645 }, assets: { red: { href: 'r2' }, nir: { href: 'n2' }, scl: { href: 's2' } } },
+    { id: 'S2C_46RAN_20261025_0_L2A', properties: { datetime: '2026-10-25T04:40:00Z', 'eo:cloud_cover': 40, 'proj:epsg': 32646 }, assets: { red: { href: 'x' }, nir: { href: 'y' } } },
+  ] };
+  const passes = passesFromStac(stac);
+  assert.deepEqual(passes.map((p) => [p.date, p.sat, p.tileCloud]), [['2026-10-25', 'S2C', 2], ['2026-10-20', 'S2B', 95]], 'one pass per date, clearest tile');
+  const rings = [[[-25, -25], [25, -25], [25, 25], [-25, 25]]];
+  // Fake 10 m bands: NIR 3000 everywhere, red 600 (NDVI 0.67) except one stressed column with red 1500; SCL cloud on one row.
+  const fake = (kind) => async (url, [minE, minN, maxE, maxN]) => {
+    const res = kind === 'scl' ? 20 : 10;
+    const w = Math.ceil((maxE - minE) / res);
+    const h = Math.ceil((maxN - minN) / res);
+    const data = new Uint16Array(w * h).map((_, i) => (kind === 'nir' ? 3000 : kind === 'red' ? (i % w === 2 ? 1500 : 600) : Math.floor(i / w) === 1 ? 9 : 4));
+    return { data, w, h, e0: minE, n0: maxN, res };
+  };
+  const readWindow = (url, box) => fake(url.startsWith('r') ? 'red' : url.startsWith('n') ? 'nir' : 'scl')(url, box);
+  const r = await readPass(passes[0], { lat: 24.88, lon: 89.33, rings, readWindow });
+  assert.ok(r.pixels > 0 && r.clearPct < 100 && r.clearPct > 0, `cloud row masked (${r.clearPct}% clear)`);
+  assert.equal(r.ndvi.max, 0.67);
+  assert.ok(r.ndvi.min < 0.4, 'stressed column found');
+  assert.ok(r.ndvi.stressedPct > 0 && r.ndvi.stressedPct < 40);
+  const zones = zonesFrom(r.grid, rings);
+  assert.equal(zones.length, 24);
+  assert.deepEqual(nextPass(passes, '2026-10-28'), { date: '2026-10-30', sat: 'S2B' });
+  const h = await fieldHealth({ lat: 24.88, lon: 89.33, rings, today: '2026-10-28', search: async () => passes, read: (p, o) => readPass(p, { ...o, readWindow }) });
+  assert.equal(h.latest.date, '2026-10-25');
+  assert.equal(h.passes[1].cloudy, true, 'a 95% cloudy tile is not read and shows as cloudy');
+  assert.equal(h.passes[1].read, false);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

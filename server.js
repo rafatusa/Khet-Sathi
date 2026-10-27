@@ -19,16 +19,18 @@ import { env } from './lib/env.js';
 import { runAgent } from './lib/agent.js';
 import { TTS, hasTtsKey, synthesize } from './lib/tts.js';
 import { brainChat, openChat, hasOpenKey, OPEN } from './lib/brain.js';
+import { fieldHealth } from './lib/sentinel.js';
+import { fieldPolygonM, areaAcres } from './lib/fieldgeo.js';
 import { DEMO_PLACES } from './lib/plot.js';
 import {
   dbConfigured, isId, newId, createLand, listLands, getLand, updateLand, deleteLand, putFile, getFile, deleteFiles, listAlerts, pingDb,
-  recentAlerts, insertAlerts, markAlertRead, insertReadings, latestReadings, listContacts, CLIP_BUCKET, getSellRule, saveSellRule, insertDeal,
+  recentAlerts, insertAlerts, markAlertRead, insertReadings, latestReadings, listContacts, CLIP_BUCKET, getSellRule, saveSellRule, insertDeal, listDeals,
 } from './lib/store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.9.0';
+const VERSION = '0.10.0';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -192,6 +194,12 @@ app.patch(
   timed(async (req) => {
     const land = await getLand(req.params.id);
     if (!land) throw new Error('Land not found');
+    // v0.10.0: the farmer picks the crop for this land's season (a FAO crop key, or null to clear).
+    if (req.body && 'crop' in req.body && !('selected' in req.body)) {
+      const crop = req.body.crop == null ? null : String(req.body.crop);
+      if (crop !== null && !/^[a-z_]{2,30}$/.test(crop)) throw new Error('Unknown crop');
+      return { land: landView(await updateLand(land.id, { crop })) };
+    }
     const sel = String(req.body?.selected ?? '');
     const obj = (land.objects || []).find((o) => String(o.id) === sel);
     if (!obj) throw new Error('That field is not on this map');
@@ -222,6 +230,28 @@ app.get(
     if (!land) throw new Error('Land not found');
     if (!(land.objects || []).length) throw new Error('No farm field was found on this land');
     return { plan: await planForLand(land) };
+  })
+);
+
+// Field health from Sentinel-2 (v0.10.0): real NDVI for the field outline, every pass in 150 days.
+// Cached for 6 hours per land and outline; the first load reads up to 20 passes (a few seconds).
+const healthCache = new Map();
+app.get(
+  '/api/lands/:id/field',
+  guard,
+  timed(async (req) => {
+    const land = await getLand(req.params.id);
+    if (!land) throw new Error('Land not found');
+    const outline = fieldPolygonM(land);
+    const rings = outline || [[[-30, -30], [30, -30], [30, 30], [-30, 30]]]; // no outline: 60 m around the point
+    const key = `${land.id}|${land.selected_object}|${(land.objects || []).length}`;
+    const hit = healthCache.get(key);
+    let health = hit && Date.now() - hit.at < 6 * 3600 * 1000 ? hit.health : null;
+    if (!health || req.query.fresh === '1') {
+      health = await fieldHealth({ lat: land.lat, lon: land.lon, rings, today: localToday('Asia/Dhaka') });
+      healthCache.set(key, { at: Date.now(), health });
+    }
+    return { outline: rings, outlineFound: Boolean(outline), outlineAcres: Math.round(areaAcres(rings) * 100) / 100, groundM: land.ground_m, imagePx: land.image_px, health };
   })
 );
 
@@ -367,8 +397,10 @@ app.post(
 app.get(
   '/api/sensors',
   guard,
-  timed(async () => {
-    const land = await newestFieldLand();
+  timed(async (req) => {
+    // ?landId= picks that land's kit (new app); otherwise the newest land with a field.
+    const asked = req.query.landId ? await getLand(req.query.landId).catch(() => null) : null;
+    const land = asked && (asked.objects || []).length ? asked : await newestFieldLand();
     const device = land ? fieldDevice(land.id) : null;
     const latest = latestByDevice(await latestReadings([device, SHED_DEVICE].filter(Boolean), 60));
     const pick = (dev, metrics) => (latest[dev] ? Object.fromEntries(metrics.filter((m) => latest[dev][m]).map((m) => [m, latest[dev][m]])) : null);
@@ -680,6 +712,9 @@ app.post(
     return { rule };
   })
 );
+
+// Money tab: confirmed and draft deals, newest first (simulated money).
+app.get('/api/deals', guard, timed(async () => ({ deals: await listDeals(), simulated: true })));
 
 app.post('/api/sell/run', guard, timed(async (req) => ({ run: await runSale(pickLang(req.body?.lang || req.query.lang)) })));
 
