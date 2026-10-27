@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptText, segmentStream, uploadFile, deleteFile, respond, responseText } from './lib/meta.js';
 import { analyseFrames, framesFromSegments, observePrompt, parseObservation, MAX_FRAMES, SAFE_VET_LINE } from './lib/poultry.js';
-import { autoSigns, vetMessage, cleanCall, parseDeaths, parseSince, SIGN_CODES } from './lib/vetcall.js';
+import { autoSigns, vetMessage, vetScript, cleanCall, parseDeaths, parseSince, SIGN_CODES } from './lib/vetcall.js';
 import { readIndex, createClip, putClipVideo, getClip, clipFrames, clipVideo, saveResult, deleteClip, setToday, todayCamera, MAX_CLIPS } from './lib/clips.js';
 import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage, zoomCenter } from './lib/tile.js';
@@ -25,7 +25,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.7.3';
+const VERSION = '0.7.4';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -583,10 +583,15 @@ app.post(
     if (req.body?.consent !== true) throw new Error('The farmer has to agree before Saathi calls the vet');
     const call = cleanCall(req.body);
     const message = vetMessage(call);
+    // Saathi answers the vet only from data the app has: the bird count and the simulated shed kit.
+    const latest = latestByDevice(await latestReadings([SHED_DEVICE], 30).catch(() => []))[SHED_DEVICE] || {};
+    const shed = Object.fromEntries(['shed_temp', 'shed_humidity', 'water_pct', 'feed_pct'].map((m) => [m, latest[m]?.value ?? null]));
+    const birds = Number(req.body?.birds) > 0 ? Number(req.body.birds) : lastShed?.count?.count || null;
+    const script = vetScript(call, { birds, shed });
     const vets = await listContacts('vet').catch(() => []);
     const calledAt = new Date().toISOString();
     lastShed = { ...(lastShed || {}), vetCall: { ...call, calledAt } };
-    return { message, vet: vets[0] || null, simulated: true, calledAt };
+    return { message, ...script, vet: vets[0] || null, simulated: true, calledAt };
   })
 );
 
@@ -718,7 +723,9 @@ app.post(
   timed(async (req) => {
     const text = String(req.body?.text || '');
     if (!text.trim()) throw new Error('text is required');
-    const { wav, chars } = await synthesize(text);
+    // voice 'vet': the simulated vet in the demo call speaks with a second voice.
+    const opts = req.body?.voice === 'vet' ? { voice: TTS.vetVoice, style: 'calm, kind and professional, an animal doctor on a phone call' } : {};
+    const { wav, chars } = await synthesize(text, opts);
     return {
       audioDataUrl: `data:audio/wav;base64,${wav.toString('base64')}`,
       chars,

@@ -877,6 +877,7 @@
     shed.vetSummary = '';
     shed.lastCount = null;
     shed.lastObs = null;
+    shed.birds = null;
   }
 
   async function loadClips() {
@@ -934,6 +935,7 @@
     $('clipToday').hidden = false;
     $('clipTodayInput').checked = clips.todayId === c.id;
     shed.lastCount = r?.count ? { still, resting: r.count.resting || isNightNow() } : null;
+    shed.birds = r?.count?.count || null;
     if (r?.count) {
       shed.still = still.length;
       shed.resting = r.count.resting || isNightNow();
@@ -1084,6 +1086,7 @@
       shed.still = r.still.length;
       shed.resting = r.resting;
       shed.lastCount = { still: r.still, resting: r.resting };
+      shed.birds = r.count || null;
       $('shedStats').hidden = false;
       $('shedCount').textContent = num(r.count, 0);
       $('shedStill').textContent = num(r.resting ? 0 : r.still.length, 0);
@@ -1173,8 +1176,8 @@
   const SIGNS = ['still', 'off_feed', 'crowding', 'twisted_neck', 'wet_litter', 'breathing', 'swollen_face', 'weak', 'drink_less', 'droppings', 'fewer_eggs'];
 
   function vetStep(n) {
-    [1, 2, 3].forEach((i) => ($(`vetStep${i}`).hidden = i !== n));
-    $('vetTitle').textContent = n === 1 ? t(vet.auto.size ? 'signsTitleAuto' : 'signsTitle') : n === 2 ? t('moreTitle') : shed.vet?.name || t('vet');
+    [1, 2, 3, 4].forEach((i) => ($(`vetStep${i}`).hidden = i !== n));
+    $('vetTitle').textContent = n === 1 ? t(vet.auto.size ? 'signsTitleAuto' : 'signsTitle') : n === 2 ? t('moreTitle') : n === 3 ? shed.vet?.name || t('vet') : '';
   }
 
   async function openVet() {
@@ -1293,7 +1296,7 @@
     }
   });
 
-  const callBody = () => ({ lang, signs: [...vet.signs], still: shed.lastCount?.still?.length || null, since: vet.since, deaths: vet.deaths });
+  const callBody = () => ({ lang, signs: [...vet.signs], still: shed.lastCount?.still?.length || null, since: vet.since, deaths: vet.deaths, birds: shed.birds || null });
 
   $('vetNext2').addEventListener('click', async () => {
     $('vetNext2').disabled = true;
@@ -1305,7 +1308,6 @@
       $('vetPlace').innerHTML = `${esc(shed.vet?.village || '')} <span class="sample">${esc(t('simulated'))}</span>`;
       $('vetConsent').checked = false;
       $('vetCall').disabled = true;
-      $('vetCallBox').hidden = true;
       vetStep(3);
     } catch (err) {
       toast(`${t('error')}: ${err.message}`);
@@ -1316,32 +1318,103 @@
 
   $('vetConsent').addEventListener('change', (e) => ($('vetCall').disabled = !e.target.checked));
 
+  // The demo call: Saathi and the simulated vet take turns in two voices; all vet lines are scripted.
+  const call = { id: 0, turns: [], summary: [], audio: [], start: 0, timer: null };
+  const mmss = (ms) => {
+    const s = Math.max(0, Math.round(ms / 1000));
+    return `${num(Math.floor(s / 60), 0)}:${num(s % 60, 0).padStart(2, num(0, 0))}`;
+  };
+  const voiceOf = (turn) => (turn.who === 'vet' ? 'vet' : undefined);
+  const fetchAudio = (turn) => postJson('/api/speak', { text: turn.text, voice: voiceOf(turn) }).then((r) => (r.ok ? r.audioDataUrl : null)).catch(() => null);
+  function playUrl(url, id) {
+    return new Promise((done) => {
+      if (!url || id !== call.id) return done();
+      if (player) player.pause();
+      player = new Audio(url);
+      player.onended = done;
+      player.onerror = done;
+      player.play().catch(done);
+    });
+  }
+  function lineEl(turn) {
+    const el = document.createElement('div');
+    el.className = `call-line ${turn.who === 'vet' ? 'vet' : 'saathi'}`;
+    const src = turn.src ? `<span class="src">${esc(t(turn.src === 'sam' ? 'srcSam' : 'srcSensor'))}</span>` : '';
+    el.innerHTML = `<div class="who" aria-hidden="true">${esc(t(turn.who === 'vet' ? 'vetInitial' : 'saathiInitial'))}</div><div class="b">${esc(turn.text)}${src}</div>`;
+    return el;
+  }
+  function callState(live) {
+    $('vetCallState').classList.toggle('live', live);
+    $('vetCallState').textContent = fmt(live ? 'callLiveT' : 'callEndedT', { t: mmss(Date.now() - call.start) });
+  }
+  async function runCall({ replay = false } = {}) {
+    const id = ++call.id;
+    $('vetLines').replaceChildren();
+    $('vetSaid').hidden = true;
+    $('vetEnd').hidden = false;
+    $('vetReplay').hidden = true;
+    $('vetDone').hidden = true;
+    call.start = Date.now();
+    clearInterval(call.timer);
+    $('vetCallState').classList.add('live');
+    $('vetCallState').textContent = t('callConnecting');
+    if (!replay) call.audio = call.turns.map(fetchAudio); // all voices load together, so the turns follow without gaps
+    await call.audio[0];
+    if (id !== call.id) return;
+    call.start = Date.now();
+    call.timer = setInterval(() => callState(true), 1000);
+    callState(true);
+    for (let i = 0; i < call.turns.length && id === call.id; i++) {
+      const el = lineEl(call.turns[i]);
+      el.classList.add('now');
+      $('vetLines').append(el);
+      el.scrollIntoView({ block: 'nearest' });
+      await playUrl(await call.audio[i], id);
+      el.classList.remove('now');
+    }
+    if (id !== call.id) return;
+    endCall();
+  }
+  function endCall() {
+    call.id++;
+    if (player) player.pause();
+    clearInterval(call.timer);
+    callState(false);
+    $('vetLines').querySelectorAll('.now').forEach((x) => x.classList.remove('now'));
+    const list = $('vetSaidList');
+    list.replaceChildren(...call.summary.map((s) => Object.assign(document.createElement('li'), { textContent: s })));
+    $('vetSaid').hidden = !call.summary.length;
+    $('vetEnd').hidden = true;
+    $('vetReplay').hidden = false;
+    $('vetDone').hidden = false;
+    $('vetReplay').focus();
+  }
+
   $('vetCall').addEventListener('click', async () => {
     if (!$('vetConsent').checked) return;
     $('vetCall').disabled = true;
     try {
       const r = await postJson('/api/vet/call', { ...callBody(), consent: true });
       if (!r.ok) throw new Error(r.error);
-      $('vetCallBox').hidden = false;
-      $('vetCallBox').classList.add('live');
-      $('vetCallState').textContent = t('callLive');
-      await speak(r.message);
-      const done = () => {
-        $('vetCallBox').classList.remove('live');
-        $('vetCallState').textContent = t('callDone');
-      };
-      if (player && !player.ended) player.addEventListener('ended', done, { once: true });
-      else done();
+      call.turns = r.turns || [{ who: 'saathi', text: r.message }];
+      call.summary = r.summary || [];
+      $('vetCallName').textContent = r.vet?.name || shed.vet?.name || t('vet');
+      vetStep(4);
+      runCall();
     } catch (err) {
-      $('vetCallBox').hidden = true;
       toast(`${t('error')}: ${err.message}`);
     } finally {
       $('vetCall').disabled = !$('vetConsent').checked;
     }
   });
+  $('vetEnd').addEventListener('click', endCall);
+  $('vetReplay').addEventListener('click', () => runCall({ replay: true }));
+  $('vetDone').addEventListener('click', () => closeVet());
 
   const closeVet = () => {
     if (vetRec?.state === 'recording') vetRec.stop();
+    call.id++;
+    clearInterval(call.timer);
     if (player) player.pause();
     $('vetSheet').hidden = true;
   };

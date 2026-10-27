@@ -63,7 +63,7 @@ in each version and when.
 
 Khet Saathi gives no medical, veterinary or pesticide-dosage advice. For animal health it flags warning signs
 (inactive birds, coughing) and tells the farmer to isolate the animals and call a vet.
-Signs passed on to the (simulated) vet come from a fixed list, are confirmed by the farmer, and are read out only after the farmer agrees.
+Signs passed on to the (simulated) vet come from a fixed list, are confirmed by the farmer, and are read out only after the farmer agrees. In the demo call every vet line is scripted.
 
 ## Run it
 
@@ -90,6 +90,7 @@ Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 
 | Version | Date | What was built |
 |---|---|---|
+| v0.7.4 | Oct 28 | Two-way demo vet call: after consent, Saathi and a simulated vet (second voice) take turns; the vet asks up to two scripted questions picked by the signs, Saathi answers only from the SAM count and the simulated shed kit (or says it does not know), the vet closes with a fixed safe line and a short summary |
 | v0.7.3 | Oct 27 | Fix: the clip list is kept in server memory and saved with no-cache, because storage served a stale copy for about 20 s and a second clip upload failed with "Clip not found"; saves run one at a time; the "Tell the vet" icon is sized like the others |
 | v0.7.2 | Oct 27 | Symptoms to the vet: auto-filled signs from the camera check, two voice questions, consent and a simulated call; "+ From phone" picks a saved video from the gallery |
 | v0.7.1 | Oct 27 | Shed clip library (simulated camera): save up to 5 named clips with their frames and last result in a private `shed-clips` bucket, re-check on demand, choose today's camera for automatic alerts, delete with a confirm sheet; `sql/003_shed_clips_v0.7.1.sql` |

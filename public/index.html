@@ -373,10 +373,21 @@
         <label class="consent"><input type="checkbox" id="vetConsent" /><span data-t="consentText"></span></label>
         <button class="btn primary wide" id="vetCall" data-t="agreeCall" disabled></button>
         <button class="btn wide" id="vetBack" data-t="notNow"></button>
-        <div class="call-box" id="vetCallBox" hidden aria-live="polite">
-          <span class="dot" aria-hidden="true"></span>
-          <div><b id="vetCallState"></b><div class="muted small" data-t="demoCall"></div></div>
+      </div>
+      <div class="vet-step" id="vetStep4" hidden>
+        <div class="call-head">
+          <div class="vav" aria-hidden="true" data-t="vetInitial"></div>
+          <div><b id="vetCallName"></b><span class="call-state" id="vetCallState" aria-live="polite"></span> <span class="demo-tag" data-t="demoTag"></span></div>
         </div>
+        <div class="call-lines" id="vetLines" aria-live="polite"></div>
+        <div class="vet-said" id="vetSaid" hidden>
+          <b data-t="vetSaid"></b>
+          <ol id="vetSaidList"></ol>
+        </div>
+        <button class="btn wide end-call" id="vetEnd" data-t="endCall"></button>
+        <button class="btn primary wide" id="vetReplay" data-t="playAgain" hidden></button>
+        <button class="btn wide" id="vetDone" data-t="close" hidden></button>
+        <div class="muted small" data-t="callNote"></div>
       </div>
     </div>
   </div>

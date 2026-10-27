@@ -20,7 +20,7 @@ import { analyseFrames, safeText, parseObservation } from '../lib/poultry.js';
 import { responseText } from '../lib/meta.js';
 import { fieldAlerts, shedAlerts, cameraAlerts, dedupe } from '../lib/alerts.js';
 import * as clipsLib from '../lib/clips.js';
-import { autoSigns, vetMessage, cleanCall, parseDeaths, parseSince, SIGN_CODES } from '../lib/vetcall.js';
+import { autoSigns, vetMessage, vetScript, cleanCall, parseDeaths, parseSince, SIGN_CODES } from '../lib/vetcall.js';
 import { createEngine } from '../lib/engine.js';
 import * as memStore from '../lib/store.js';
 import sharp from 'sharp';
@@ -558,6 +558,24 @@ check('Vet answers by voice: since when and deaths', () => {
   assert.equal(parseSince('এক সপ্তাহ হবে'), 'week');
   assert.equal(parseSince('कल से'), 'days');
   assert.equal(parseSince('hmm'), null);
+});
+
+// ---------- v0.7.4: two-way demo call ----------
+check('Demo call: vet asks by the signs, Saathi answers only from app data', () => {
+  const shed = { shed_temp: 31.4, shed_humidity: 64, water_pct: 40, feed_pct: 51 };
+  const s = vetScript({ lang: 'bn', signs: ['twisted_neck', 'drink_less', 'droppings'], since: 'days', deaths: 2 }, { birds: 120, shed });
+  assert.deepEqual(s.turns.map((x) => x.who), ['saathi', 'vet', 'saathi', 'vet', 'saathi', 'vet']);
+  assert.equal(s.turns[2].text, 'ভিডিওতে ১২০টি মুরগি গোনা হয়েছে।');
+  assert.equal(s.turns[2].src, 'sam');
+  assert.equal(s.turns[4].text, 'পানি ৪০%, খাবার ৫১% ভরা আছে।');
+  assert.match(s.turns[5].text, /আলাদা জায়গায় রাখুন/);
+  assert.equal(s.summary.length, 2);
+  const none = vetScript({ lang: 'en', signs: ['breathing'] }, {});
+  assert.deepEqual(none.turns.map((x) => x.text).slice(1, 3), ['How is it inside the shed, hot or damp?', 'I do not have that right now; the farmer will tell you later.'], 'no data: Saathi says so, never guesses');
+  assert.equal(vetScript({ lang: 'hi', signs: [] }, { birds: 50 }).turns.length, 4, 'no signs: one question');
+  for (const lang of ['bn', 'hi', 'en']) {
+    for (const turn of vetScript({ lang, signs: SIGN_CODES, deaths: 3 }, { birds: 99, shed }).turns) assert.equal(safeText(turn.text), turn.text, `${lang}: "${turn.text}" passes the filter`);
+  }
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);
