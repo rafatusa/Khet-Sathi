@@ -36,7 +36,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.12.0';
+const VERSION = '0.12.1';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -334,7 +334,7 @@ app.get(
     const land = await getLand(req.params.id);
     if (!land) throw new Error('Land not found');
     const s = await harvestState(land);
-    const buyers = await nearbyShops(Number(land.lat), Number(land.lon), { kind: 'buyers', cropText: land.crop.replace(/_/g, ' ') }).catch(() => ({ shops: [], error: 'Buyer search did not answer' }));
+    const buyers = await nearbyShops(Number(land.lat), Number(land.lon), { kind: 'buyers', cropText: land.crop, radiusKm: 20 }).catch(() => ({ shops: [], error: 'Buyer search did not answer' }));
     const rule = land.sell_rule || null;
     return {
       crop: land.crop,

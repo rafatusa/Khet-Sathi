@@ -28,6 +28,7 @@ import { DEFAULT_RULE, TRAY, cleanRule, sellDue, planDeal, voiceDeal, parseLines
 import { autoSigns, vetMessage, vetScript, withNames, cleanCall, parseDeaths, parseSince, SIGN_CODES } from '../lib/vetcall.js';
 import { createEngine } from '../lib/engine.js';
 import * as memStore from '../lib/store.js';
+import { buyerQuery } from '../lib/place.js';
 import { sowingFromPasses, rowFor, readiness, harvestAmount, unitFor, samplePrice, DEMO_BUYERS, planCropDeal, voiceCropDeal, cleanCropRule } from '../lib/harvest.js';
 import sharp from 'sharp';
 import { createLand, getLand, putFile, getFile, deleteLand, deleteFiles } from '../lib/store.js';
@@ -935,12 +936,20 @@ await checkAsync('harvest: sowing estimated from the green-up, calendar row, rea
   assert.equal(r.stage, 'ripening', 'past the greenness peak and over 60% of the season');
   assert.ok(r.pct > 50 && r.pct < 98);
   assert.equal(r.calendar.source, 'MIRCA-OS');
+  // v0.12.0: with the calendar's harvest months, Aman rice ripens in its season (December), not 165 days after a late sowing.
+  const aman = { key: 'rice', sow: [6, 1, 6, 30], harvest: [12, 1, 12, 31], growDays: { min: 165, max: 195 }, areaScope: 'district' };
+  const ra = readiness({ crop: 'rice', sownOn: '2026-07-28', today: '2026-10-28', row: aman, passes });
+  assert.deepEqual([ra.harvestStart, ra.harvestEnd], ['2026-12-01', '2027-01-10']);
+  assert.equal(readiness({ crop: 'rice', sownOn: '2026-02-10', today: '2026-03-01', row: aman, passes: [] }).harvestStart, '2026-07-25', 'sown far outside the row: days to maturity');
   const late = readiness({ crop: 'rice', sownOn: '2026-05-01', today: '2026-10-28', row, passes: [] });
   assert.equal(late.stage, 'late');
   assert.equal(late.pct, 100);
 });
 
 await checkAsync('harvest: amount in the local unit, sample price, demo bargaining keeps the floor', async () => {
+  assert.equal(buyerQuery('rice'), 'rice mill');
+  assert.equal(buyerQuery('maize'), 'grain elevator');
+  assert.equal(buyerQuery('cabbage'), 'wholesale vegetable and grain market');
   assert.equal(unitFor('BD').key, 'mon');
   assert.equal(unitFor('IN').key, 'quintal');
   assert.equal(unitFor('US').key, 't');

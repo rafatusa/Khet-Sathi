@@ -2,6 +2,7 @@
 window.KS_TEXT = {
   bn: {
     // v0.12.0
+    crop_pulses: "ডাল",
     realBar: "আপনার নিজের জমি: আসল তথ্য · দোকানে ফোন শিগগিরই আসছে · কিছু অর্ডার বা টাকা কাটা হয় না",
     growingQ: "এখানে কিছু লাগানো আছে",
     growingS: "সাথী কাটা আর বিক্রি পর্যন্ত নজর রাখবে",
@@ -272,6 +273,7 @@ window.KS_TEXT = {
   },
   hi: {
     // v0.12.0
+    crop_pulses: "दालें",
     realBar: "आपकी अपनी ज़मीन: असली जानकारी · दुकानों को कॉल जल्द आ रहा है · कोई ऑर्डर या पैसा नहीं कटता",
     growingQ: "यहाँ कुछ लगा है",
     growingS: "साथी कटाई और बिक्री तक नज़र रखेगा",
@@ -542,6 +544,7 @@ window.KS_TEXT = {
   },
   en: {
     // v0.12.0
+    crop_pulses: "Pulses",
     realBar: "Your own land: real data · calling shops is coming soon · nothing is ordered or charged",
     growingQ: "Something is growing here",
     growingS: "Saathi tracks it to harvest and sale",
