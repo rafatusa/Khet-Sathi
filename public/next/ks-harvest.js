@@ -1,8 +1,8 @@
-// Khet Saathi v0.12.0: a crop already growing on a field, followed to harvest and sale.
+// Khet Sathi v0.12.0: a crop already growing on a field, followed to harvest and sale.
 // When: the sowing date (the farmer's, or estimated from Sentinel-2 greenness) and the district's crop
 // calendar (MIRCA-OS, FAO in Bangladesh). How much: acres x the country's average yield (FAOSTAT).
 // Demo lands: sample prices and scripted demo calls to fictional buyers and crews, always tagged Demo.
-// Real lands: no price, real buyers only, and "Saathi will call and update you" with a coming-soon note.
+// Real lands: no price, real buyers only, and "Sathi will call and update you" with a coming-soon note.
 (() => {
   'use strict';
   const K = window.KS;
@@ -23,6 +23,7 @@
     if (!key) return null;
     if (!force && H.key === key && (H.data || H.loading)) return H.loading;
     H.key = key;
+    H.buyersFor = null;
     H.data = null;
     H.run = null;
     H.pick = null;
@@ -198,8 +199,22 @@
         : `<div class="emptybox">${esc(t('offersNone'))}</div>`) +
       `<div class="btns"><button class="btn ghost" type="button" id="mcReplay">${esc(t('hearCalls'))}</button></div>`;
   }
+  // v0.13.0: real buyers are looked up only when the Market opens (one shop search per visit).
   function renderBuyers() {
     const d = H.data;
+    if (H.buyersFor !== H.key) {
+      H.buyersFor = H.key;
+      $('#mcBuyers').innerHTML = emptyBox(t('findingBuyers'));
+      const key = H.key;
+      api(`/api/lands/${S.cur.id}/harvest?buyers=1`)
+        .then((r) => {
+          if (H.key !== key || !H.data) return;
+          Object.assign(H.data, { buyers: r.ok ? r.buyers || [] : [], buyerSource: r.buyerSource || null, buyerError: r.ok ? r.buyerError : r.error });
+          if (K.S.tab === 'market') renderBuyers();
+        })
+        .catch(() => null);
+      return;
+    }
     const list = d.buyers || [];
     const credit = d.buyerSource === 'Google Places' ? '<div class="gattr" translate="no" aria-label="Google Maps">Google Maps</div>' : '<div class="gattr osm" translate="no">© OpenStreetMap contributors</div>';
     $('#mcBuyers').innerHTML = list.length

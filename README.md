@@ -1,4 +1,4 @@
-# Khet Saathi (খেত সাথী · खेत साथी)
+# Khet Sathi (খেত সাথী · खेत साथी)
 
 **One voice, every farm decision.** A voice-first AI farm agent for smallholder farmers, built first for India and Bangladesh and working anywhere on Earth.
 The farmer talks in Bangla or Hindi; the agent watches their land from space, listens to their shed, plans the
@@ -17,28 +17,28 @@ in each version and when.
 | Feature | Status |
 |---|---|
 | Farmer app at `/`: Bangla / Hindi / English; fields and poultry sheds are separate places in one switcher, each with its own Home and tabs; tabs in the header on desktop, bottom bar on phones (the earlier app stays at `/classic/`) | Live |
-| Check the place first: OpenStreetMap says where the land is, ESA WorldCover 10 m says what covers it; houses or water get "no crops here" and Saathi never suggests a crop there | Live (real data) |
+| Check the place first: OpenStreetMap says where the land is, ESA WorldCover 10 m says what covers it; houses or water get "no crops here" and Sathi never suggests a crop there | Live (real data) |
 | Crops anywhere: the farmer's own district crops, hectares and sowing months (MIRCA-OS 2020); Muse Spark keeps the ones farmers there sow this season; money in the country's currency | Live (real data; FAO calendar still used in Bangladesh) |
-| Market for a field: seed, fertilizer and plough crew sized to the field, the real seed and fertilizer shops near it (OpenStreetMap); on a real land "Saathi will call" is marked coming soon and nothing is faked; demo lands play a scripted demo call | Live (calling and email **coming soon**) |
+| Market for a field: seed, fertilizer and plough crew sized to the field, the real seed and fertilizer shops near it (OpenStreetMap); on a real land "Sathi will call" is marked coming soon and nothing is faked; demo lands play a scripted demo call | Live (calling and email **coming soon**) |
 | Shed camera wall: saved shed clips play as camera feeds with a clock; connect CCTV is coming soon | Live (**demo feed** for the demo shed) |
 | Add land: photo + GPS → satellite view → SAM 3.1 finds the farmer's field and measures its acres | Live |
 | Small-plot scan: SAM 3.1 runs on an enlarged 225 m close-up, so tiny Bengal plots are outlined one by one; wide 600 m view as fallback | Live |
 | Honest empty states: "no farm field here" for a town spot, re-scan for older lands, SAM's answer shown on screen | Live |
 | Tap a different field on the map if the guess is wrong | Live |
 | Delete a saved land (asks once, removes its pictures too) | Live |
-| Saathi speaks up on its own: alerts feed on Home for rain (skip irrigation), fungus weather, dry soil, sowing window closing and shed limits, each with a speaker button | Live (weather and sowing data real; sensor readings simulated) |
+| Sathi speaks up on its own: alerts feed on Home for rain (skip irrigation), fungus weather, dry soil, sowing window closing and shed limits, each with a speaker button | Live (weather and sowing data real; sensor readings simulated) |
 | Village sensor kit: field and shed readings in the format a real ESP32 kit would send | **Simulated** (no physical devices in this hackathon build) |
 | Talk mode: farmer speaks Bangla/Hindi → agent → spoken reply | Live |
 | Agent plans with tools: plot profile → input prices → draft order | Live (demo vendor data) |
 | Empty land, what to grow: real soil (SoilGrids), 10-day rain and soil moisture (Open-Meteo) and FAO sowing windows pick 3 crops, with days left to sow, days to harvest and when to sow around rain | Live (Bangladesh; profit figures are samples) |
 | Empty land: vendors and orders for the chosen crop | In progress (demo vendor data) |
-| Crop calendar: every crop's sowing and harvest (selling) window for the farm's zone on a year bar, grouped into sow now, starting soon and later; tap a crop to ask Saathi | Live (Bangladesh, FAO data) |
-| Standing crop: after the place check the farmer says what is growing and roughly when it was sown (or Saathi estimates the sowing from the Sentinel-2 green-up). Home shows days to harvest from the district crop calendar (MIRCA-OS), a readiness ring nudged by the greenness curve (past its peak means ripening), the expected harvest (field acres × FAOSTAT country yield, in maund, quintal or tonnes) and season steps from the real sowing date | Live (real data) |
-| Harvest and sale: book the harvester and transport, set a selling rule (amount, lowest price, when, ask first), see real crop buyers near the field (Google Places or OpenStreetMap). Demo lands: sample prices, scripted demo calls to fictional buyers and crews, one-tap sale saved in Money. Real lands: no prices, "Saathi will call and update you" marked coming soon | Live (**demo calls and prices on demo lands**; calling coming soon) |
+| Crop calendar: every crop's sowing and harvest (selling) window for the farm's zone on a year bar, grouped into sow now, starting soon and later; tap a crop to ask Sathi | Live (Bangladesh, FAO data) |
+| Standing crop: after the place check the farmer says what is growing and roughly when it was sown (or Sathi estimates the sowing from the Sentinel-2 green-up). Home shows days to harvest from the district crop calendar (MIRCA-OS), a readiness ring nudged by the greenness curve (past its peak means ripening), the expected harvest (field acres × FAOSTAT country yield, in maund, quintal or tonnes) and season steps from the real sowing date | Live (real data) |
+| Harvest and sale: book the harvester and transport, set a selling rule (amount, lowest price, when, ask first), see real crop buyers near the field (Google Places or OpenStreetMap). Demo lands: sample prices, scripted demo calls to fictional buyers and crews, one-tap sale saved in Money. Real lands: no prices, "Sathi will call and update you" marked coming soon | Live (**demo calls and prices on demo lands**; calling coming soon) |
 | Poultry shed: the farmer films the shed; SAM 3.1 counts birds frame by frame and rings birds that hardly move (not at night, when hens rest); Muse Spark 1.2 watches the clip with its sound for behaviour and unusual sounds. Warning signs only ever say "keep these birds apart and call the vet": the app never names a disease or a medicine | Live (needs the farmer's own video) |
 | Saved shed clips: up to 5 of the farmer's own shed videos, each checked once and kept with its result; one can be set as "today's camera" so its warnings reach Home by themselves | Live (**simulated camera**: a saved clip stands in for a CCTV feed) |
-| Symptoms to the vet: Saathi ticks the signs the video showed (from a fixed list), the farmer unticks or adds, answers "since when?" and "any deaths today?" by voice or buttons, reads the exact words and agrees; a demo call then plays them. Fixed sentence templates, no disease or medicine names | Live (**simulated vet and call**: no real call is made) |
-| Egg sale: the farmer decides when to sell (egg count and/or every few days) and the lowest price per tray; Saathi calls the saved egg shops, bargains by fixed rules and never goes below that price; Muse Spark plays the shopkeepers; the farmer confirms the best offer with one tap | Live (**simulated shops, calls and money**; the deal is saved) |
+| Symptoms to the vet: Sathi ticks the signs the video showed (from a fixed list), the farmer unticks or adds, answers "since when?" and "any deaths today?" by voice or buttons, reads the exact words and agrees; a demo call then plays them. Fixed sentence templates, no disease or medicine names | Live (**simulated vet and call**: no real call is made) |
+| Egg sale: the farmer decides when to sell (egg count and/or every few days) and the lowest price per tray; Sathi calls the saved egg shops, bargains by fixed rules and never goes below that price; Muse Spark plays the shopkeepers; the farmer confirms the best offer with one tap | Live (**simulated shops, calls and money**; the deal is saved) |
 | Shed care alerts: too hot or cold, humidity, ammonia, water and feed, light left on at night or in daylight, light off in the evening, heat or cold coming, egg count | Live (shed sensors and egg counter **simulated**) |
 | Auto-sell: when eggs or harvest are ready, the agent phones shop owners and negotiates | Demo (scripted calls on demo lands and the demo shed); real calls planned |
 
@@ -48,7 +48,7 @@ in each version and when.
 |---|---|---|
 | `muse-spark-1.3` | Meta Model API | Agent brain: reasoning, tool calls, reads satellite and field images |
 | `muse-spark-1.2` | Meta Model API | Watches shed video with its sound and listens to shed sound clips (Meta recommends 1.2 for audio) |
-| `meta-models/muse-spark-open-1026` | Baseten (Meta open weights) | Saathi's agent with tool calls and the egg-sale shopkeepers, when `BASETEN_API_KEY` is set; falls back to `muse-spark-1.3` |
+| `meta-models/muse-spark-open-1026` | Baseten (Meta open weights) | Sathi's agent with tool calls and the egg-sale shopkeepers, when `BASETEN_API_KEY` is set; falls back to `muse-spark-1.3` |
 | `muse-voice-transcribe-1.0` | Meta Model API | Hears the farmer: Bangla, Hindi, Marathi, Tamil, Telugu, Kannada, English |
 | `sam-3.1` | Meta Model API | Finds every field on the satellite image, picks the one under the farmer's GPS point and measures it; tracks animals in video (planned) |
 | Muse Spark Open | Meta open weights (Baseten) | Open-weight path for the same agent (planned) |
@@ -74,7 +74,7 @@ in each version and when.
 
 ## Safety
 
-Khet Saathi gives no medical, veterinary or pesticide-dosage advice. For animal health it flags warning signs
+Khet Sathi gives no medical, veterinary or pesticide-dosage advice. For animal health it flags warning signs
 (inactive birds, coughing) and tells the farmer to isolate the animals and call a vet.
 Signs passed on to the (simulated) vet come from a fixed list, are confirmed by the farmer, and are read out only after the farmer agrees. In the demo call every vet line is scripted.
 
@@ -86,7 +86,7 @@ Hosted on Railway, deployed from this repo on every push.
 |---|---|---|
 | `MODEL_API_KEY` | Yes | Meta Model API key |
 | `GEMINI_API_KEY` | For speech | Google AI Studio key, spoken replies |
-| `APP_PASSCODE` | Recommended | Protects the API routes on a public URL |
+| `APP_PASSCODE` | No longer used (v0.13.0) | Sign-in by email code replaced the shared passcode; the variable can be removed |
 | `SUPABASE_URL` | For saving | Supabase project URL |
 | `SUPABASE_SECRET_KEY` | For saving | Supabase secret key (server only; `SUPABASE_SERVICE_ROLE_KEY` also accepted) |
 | `SPARK_MODEL`, `VOICE_MODEL`, `SAM_MODEL`, `TTS_MODEL`, `TTS_VOICE` | No | Override model IDs or the voice. Leave them unset unless you need a different model |
@@ -103,19 +103,20 @@ Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 
 | Version | Date | What was built |
 |---|---|---|
-| v0.10.0 | Oct 28 | New app shell at `/next/` in the team's Khet_Saathi.html design (bottom nav, land switcher, বাং/हिं/EN): Home and Field on real data (Sentinel-2 NDVI per pass with clouds masked, zones, season curve and timelapse, next pass, Esri map with the SAM outline, soil, weather, FAO crops, season steps), Saathi chat on Muse Spark Open, add land in 4 steps; plus the shopkeeper currency fix, the bench model-list warning and the never-sow-after-the-window rule. The classic app stays at `/` until v0.11.0 |
+| v0.10.0 | Oct 28 | New app shell at `/next/` in the team's Khet_Saathi.html design (bottom nav, land switcher, বাং/हिं/EN): Home and Field on real data (Sentinel-2 NDVI per pass with clouds masked, zones, season curve and timelapse, next pass, Esri map with the SAM outline, soil, weather, FAO crops, season steps), Sathi chat on Muse Spark Open, add land in 4 steps; plus the shopkeeper currency fix, the bench model-list warning and the never-sow-after-the-window rule. The classic app stays at `/` until v0.11.0 |
 | v0.10.1 | Oct 28 | New shell fits wide screens (1320 px, 6-column dashboard on laptops) and zones follow the field's real shape, so a small field shows 2 x 2 instead of empty cells. Poultry is back in the new shell: a Poultry tab and a shed card on Home (simulated shed kit, eggs today, egg stock) with buttons to the full shed and the egg sale |
 | v0.11.0 | Oct 28 | The new app is the main app at `/` (classic at `/classic/`). Fields and poultry sheds are separate places with their own Home and tabs; add a shed. Full-width desktop with tabs in the header. Check the place first (OpenStreetMap, ESA WorldCover): no crops for houses or water. Crops for any country from MIRCA-OS district data, picked by Muse Spark, in local currency. Market: seed, fertilizer and crew for a field with real nearby shops; poultry Market with the egg sale. Shed tab: camera wall of saved clips, count, sound, vet. Real lands never fake a call (coming soon note); demo lands keep demo calls. SQL 005 |
 | v0.11.1 | Oct 28 | Google Places shops for real fields (with `GOOGLE_PLACES_KEY`): names cleaned of emoji, only shops within 15 km. A real shop is never put in a demo call, even on a demo land: demo calls go only to the fictional demo shop, and tapping a real shop shows the coming-soon note |
 | v0.11.2 | Oct 28 | Clip names follow the app language (Muse Spark translates each name once into Bangla, Hindi and English). The demo shed's clips are built-in demo camera feeds and cannot be deleted. A saved clip whose video upload never finished offers "Add this clip's video" so it plays as a feed |
+| v0.13.0 | Oct 28 | Sign in by email and a 6-digit code (Supabase Auth, no password, no link). Each person has their own farm: lands, sheds, deals, alerts and sell rules carry an owner, and a new farm gets its own copy of each demo land plus the shared demo shed. Daily limits per farm on field scans, camera checks, Sathi answers and shop searches replace the shared passcode. The classic app is retired. The app is now called Khet Sathi. Needs SQL 007 |
 | v0.12.2 | Oct 28 | Shed camera notes follow the app language: after a clip is checked, Muse Spark writes its note and vet summary in the other two languages in the background (through the shed's disease and medicine filter; a failed sentence keeps the original); clips checked earlier get them the next time the list loads |
 | v0.12.1 | Oct 28 | Harvest dates follow the crop calendar's own harvest months when the crop was sown in its season (Aman rice sown late July: harvest from 1 Dec, not 9 Jan); real buyers are searched by what buys the crop (rice mill, flour mill, oil mill, cold storage, grain elevator) inside a box around the field; "Pulses" named in every language |
 | v0.12.0 | Oct 28 | A growing crop, followed to harvest and sale: "Something is growing" after the place check (district crops, sowing month or "not sure"), readiness from the MIRCA-OS calendar and the Sentinel-2 greenness curve, expected harvest from FAOSTAT yields, harvester and transport booking, a selling rule and real buyers near the field; demo lands play scripted demo calls to fictional buyers, real lands say calling is coming soon. Needs SQL 006 (lands.sown_on, lands.sell_rule) |
-| v0.11.3 | Oct 28 | Saathi in poultry mode: with a shed picked, Saathi answers from the shed's facts (sensor kit, eggs, sell rule, last camera check) with its own quick questions, one conversation per place, alerts for that place only; every sentence passes the shed's disease and medicine filter. Credits: OpenStreetMap, ESA WorldCover, MIRCA-OS, FAOSTAT, SoilGrids, Open-Meteo, Copernicus and Esri credited on every page; Google Places shops carry the "Google Maps" credit in their own box and are never cached |
-| v0.9.0 | Oct 28 | Open weights: Saathi's agent and the egg-sale shopkeepers run on Muse Spark Open (`meta-models/muse-spark-open-1026`) on Baseten when `BASETEN_API_KEY` is set, falling back to Muse Spark 1.3; each answer shows which model answered; bench row for a real open-weights tool call |
-| v0.8.0 | Oct 28 | Egg sale: the farmer's sell rule (eggs reach N and/or every N days, lowest price per tray, shops, ask first), a simulated egg stock, Saathi calls the shops and bargains by fixed rules (never below the lowest price) while Muse Spark voices the shopkeepers, offers side by side, one tap saves the deal; `sql/004_sell_rules_v0.8.0.sql` |
-| v0.7.5 | Oct 28 | Simulated vet name and village in the farmer's language; Saathi tells the vet "about N chickens in the shed" (source shown below the line); English text says chickens instead of birds |
-| v0.7.4 | Oct 28 | Two-way demo vet call: after consent, Saathi and a simulated vet (second voice) take turns; the vet asks up to two scripted questions picked by the signs, Saathi answers only from the SAM count and the simulated shed kit (or says it does not know), the vet closes with a fixed safe line and a short summary |
+| v0.11.3 | Oct 28 | Sathi in poultry mode: with a shed picked, Sathi answers from the shed's facts (sensor kit, eggs, sell rule, last camera check) with its own quick questions, one conversation per place, alerts for that place only; every sentence passes the shed's disease and medicine filter. Credits: OpenStreetMap, ESA WorldCover, MIRCA-OS, FAOSTAT, SoilGrids, Open-Meteo, Copernicus and Esri credited on every page; Google Places shops carry the "Google Maps" credit in their own box and are never cached |
+| v0.9.0 | Oct 28 | Open weights: Sathi's agent and the egg-sale shopkeepers run on Muse Spark Open (`meta-models/muse-spark-open-1026`) on Baseten when `BASETEN_API_KEY` is set, falling back to Muse Spark 1.3; each answer shows which model answered; bench row for a real open-weights tool call |
+| v0.8.0 | Oct 28 | Egg sale: the farmer's sell rule (eggs reach N and/or every N days, lowest price per tray, shops, ask first), a simulated egg stock, Sathi calls the shops and bargains by fixed rules (never below the lowest price) while Muse Spark voices the shopkeepers, offers side by side, one tap saves the deal; `sql/004_sell_rules_v0.8.0.sql` |
+| v0.7.5 | Oct 28 | Simulated vet name and village in the farmer's language; Sathi tells the vet "about N chickens in the shed" (source shown below the line); English text says chickens instead of birds |
+| v0.7.4 | Oct 28 | Two-way demo vet call: after consent, Sathi and a simulated vet (second voice) take turns; the vet asks up to two scripted questions picked by the signs, Sathi answers only from the SAM count and the simulated shed kit (or says it does not know), the vet closes with a fixed safe line and a short summary |
 | v0.7.3 | Oct 27 | Fix: the clip list is kept in server memory and saved with no-cache, because storage served a stale copy for about 20 s and a second clip upload failed with "Clip not found"; saves run one at a time; the "Tell the vet" icon is sized like the others |
 | v0.7.2 | Oct 27 | Symptoms to the vet: auto-filled signs from the camera check, two voice questions, consent and a simulated call; "+ From phone" picks a saved video from the gallery |
 | v0.7.1 | Oct 27 | Shed clip library (simulated camera): save up to 5 named clips with their frames and last result in a private `shed-clips` bucket, re-check on demand, choose today's camera for automatic alerts, delete with a confirm sheet; `sql/003_shed_clips_v0.7.1.sql` |

@@ -28,6 +28,7 @@ import { DEFAULT_RULE, TRAY, cleanRule, sellDue, planDeal, voiceDeal, parseLines
 import { autoSigns, vetMessage, vetScript, withNames, cleanCall, parseDeaths, parseSince, SIGN_CODES } from '../lib/vetcall.js';
 import { createEngine } from '../lib/engine.js';
 import * as memStore from '../lib/store.js';
+import { runAs, devId, currentOwner, sendCode, verifyCode, refreshSession, userFromToken, useLimit, LIMITS, cleanEmail, friendly } from '../lib/auth.js';
 import { buyerQuery } from '../lib/place.js';
 import { sowingFromPasses, rowFor, readiness, harvestAmount, unitFor, samplePrice, DEMO_BUYERS, planCropDeal, voiceCropDeal, cleanCropRule } from '../lib/harvest.js';
 import sharp from 'sharp';
@@ -440,7 +441,7 @@ await checkAsync('Shops v0.11.1: Google Places names cleaned, only within 15 km,
   assert.deepEqual(r.shops.map((s) => s.name), ['Near shop', 'Mid shop']);
   assert.ok(r.shops.every((s) => s.real && s.km <= 15));
 });
-await checkAsync('Saathi for a shed v0.11.3: answers from the shed facts, never names a disease', async () => {
+await checkAsync('Sathi for a shed v0.11.3: answers from the shed facts, never names a disease', async () => {
   const facts = shedFacts({ shed: { name: 'Demo shed', chickens: 300, demo: true }, kit: { water_pct: { value: 13 }, shed_temp: { value: 30.3 } }, stock: 300, rule: { min_count: 300, floor_price: 175 }, check: { when: 'today', count: 37, still: 0, resting: true }, night: true });
   assert.match(facts, /water 13% full/);
   assert.match(facts, /10 trays/);
@@ -548,7 +549,8 @@ check('Alerts: shed limits and 12-hour dedupe', () => {
 });
 
 await checkAsync('Engine: seeds kits, then a forced dry soil raises one alert, never twice', async () => {
-  const land = await memStore.createLand({ kind: 'empty', place: 'bogura', location_source: 'demo', lat: 24.88, lon: 89.33, objects: [{ id: '1' }] });
+  // v0.13.0: a farm's own copy of a demo land (the shared template itself raises no field alerts).
+  const land = await runAs({ id: devId('engine@test.com'), email: 'engine@test.com' }, () => memStore.createLand({ kind: 'empty', place: 'bogura', location_source: 'demo', lat: 24.88, lon: 89.33, objects: [{ id: '1' }] }));
   const w = summarizeForecast(fx('om_bogura'));
   const plan = { today: '2026-10-27', weather: { ...w, days: w.days.map((d) => ({ ...d, rainChance: 5, rainMm: 0 })) }, crops: [] };
   const engine = createEngine({ store: memStore, planForLand: async () => plan, rand: half });
@@ -722,7 +724,7 @@ check('Vet answers by voice: since when and deaths', () => {
 });
 
 // ---------- v0.7.4: two-way demo call ----------
-check('Demo call: vet asks by the signs, Saathi answers only from app data', () => {
+check('Demo call: vet asks by the signs, Sathi answers only from app data', () => {
   const shed = { shed_temp: 31.4, shed_humidity: 64, water_pct: 40, feed_pct: 51 };
   const s = vetScript({ lang: 'bn', signs: ['twisted_neck', 'drink_less', 'droppings'], since: 'days', deaths: 2 }, { birds: 120, shed });
   assert.deepEqual(s.turns.map((x) => x.who), ['saathi', 'vet', 'saathi', 'vet', 'saathi', 'vet']);
@@ -738,7 +740,7 @@ check('Demo call: vet asks by the signs, Saathi answers only from app data', () 
   assert.match(s.turns[5].text, /আলাদা জায়গায় রাখুন/);
   assert.equal(s.summary.length, 2);
   const none = vetScript({ lang: 'en', signs: ['breathing'] }, {});
-  assert.deepEqual(none.turns.map((x) => x.text).slice(1, 3), ['How is it inside the shed, hot or damp?', 'I do not have that right now; the farmer will tell you later.'], 'no data: Saathi says so, never guesses');
+  assert.deepEqual(none.turns.map((x) => x.text).slice(1, 3), ['How is it inside the shed, hot or damp?', 'I do not have that right now; the farmer will tell you later.'], 'no data: Sathi says so, never guesses');
   assert.equal(vetScript({ lang: 'hi', signs: [] }, { birds: 50 }).turns.length, 4, 'no signs: one question');
   for (const lang of ['bn', 'hi', 'en']) {
     for (const turn of vetScript({ lang, signs: SIGN_CODES, deaths: 3 }, { birds: 99, shed }).turns) assert.equal(safeText(turn.text), turn.text, `${lang}: "${turn.text}" passes the filter`);
@@ -771,7 +773,7 @@ check('Bargaining: never below the lowest price, prices only from rules', () => 
         const d = planDeal({ shop, floor, trays: 10, lang: 'bn', day });
         if (d.price !== null) assert.ok(d.price >= floor, `deal ${d.price} below floor ${floor}`);
         const saathiPrices = d.turns.filter((t) => t.who === 'saathi' && t.price && t.key !== 'decline').map((t) => t.price);
-        assert.ok(saathiPrices.every((p) => p >= floor), 'Saathi never asks below the floor');
+        assert.ok(saathiPrices.every((p) => p >= floor), 'Sathi never asks below the floor');
         const shopPrices = d.turns.filter((t) => t.price && t.who === 'shop').map((t) => t.price);
         assert.deepEqual(shopPrices, [...shopPrices].sort((a, b) => a - b), 'shop offers only go up');
         if (d.price === null) assert.equal(d.turns.at(-1).key, 'decline');
@@ -981,6 +983,34 @@ await checkAsync('shed notes: written in all three languages, filtered, original
   assert.equal(out.notes.hi, obs.note, 'a sentence naming a disease is dropped and the original kept');
   assert.equal(out.vetSummaries.hi, 'चूज़े भीड़ में हैं।');
   assert.equal(parseNotes('no json here', { lang: 'en', note: 'a' }), null);
+});
+
+await checkAsync('sign-in: email code (local mode), farms see only their own rows, daily limits', async () => {
+  assert.throws(() => cleanEmail('not-an-email'), /valid email/);
+  assert.equal((await sendCode('A@Farm.com')).dev, true);
+  await assert.rejects(() => verifyCode('a@farm.com', '123456'), /wrong or has expired/);
+  const s = await verifyCode('a@farm.com', '000000');
+  const u = await userFromToken(s.access_token);
+  assert.equal(u.email, 'a@farm.com');
+  assert.equal(u.id, devId('a@farm.com'));
+  assert.equal((await refreshSession(s.refresh_token)).email, 'a@farm.com');
+  assert.equal(await userFromToken('forged'), null);
+  const A = { id: devId('a@farm.com'), email: 'a@farm.com' };
+  const B = { id: devId('b@farm.com'), email: 'b@farm.com' };
+  const la = await runAs(A, () => memStore.createLand({ kind: 'empty', lat: 1, lon: 1, objects: [] }));
+  assert.equal(la.owner_id, A.id);
+  assert.equal(await runAs(B, () => memStore.getLand(la.id)), null, 'another farm cannot read it');
+  await assert.rejects(() => runAs(B, () => memStore.updateLand(la.id, { crop: 'rice' })), /not found/);
+  assert.equal(await runAs(B, () => memStore.deleteLand(la.id)), false);
+  assert.ok((await runAs(A, () => memStore.listLands())).some((l) => l.id === la.id));
+  assert.ok(!(await runAs(B, () => memStore.listLands())).some((l) => l.id === la.id));
+  await runAs(A, () => memStore.insertDeal({ direction: 'sell', items: [], total_inr: 1 }));
+  assert.equal((await runAs(B, () => memStore.listDeals())).filter((d) => d.owner_id === A.id).length, 0);
+  assert.equal(runAs(A, () => currentOwner()), A.id);
+  const C = { id: devId('limit@farm.com'), email: 'limit@farm.com' };
+  for (let i = 0; i < LIMITS.scan; i++) runAs(C, () => useLimit('scan'));
+  assert.throws(() => runAs(C, () => useLimit('scan')), /Daily limit/);
+  assert.match(friendly('For security purposes, you can only request this after 42 seconds', 429), /wait a minute/);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

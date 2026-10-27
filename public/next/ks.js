@@ -1,6 +1,6 @@
-// Khet Saathi app shell (v0.10.0). Layout and look from the team's Khet_Saathi.html design; every number
+// Khet Sathi app shell (v0.10.0). Layout and look from the team's Khet_Saathi.html design; every number
 // here comes from the server: Sentinel-2 NDVI, Esri + SAM 3.1 outline, SoilGrids, Open-Meteo, FAO calendar,
-// Muse Spark Open (Baseten) for Saathi. Simulated parts (sensor kit, shops, money) are labelled.
+// Muse Spark Open (Baseten) for Sathi. Simulated parts (sensor kit, shops, money) are labelled.
 (() => {
   'use strict';
   const I = window.KS_ICONS;
@@ -65,18 +65,41 @@
   }
 
   // ---------- server ----------
-  let passcode = store.get('ks_passcode') || '';
-  async function api(path, opts = {}) {
-    const res = await fetch(path, { ...opts, headers: { 'x-app-passcode': passcode, ...(opts.headers || {}) } });
+  // v0.13.0: signed in by email code. The session (from Supabase Auth, through our server) is kept in
+  // this browser and refreshed before it expires; signing out or a refused refresh shows the sign-in again.
+  let sess = null;
+  try {
+    sess = JSON.parse(store.get('ks_session') || 'null');
+  } catch {}
+  const saveSess = (s) => {
+    sess = s;
+    store.set('ks_session', s ? JSON.stringify(s) : '');
+  };
+  let refreshing = null;
+  async function refreshSess() {
+    if (!sess?.refresh_token) return false;
+    if (!refreshing)
+      refreshing = fetch('/api/auth/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: sess.refresh_token }) })
+        .then((r) => r.json())
+        .then((j) => (j.ok && j.session ? (saveSess({ ...j.session, email: j.session.email || sess?.email }), true) : (saveSess(null), false)))
+        .catch(() => false)
+        .finally(() => (refreshing = null));
+    return refreshing;
+  }
+  async function api(path, opts = {}, retried = false) {
+    if (sess && sess.expires_at - Date.now() < 60000) await refreshSess();
+    const res = await fetch(path, { ...opts, headers: { ...(sess ? { Authorization: `Bearer ${sess.access_token}` } : {}), ...(opts.headers || {}) } });
     const json = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
     if (res.status === 401) {
+      if (!retried && (await refreshSess())) return api(path, opts, true);
       showPass();
-      throw new Error(t('passH'));
+      throw new Error(t('loginH'));
     }
     return json;
   }
   const postJson = (path, body) => api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const imgUrl = (u) => (u ? `${u}${u.includes('?') ? '&' : '?'}k=${encodeURIComponent(passcode)}` : '');
+  // Pictures and video cannot send headers, so their links carry the token.
+  const imgUrl = (u) => (u ? `${u}${u.includes('?') ? '&' : '?'}t=${encodeURIComponent(sess?.access_token || '')}` : '');
 
   // ---------- state ----------
   const S = { tab: 'home', mode: 'field', lands: [], sheds: [], cur: null, shed: null, plan: null, field: null, sensors: null, deals: [], alerts: [], health: null, pass: 0, layer: 'sat', zoom: 1, playing: null, chat: [] };
@@ -153,15 +176,99 @@
     if (b) show(b.dataset.tab);
   });
 
+  // ---------- sign in ----------
+  const LG = { email: '', wait: 0, timer: null };
   function showPass() {
+    document.body.dataset.auth = 'out';
+    $('#meBtn').hidden = true;
+    $$('.sheet').forEach((s) => (s.hidden = true));
     show('pass');
-    $('#passIn').focus();
+    $('#loginEmail').hidden = false;
+    $('#loginCode').hidden = true;
+    $('#emailIn').value = LG.email || sess?.email || '';
+    setTimeout(() => $('#emailIn').focus(), 50);
   }
-  $('#passForm').addEventListener('submit', (e) => {
+  function resendTick() {
+    clearInterval(LG.timer);
+    const paint = () => {
+      const s = Math.max(0, Math.ceil((LG.wait - Date.now()) / 1000));
+      $('#resendBtn').disabled = s > 0;
+      $('#resendBtn').textContent = s > 0 ? fmt('resendIn', { n: num(s) }) : t('resend');
+      if (!s) clearInterval(LG.timer);
+    };
+    paint();
+    LG.timer = setInterval(paint, 1000);
+  }
+  async function sendCodeTo(email) {
+    const r = await fetch('/api/auth/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }).then((x) => x.json()).catch(() => ({ ok: false, error: t('error') }));
+    if (!r.ok) throw new Error(r.error);
+    LG.email = email;
+    LG.wait = Date.now() + 60000;
+    $('#loginEmail').hidden = true;
+    $('#loginCode').hidden = false;
+    $('#codeS').textContent = fmt('codeS', { email });
+    $('#devHint').hidden = !r.dev;
+    $('#devHint').textContent = t('devCode');
+    $('#codeIn').value = '';
+    resendTick();
+    setTimeout(() => $('#codeIn').focus(), 50);
+  }
+  $('#loginEmail').addEventListener('submit', async (e) => {
     e.preventDefault();
-    passcode = $('#passIn').value.trim();
-    store.set('ks_passcode', passcode);
-    boot();
+    $('#sendBtn').disabled = true;
+    try {
+      await sendCodeTo($('#emailIn').value.trim());
+    } catch (err) {
+      toast(err.message);
+    } finally {
+      $('#sendBtn').disabled = false;
+    }
+  });
+  $('#resendBtn').addEventListener('click', () => sendCodeTo(LG.email).catch((err) => toast(err.message)));
+  $('#otherEmail').addEventListener('click', () => {
+    clearInterval(LG.timer);
+    $('#loginCode').hidden = true;
+    $('#loginEmail').hidden = false;
+    $('#emailIn').focus();
+  });
+  $('#codeIn').addEventListener('input', () => {
+    $('#codeIn').value = $('#codeIn').value.replace(/\D/g, '').slice(0, 10);
+    if ($('#codeIn').value.length === 6 && !$('#verifyBtn').disabled) $('#loginCode').requestSubmit();
+  });
+  $('#loginCode').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('#verifyBtn').disabled = true;
+    try {
+      const r = await fetch('/api/auth/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: LG.email, code: $('#codeIn').value }) }).then((x) => x.json());
+      if (!r.ok) throw new Error(r.error);
+      saveSess(r.session);
+      clearInterval(LG.timer);
+      await boot();
+    } catch (err) {
+      toast(err.message || t('error'));
+    } finally {
+      $('#verifyBtn').disabled = false;
+    }
+  });
+  // The account menu: who is signed in, the farm list and signing out.
+  $('#meBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    $('#meMenu').hidden = !$('#meMenu').hidden;
+  });
+  document.addEventListener('click', (e) => {
+    if (!$('#meMenu').hidden && !e.target.closest('#meMenu')) $('#meMenu').hidden = true;
+  });
+  $('#meFarm').addEventListener('click', () => {
+    $('#meMenu').hidden = true;
+    openFarm();
+  });
+  $('#meOut').addEventListener('click', async () => {
+    $('#meMenu').hidden = true;
+    const tok = sess?.access_token;
+    saveSess(null);
+    fetch('/api/auth/signout', { method: 'POST', headers: tok ? { Authorization: `Bearer ${tok}` } : {} }).catch(() => null);
+    Object.assign(S, { lands: [], sheds: [], cur: null, shed: null, plan: null, field: null, deals: [], alerts: [], chat: [] });
+    showPass();
   });
 
   // ---------- loading a land ----------
@@ -1384,11 +1491,16 @@
   async function boot() {
     applyLang();
     icons();
+    if (!sess) return showPass();
     try {
       await Promise.all([loadLands(), loadSheds()]);
     } catch {
       return;
     }
+    document.body.dataset.auth = 'in';
+    $('#meBtn').hidden = false;
+    $('#meBtn').textContent = (sess.email || '?').slice(0, 1).toUpperCase();
+    $('#meEmail').textContent = sess.email || '';
     show('home');
     const want = store.get('ks_land');
     const pick = S.lands.find((l) => l.id === want) || S.lands[0];
@@ -1397,7 +1509,32 @@
     else if (pick) await openLand(pick.id).catch((e) => toast(e.message));
     else renderAll();
     loadSide();
+    welcome();
   }
+  // First sign-in on this browser: the demo places, ready to try, and adding one's own field.
+  function welcome() {
+    const key = `ks_welcomed_${sess?.email || ''}`;
+    if (store.get(key)) return;
+    store.set(key, '1');
+    const demos = S.lands.filter((l) => l.location_source === 'demo');
+    const sheds = S.sheds.filter((s) => s.demo || s.builtIn);
+    $('#welcomeList').innerHTML =
+      demos.map((l) => `<button class="fitem" data-wl="${l.id}"><span class="th">${I.sprout}</span><span class="m"><b>${esc(landTitle(l))}</b><div>${esc([l.crop ? cropName(l.crop) : t('emptyQ'), t('demoTag')].join(' · '))}</div></span></button>`).join('') +
+      sheds.map((s) => `<button class="fitem shed" data-ws="${s.id}"><span class="th">${I.egg}</span><span class="m"><b>${esc(shedName(s))}</b><div>${esc(t('welcomeShed'))} · ${esc(t('demoTag'))}</div></span></button>`).join('');
+    $('#welcomeSheet').hidden = false;
+  }
+  $('#welcomeSheet').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-wl],[data-ws]');
+    if (!b) return;
+    $('#welcomeSheet').hidden = true;
+    if (b.dataset.ws) openShed(b.dataset.ws);
+    else openLand(b.dataset.wl).then(() => show('home'));
+  });
+  $('#welcomeClose').addEventListener('click', () => ($('#welcomeSheet').hidden = true));
+  $('#welcomeAdd').addEventListener('click', () => {
+    $('#welcomeSheet').hidden = true;
+    openAdd();
+  });
 
   // Shared with ks-shed.js (poultry, egg sale, buying for a field, demo calls).
   window.KS = {

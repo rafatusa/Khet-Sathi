@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Khet Saathi</title>
+<title>Khet Sathi</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Da+2:wght@600;700;800&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hind+Siliguri:wght@400;500;600;700&family=Hind:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="/next/ks.css">
 <link rel="stylesheet" href="/next/ks-real.css">
@@ -13,26 +13,50 @@
   <div class="wrap top">
     <div class="orbit" aria-hidden="true"><div class="earth"></div><div class="sat"><span data-icon="sat"></span></div></div>
     <div>
-      <div class="brand">Khet <span>Saathi</span></div>
+      <div class="brand">Khet <span>Sathi</span></div>
       <button class="farmbtn" id="farmBtn" data-tl="switchLand"><span class="mchip" id="modeChip"></span><span class="t" id="farmLine"></span><span data-icon="chev"></span></button>
     </div>
     <div class="toptabs" id="topTabs"></div>
     <div class="hbtns">
       <button class="addbtn" id="addBtn"><span data-icon="plus"></span><span class="t" data-t="addAny"></span></button>
       <div class="lang" role="group" aria-label="Language"><button data-lang="bn" aria-pressed="true">বাং</button><button data-lang="hi" aria-pressed="false">हिं</button><button data-lang="en" aria-pressed="false">EN</button></div>
+      <button class="avatar-btn" id="meBtn" type="button" data-tl="account" hidden></button>
     </div>
+    <div class="memenu" id="meMenu" hidden><div class="em mono" id="meEmail"></div><div class="lang menu-lang" role="group" aria-label="Language"><button data-lang="bn" aria-pressed="true">বাং</button><button data-lang="hi" aria-pressed="false">हिं</button><button data-lang="en" aria-pressed="false">EN</button></div><button type="button" id="meFarm" data-t="myFarm"></button><button type="button" id="meOut" data-t="signOut"></button></div>
   </div>
 </header>
 
 <main class="wrap">
   <div class="demo" id="demoBar"></div>
 
-  <!-- PASSCODE -->
+  <!-- SIGN IN (v0.13.0): email, then the 6-digit code from the email -->
   <section id="pass" role="tabpanel" hidden>
-    <div class="panel passbox">
-      <h2 data-t="passH"></h2>
-      <p class="sub" data-t="passText"></p>
-      <form id="passForm" class="askrow"><input id="passIn" type="password" autocomplete="current-password" data-tp="passPh"><button class="btn" type="submit" data-t="passGo"></button></form>
+    <div class="login">
+      <div class="login-side">
+        <p class="login-h" data-t="loginPitch"></p>
+        <ul><li data-t="loginP1"></li><li data-t="loginP2"></li><li data-t="loginP3"></li></ul>
+        <p class="muted small" data-t="loginBuilt"></p>
+        <div class="login-rows" aria-hidden="true"></div>
+      </div>
+      <div class="login-box">
+        <form id="loginEmail">
+          <h2 data-t="loginH"></h2>
+          <p class="sub" data-t="loginS"></p>
+          <label class="field"><span data-t="emailL"></span><input id="emailIn" type="email" inputmode="email" autocomplete="email" required maxlength="200" placeholder="farmer@example.com"></label>
+          <button class="cta wide" type="submit" id="sendBtn"><span data-t="sendCode"></span></button>
+          <p class="muted small" data-t="loginNote"></p>
+        </form>
+        <form id="loginCode" hidden>
+          <h2 data-t="codeH"></h2>
+          <p class="sub" id="codeS"></p>
+          <label class="field"><span data-t="codeL"></span><input id="codeIn" class="codein" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="10" required></label>
+          <p class="muted small" id="devHint" hidden></p>
+          <button class="cta wide" type="submit" id="verifyBtn"><span data-t="signIn"></span></button>
+          <button class="btn ghost wide" type="button" id="resendBtn"></button>
+          <button class="btn ghost wide" type="button" id="otherEmail" data-t="otherEmail"></button>
+          <p class="muted small" data-t="spamNote"></p>
+        </form>
+      </div>
     </div>
   </section>
 
@@ -161,7 +185,7 @@
       <div class="panel">
         <div class="chathead">
           <div class="avatar"><span data-icon="leaf"></span></div>
-          <div><b>Saathi</b><div class="who" id="brainLine" data-t="online"></div></div>
+          <div><b>Sathi</b><div class="who" id="brainLine" data-t="online"></div></div>
         </div>
         <div class="thread" id="thread" aria-live="polite"></div>
         <div class="quick" id="quick"></div>
@@ -247,6 +271,17 @@
 </div>
 
 <!-- FARM SWITCHER -->
+<div class="sheet" id="welcomeSheet" hidden>
+  <div class="wrap sh narrowsh">
+    <div class="shtop"><button class="iconbtn" id="welcomeClose" data-tl="close">×</button></div>
+    <h2 data-t="welcomeH"></h2>
+    <button class="cta wide" type="button" id="welcomeAdd"><span data-icon="plus"></span><span data-t="welcomeAdd"></span></button>
+    <div class="lab" style="margin-top:14px"><span data-t="welcomeDemos"></span></div>
+    <div class="farmlist" id="welcomeList"></div>
+    <p class="muted small" data-t="welcomeNote"></p>
+  </div>
+</div>
+
 <div class="sheet" id="growSheet" hidden>
   <div class="wrap sh narrowsh">
     <div class="shtop"><button class="iconbtn" id="growClose" data-tl="close">×</button><h2 style="margin:0" data-t="growTitle"></h2></div>
@@ -281,7 +316,7 @@
   </div>
 </div>
 
-<!-- VET: what Saathi saw, two questions, the exact words and the farmer's yes -->
+<!-- VET: what Sathi saw, two questions, the exact words and the farmer's yes -->
 <div class="sheet" id="vetSheet" hidden>
   <div class="wrap sh narrowsh">
     <div class="shtop"><button class="iconbtn" id="vetClose" data-tl="close">×</button><h2 style="margin:0" id="vetTitle"></h2></div>

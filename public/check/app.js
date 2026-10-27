@@ -1,4 +1,4 @@
-// Khet Saathi v0.7.0 - browser side of the model check.
+// Khet Sathi v0.7.0 - browser side of the model check.
 (() => {
   const $ = (id) => document.getElementById(id);
 
@@ -10,7 +10,15 @@
     passcode = e.target.value;
     try { localStorage.setItem('ks_passcode', passcode); } catch {}
   });
-  const headers = (extra = {}) => ({ 'x-app-passcode': passcode, ...extra });
+  // v0.13.0: the bench uses the app's sign-in (open the app and sign in first, in the same browser).
+  const token = () => {
+    try {
+      return JSON.parse(localStorage.getItem('ks_session') || 'null')?.access_token || '';
+    } catch {
+      return '';
+    }
+  };
+  const headers = (extra = {}) => ({ ...(token() ? { Authorization: `Bearer ${token()}` } : {}), ...extra });
 
   async function api(path, opts = {}) {
     const res = await fetch(path, { ...opts, headers: headers(opts.headers) });

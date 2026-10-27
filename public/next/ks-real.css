@@ -204,3 +204,26 @@ header .top>div:nth-child(2){min-width:0;flex:1 1 auto}
 #mkCrop .ruleopt>span:first-child{font-weight:600;display:block}
 #growDateBox input{width:100%}
 .demo.real{background:var(--leaf-soft);color:#1f4d22}
+/* v0.13.0: sign in by email code, the account menu */
+body[data-auth="out"] #farmBtn,body[data-auth="out"] #topTabs,body[data-auth="out"] #addBtn,body[data-auth="out"] nav.bottom,body[data-auth="out"] #demoBar,body[data-auth="out"] footer .credits{display:none!important}
+.login{display:grid;grid-template-columns:minmax(0,1fr);gap:0;margin:16px 0 40px;border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--surface)}
+.login-side{display:none;position:relative;overflow:hidden;padding:40px;background:linear-gradient(160deg,#e7f1de,#dcebf2);flex-direction:column;justify-content:center;gap:18px}
+.login-h{font:800 2.2rem/1.12 var(--f-display);margin:0;max-width:440px;color:var(--ink)}
+.login-side ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+.login-side li{display:flex;gap:10px;align-items:center}.login-side li::before{content:"";width:10px;height:10px;border-radius:3px;background:var(--leaf);flex:none}
+.login-rows{position:absolute;left:-20px;right:-20px;bottom:-40px;height:180px;background:repeating-linear-gradient(100deg,rgba(47,122,42,.16) 0 10px,transparent 10px 26px);transform:perspective(300px) rotateX(55deg);transform-origin:bottom;pointer-events:none}
+.login-box{padding:28px 20px 30px;display:flex;flex-direction:column;justify-content:center}
+.login-box h2{font:800 1.8rem/1.15 var(--f-display);margin:0 0 6px}.login-box .sub{color:var(--muted);margin:0 0 6px}
+.login-box form{display:flex;flex-direction:column;gap:10px;max-width:440px;width:100%}
+.login-box .field input{font-size:17px;min-height:52px}
+.codein{letter-spacing:.45em;font:800 1.6rem var(--f-display)!important;text-align:center}
+.btn.wide{width:100%;min-height:48px;justify-content:center}
+@media (min-width:1000px){.login{grid-template-columns:1.1fr 1fr;min-height:560px}.login-side{display:flex}.login-box{padding:56px 64px}}
+.avatar-btn{width:42px;height:42px;border-radius:50%;border:2px solid var(--turmeric);background:var(--turmeric-soft);color:#5c4400;font:800 1rem var(--f-display);cursor:pointer;flex:none}
+.memenu{position:absolute;right:16px;top:calc(100% + 6px);width:260px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(29,36,25,.16);padding:8px;z-index:40;display:flex;flex-direction:column}
+.memenu .em{font-size:.78rem;color:var(--muted);padding:6px 10px 8px;border-bottom:1px solid var(--line);margin-bottom:4px;overflow-wrap:anywhere}
+.memenu button{background:none;border:0;text-align:left;padding:12px 10px;border-radius:10px;font:600 .95rem var(--f-body);color:var(--ink);cursor:pointer;min-height:44px}
+.memenu button:hover{background:var(--leaf-soft)}
+header{position:sticky}header .wrap.top{position:relative}
+.memenu .menu-lang{display:none;margin:4px 6px 6px;align-self:flex-start}
+@media (max-width:560px){body[data-auth="in"] .hbtns>.lang{display:none}.memenu .menu-lang{display:inline-flex}.memenu button[data-lang]{padding:8px 14px;min-height:40px}}

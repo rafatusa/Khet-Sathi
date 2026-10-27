@@ -1,6 +1,6 @@
-// Khet Saathi v0.11.0: poultry (Home, Shed camera wall, vet, egg sale) and buying for a field.
+// Khet Sathi v0.11.0: poultry (Home, Shed camera wall, vet, egg sale) and buying for a field.
 // Real tests never fake anything: a farmer's own land shows only real shops, and "call" means
-// "Saathi will call and update you" with a coming-soon note. The demo lands and the demo shed keep
+// "Sathi will call and update you" with a coming-soon note. The demo lands and the demo shed keep
 // their scripted demo calls, always tagged "Demo". No disease or medicine is ever named.
 (() => {
   'use strict';
