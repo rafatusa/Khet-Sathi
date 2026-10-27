@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptText, segmentStream, uploadFile, deleteFile, respond, responseText } from './lib/meta.js';
 import { analyseFrames, framesFromSegments, observePrompt, parseObservation, MAX_FRAMES, SAFE_VET_LINE } from './lib/poultry.js';
-import { autoSigns, vetMessage, vetScript, cleanCall, parseDeaths, parseSince, SIGN_CODES } from './lib/vetcall.js';
+import { autoSigns, vetMessage, vetScript, withNames, cleanCall, parseDeaths, parseSince, SIGN_CODES } from './lib/vetcall.js';
 import { readIndex, createClip, putClipVideo, getClip, clipFrames, clipVideo, saveResult, deleteClip, setToday, todayCamera, MAX_CLIPS } from './lib/clips.js';
 import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage, zoomCenter } from './lib/tile.js';
@@ -25,7 +25,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.7.4';
+const VERSION = '0.7.5';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -550,7 +550,7 @@ app.get(
     const latest = latestByDevice(await latestReadings([SHED_DEVICE], 30));
     const shed = latest[SHED_DEVICE] ? Object.fromEntries(SHED_METRICS.filter((m) => latest[SHED_DEVICE][m]).map((m) => [m, latest[SHED_DEVICE][m]])) : null;
     const vets = await listContacts('vet').catch(() => []);
-    return { shed, simulated: true, last: lastShed, vet: vets[0] || null, eggTarget: 300 };
+    return { shed, simulated: true, last: lastShed, vet: withNames(vets[0]), eggTarget: 300 };
   })
 );
 
@@ -591,7 +591,7 @@ app.post(
     const vets = await listContacts('vet').catch(() => []);
     const calledAt = new Date().toISOString();
     lastShed = { ...(lastShed || {}), vetCall: { ...call, calledAt } };
-    return { message, ...script, vet: vets[0] || null, simulated: true, calledAt };
+    return { message, ...script, vet: withNames(vets[0]), simulated: true, calledAt };
   })
 );
 

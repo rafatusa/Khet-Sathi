@@ -773,6 +773,8 @@
     }
     if (!r.ok) return;
     shed.vet = r.vet;
+    shed.vet && (shed.vet.show = () => shed.vet.names?.[lang] || shed.vet.name);
+    shed.vet && (shed.vet.place = () => shed.vet.villages?.[lang] || shed.vet.village || '');
     const s = r.shed;
     $('shedKit').hidden = !s;
     $('eggCard').hidden = !s?.eggs_today;
@@ -859,7 +861,7 @@
     if (!still && !shed.soundBad) return;
     $('shedActionTitle').textContent = still ? fmt('stillTitle', { n: num(shed.still, 0) }) : t('soundBadTitle');
     $('shedActionText').textContent = shed.vetLine || t('b_birds_still');
-    $('shedVetName').innerHTML = shed.vet ? `${esc(shed.vet.name)} <span class="sample">${esc(t('simulated'))}</span>` : '';
+    $('shedVetName').innerHTML = shed.vet ? `${esc(shed.vet.show())} <span class="sample">${esc(t('simulated'))}</span>` : '';
   }
 
   // ---------- saved clips: the simulated shed camera ----------
@@ -1177,7 +1179,7 @@
 
   function vetStep(n) {
     [1, 2, 3, 4].forEach((i) => ($(`vetStep${i}`).hidden = i !== n));
-    $('vetTitle').textContent = n === 1 ? t(vet.auto.size ? 'signsTitleAuto' : 'signsTitle') : n === 2 ? t('moreTitle') : n === 3 ? shed.vet?.name || t('vet') : '';
+    $('vetTitle').textContent = n === 1 ? t(vet.auto.size ? 'signsTitleAuto' : 'signsTitle') : n === 2 ? t('moreTitle') : n === 3 ? shed.vet?.show() || t('vet') : '';
   }
 
   async function openVet() {
@@ -1305,7 +1307,7 @@
       if (!r.ok) throw new Error(r.error);
       vet.message = r.message;
       $('vetMsg').textContent = r.message;
-      $('vetPlace').innerHTML = `${esc(shed.vet?.village || '')} <span class="sample">${esc(t('simulated'))}</span>`;
+      $('vetPlace').innerHTML = `${esc(shed.vet?.place() || '')} <span class="sample">${esc(t('simulated'))}</span>`;
       $('vetConsent').checked = false;
       $('vetCall').disabled = true;
       vetStep(3);
@@ -1398,7 +1400,7 @@
       if (!r.ok) throw new Error(r.error);
       call.turns = r.turns || [{ who: 'saathi', text: r.message }];
       call.summary = r.summary || [];
-      $('vetCallName').textContent = r.vet?.name || shed.vet?.name || t('vet');
+      $('vetCallName').textContent = r.vet?.names?.[lang] || shed.vet?.show() || r.vet?.name || t('vet');
       vetStep(4);
       runCall();
     } catch (err) {

@@ -20,7 +20,7 @@ import { analyseFrames, safeText, parseObservation } from '../lib/poultry.js';
 import { responseText } from '../lib/meta.js';
 import { fieldAlerts, shedAlerts, cameraAlerts, dedupe } from '../lib/alerts.js';
 import * as clipsLib from '../lib/clips.js';
-import { autoSigns, vetMessage, vetScript, cleanCall, parseDeaths, parseSince, SIGN_CODES } from '../lib/vetcall.js';
+import { autoSigns, vetMessage, vetScript, withNames, cleanCall, parseDeaths, parseSince, SIGN_CODES } from '../lib/vetcall.js';
 import { createEngine } from '../lib/engine.js';
 import * as memStore from '../lib/store.js';
 import sharp from 'sharp';
@@ -535,7 +535,7 @@ check('Vet message: fixed words in 3 languages, never a disease or medicine', ()
   assert.match(bn, /^ডাক্তার সাহেব/);
   assert.match(bn, /২-৩ দিন ধরে খামারি এগুলো দেখছেন: ৮টি মুরগি দিনের বেলা নড়ছে না, কিছু মুরগি খাবারের কাছে যাচ্ছে না, কয়েকটির ঘাড় বাঁকা।/);
   assert.match(bn, /আজ ২টি মুরগি মারা গেছে।/);
-  assert.match(vetMessage({ ...body, lang: 'en', deaths: 1 }), /For 2-3 days the farmer has seen: 8 birds are not moving.*1 bird died today\./);
+  assert.match(vetMessage({ ...body, lang: 'en', deaths: 1 }), /For 2-3 days the farmer has seen: 8 chickens are not moving.*1 chicken died today\./);
   assert.match(vetMessage({ lang: 'hi', signs: [], deaths: 0 }), /कुछ असामान्य.*आज कोई मुर्गी नहीं मरी।/);
   assert.doesNotMatch(vetMessage({ lang: 'bn', signs: [] }), /মারা/, 'no deaths line when not answered');
   for (const lang of ['bn', 'hi', 'en']) {
@@ -565,7 +565,13 @@ check('Demo call: vet asks by the signs, Saathi answers only from app data', () 
   const shed = { shed_temp: 31.4, shed_humidity: 64, water_pct: 40, feed_pct: 51 };
   const s = vetScript({ lang: 'bn', signs: ['twisted_neck', 'drink_less', 'droppings'], since: 'days', deaths: 2 }, { birds: 120, shed });
   assert.deepEqual(s.turns.map((x) => x.who), ['saathi', 'vet', 'saathi', 'vet', 'saathi', 'vet']);
-  assert.equal(s.turns[2].text, 'ভিডিওতে ১২০টি মুরগি গোনা হয়েছে।');
+  assert.equal(s.turns[2].text, 'শেডে প্রায় ১২০টি মুরগি আছে।');
+  assert.equal(vetScript({ lang: 'en', signs: ['weak'] }, { birds: 62 }).turns[2].text, 'There are about 62 chickens in the shed.');
+  assert.doesNotMatch(JSON.stringify(vetScript({ lang: 'en', signs: SIGN_CODES, deaths: 2 }, { birds: 5, shed })), /\bbirds?\b/i, 'English says chickens');
+  const v = withNames({ name: 'ডা. অমিত সেন (পশু চিকিৎসক)', village: 'বোলপুর' });
+  assert.equal(v.names.en, 'Dr. Amit Sen (Vet)');
+  assert.equal(v.villages.hi, 'बोलपुर');
+  assert.equal(withNames({ name: 'Other' }).names, null);
   assert.equal(s.turns[2].src, 'sam');
   assert.equal(s.turns[4].text, 'পানি ৪০%, খাবার ৫১% ভরা আছে।');
   assert.match(s.turns[5].text, /আলাদা জায়গায় রাখুন/);
