@@ -498,6 +498,24 @@ await checkAsync('Clips: save, keep result, set as today\'s camera, delete (memo
   await assert.rejects(clipsLib.createClip({ name: 'sixth', frames: [jpg, jpg] }), /Up to 5/);
 });
 
+// ---------- v0.7.3: clip list kept in memory ----------
+await checkAsync('Clips: two saves at once both stay, and the list survives a restart', async () => {
+  const jpg = `data:image/jpeg;base64,${testJpeg.toString('base64')}`;
+  for (const c of (await clipsLib.readIndex()).clips) await clipsLib.deleteClip(c.id);
+  const [a, b] = await Promise.all([
+    clipsLib.createClip({ name: 'স্বাভাবিক', frames: [jpg, jpg] }),
+    clipsLib.createClip({ name: 'সমস্যা', frames: [jpg, jpg] }),
+  ]);
+  await Promise.all([clipsLib.putClipVideo(a.id, Buffer.alloc(2000), 'video/mp4'), clipsLib.putClipVideo(b.id, Buffer.alloc(2000), 'video/mp4')]);
+  await clipsLib.setToday(b.id);
+  clipsLib._resetCache();
+  const idx = await clipsLib.readIndex();
+  assert.deepEqual(idx.clips.map((c) => [c.name, c.hasVideo]).sort(), [['সমস্যা', true], ['স্বাভাবিক', true]]);
+  assert.equal(idx.todayId, b.id);
+  idx.clips.push({ id: 'x' });
+  assert.equal((await clipsLib.readIndex()).clips.length, 2, 'callers get a copy, not the stored list');
+});
+
 // ---------- v0.7.2: symptoms to the vet ----------
 check('Vet signs: only listed codes; still birds by day only; model flags mapped', () => {
   const obs = parseObservation('{"signs":["twisted_neck","ranikhet","weak","still"],"spilled_water_or_wet_litter":true,"unusual_sound":true}');

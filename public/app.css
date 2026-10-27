@@ -301,6 +301,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .clip-name { border: 2px solid var(--line); border-radius: 14px; padding: 10px 12px; font: inherit; font-size: 16px; }
 
 /* ---------- symptoms to the vet (v0.7.2) ---------- */
+#shedSignsBtn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 .vet-sheet { max-height: 92vh; overflow-y: auto; }
 .vet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .vet-head .round-btn { background: var(--ground); }

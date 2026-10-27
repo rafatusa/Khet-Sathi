@@ -90,6 +90,7 @@ Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 
 | Version | Date | What was built |
 |---|---|---|
+| v0.7.3 | Oct 27 | Fix: the clip list is kept in server memory and saved with no-cache, because storage served a stale copy for about 20 s and a second clip upload failed with "Clip not found"; saves run one at a time; the "Tell the vet" icon is sized like the others |
 | v0.7.2 | Oct 27 | Symptoms to the vet: auto-filled signs from the camera check, two voice questions, consent and a simulated call; "+ From phone" picks a saved video from the gallery |
 | v0.7.1 | Oct 27 | Shed clip library (simulated camera): save up to 5 named clips with their frames and last result in a private `shed-clips` bucket, re-check on demand, choose today's camera for automatic alerts, delete with a confirm sheet; `sql/003_shed_clips_v0.7.1.sql` |
 | v0.7.0 | Oct 27 | Poultry shed screen: phone video, frames pulled in the browser, SAM 3.1 bird count and "not moving" rings (suppressed at night), Muse Spark 1.2 video and sound check through the Files and Responses APIs, safety filter that drops any disease or medicine words, simulated vet; shed care rules for cold, humidity, light schedule, heat and cold forecast and eggs; simulated egg counter. No database change |

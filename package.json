@@ -1,6 +1,6 @@
 {
   "name": "khet-saathi",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "Khet Saathi - voice-first AI farm agent for smallholder farmers, built on Meta Muse Spark, Muse Voice Transcribe and SAM 3.1. Meta Global AI Developer Hackathon 2026.",
   "type": "module",
   "main": "server.js",
