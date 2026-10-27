@@ -1,4 +1,4 @@
-// Khet Saathi farmer app (v0.6.0): language, home, add land (photo + GPS),
+// Khet Saathi farmer app (v0.7.0): language, home, add land (photo + GPS),
 // satellite plot with SAM 3.1 outline (zoomed scan), re-scan, ask Saathi by voice or tap, spoken replies.
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -57,7 +57,7 @@
   // ---------- screens + language ----------
   function show(id) {
     document.querySelectorAll('.screen').forEach((s) => (s.hidden = s.id !== id));
-    $('micBar').hidden = !['s-home', 's-land', 's-plan', 's-cal'].includes(id);
+    $('micBar').hidden = !['s-home', 's-land', 's-plan', 's-cal', 's-shed'].includes(id);
     window.scrollTo(0, 0);
   }
   function applyLang() {
@@ -580,7 +580,7 @@
     box.replaceChildren();
     for (const a of list) {
       const { title, body } = alertText(a);
-      const kind = a.area === 'shed' ? 'shed' : a.source || 'sensor';
+      const kind = a.source === 'weather' ? 'weather' : a.area === 'shed' || a.source === 'camera' ? 'shed' : a.source || 'sensor';
       const el = document.createElement('div');
       el.className = `alert sev-${a.severity}`;
       el.innerHTML = `
@@ -743,6 +743,241 @@
     speak(`${t('calSayNow')} ${now.map((x) => `${t(`crop_${x.key}`)}, ${calTag(x)}`).join('. ')}.`);
   });
 
+  // ---------- poultry shed ----------
+  // Video comes from the farmer's phone. Frames are pulled here in the browser (no video tools
+  // on the server); SAM counts birds per frame; Muse Spark 1.2 watches the clip with its sound.
+  // Shed sensors, egg counter and the vet are SIMULATED. No disease or medicine is ever named.
+  let shed = { vet: null, vetSummary: '', still: 0, resting: false, soundBad: false };
+  $('goShed').addEventListener('click', () => openShed());
+
+  function shedProgress(text) {
+    $('shedProgress').textContent = text || '';
+    $('shedProgress').hidden = !text;
+  }
+
+  async function openShed() {
+    show('s-shed');
+    $('shedAnswer').hidden = true;
+    await loadShed();
+  }
+
+  async function loadShed() {
+    let r;
+    try {
+      r = await api('/api/poultry');
+    } catch {
+      return;
+    }
+    if (!r.ok) return;
+    shed.vet = r.vet;
+    const s = r.shed;
+    $('shedKit').hidden = !s;
+    $('eggCard').hidden = !s?.eggs_today;
+    if (!s) return;
+    const grid = $('shedKitGrid');
+    grid.replaceChildren();
+    const fmtV = { shed_temp: (v) => `${num(v, 0)}°`, shed_humidity: (v) => `${num(v, 0)}%`, ammonia_ppm: (v) => num(v, 0), light: (v) => (v ? t('lightOn') : t('lightOff')), water_pct: (v) => `${num(v, 0)}%`, feed_pct: (v) => `${num(v, 0)}%` };
+    const warn = { shed_temp: (v) => v > 32 || v < 16, shed_humidity: (v) => v > 80 || v < 40, ammonia_ppm: (v) => v > 25, water_pct: (v) => v < 20, feed_pct: (v) => v < 20 };
+    for (const m of Object.keys(fmtV)) {
+      if (!s[m]) continue;
+      const c = document.createElement('div');
+      c.className = `kit-cell${warn[m]?.(s[m].value) ? ' warn' : ''}`;
+      c.innerHTML = `<strong>${esc(fmtV[m](s[m].value))}</strong><span class="muted small">${esc(t(`s_${m}`))}</span>`;
+      grid.append(c);
+    }
+    if (s.eggs_today) {
+      const n = s.eggs_today.value;
+      const target = r.eggTarget || 300;
+      $('eggFill').style.width = `${Math.min(100, (n / target) * 100)}%`;
+      $('eggText').textContent = fmt('eggText', { n: num(n, 0), target: num(target, 0) });
+    }
+  }
+
+  // Up to 8 frames, spread over the clip, as JPEG data URLs no wider than 1024 px.
+  function extractFrames(file, count = 8, maxW = 1024) {
+    return new Promise((resolve, reject) => {
+      const v = document.createElement('video');
+      v.muted = true;
+      v.playsInline = true;
+      v.preload = 'auto';
+      v.src = URL.createObjectURL(file);
+      const frames = [];
+      let size = null;
+      v.onerror = () => reject(new Error('video'));
+      v.onloadedmetadata = async () => {
+        const dur = v.duration;
+        if (!Number.isFinite(dur) || dur <= 0) return reject(new Error('video'));
+        const scale = Math.min(1, maxW / v.videoWidth);
+        const c = document.createElement('canvas');
+        c.width = Math.round(v.videoWidth * scale);
+        c.height = Math.round(v.videoHeight * scale);
+        size = { width: c.width, height: c.height, seconds: dur };
+        const n = Math.max(2, Math.min(count, Math.floor(dur)));
+        for (let i = 0; i < n; i++) {
+          await new Promise((ok) => {
+            v.onseeked = ok;
+            v.currentTime = Math.min(dur - 0.05, (dur * (i + 0.5)) / n);
+          });
+          c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+          frames.push(c.toDataURL('image/jpeg', 0.85));
+        }
+        URL.revokeObjectURL(v.src);
+        resolve({ frames, ...size });
+      };
+    });
+  }
+
+  function drawShed(frame, size, result) {
+    $('shedFrame').src = frame;
+    $('shedFrame').hidden = false;
+    $('shedEmpty').hidden = true;
+    const svg = $('shedSvg');
+    svg.setAttribute('viewBox', `0 0 ${size.width} ${size.height}`);
+    svg.replaceChildren();
+    const ns = 'http://www.w3.org/2000/svg';
+    for (const b of result.still || []) {
+      const c = document.createElementNS(ns, 'ellipse');
+      c.setAttribute('cx', (b.left + b.right) / 2);
+      c.setAttribute('cy', (b.top + b.bottom) / 2);
+      c.setAttribute('rx', Math.max(14, (b.right - b.left) / 2 + 6));
+      c.setAttribute('ry', Math.max(14, (b.bottom - b.top) / 2 + 6));
+      c.setAttribute('class', 'still');
+      svg.append(c);
+    }
+    svg.removeAttribute('hidden'); // SVG elements have no .hidden property
+    $('shedBadge').textContent = fmt('videoBadge', { n: num(Math.round(size.seconds), 0) });
+    $('shedBadge').hidden = false;
+    $('shedSam').hidden = false;
+  }
+
+  function showAction() {
+    const still = shed.still > 0 && !shed.resting;
+    $('shedAction').hidden = !(still || shed.soundBad);
+    if (!still && !shed.soundBad) return;
+    $('shedActionTitle').textContent = still ? fmt('stillTitle', { n: num(shed.still, 0) }) : t('soundBadTitle');
+    $('shedActionText').textContent = shed.vetLine || t('b_birds_still');
+    $('shedVetName').innerHTML = shed.vet ? `${esc(shed.vet.name)} <span class="sample">${esc(t('simulated'))}</span>` : '';
+  }
+
+  $('shedVideoInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 60 * 1024 * 1024) return toast(t('videoTooBig'));
+    $('shedAction').hidden = true;
+    $('shedSound').hidden = true;
+    $('shedNote').hidden = true;
+    try {
+      shedProgress(t('stepFrames'));
+      const v = await extractFrames(file);
+      shedProgress(t('stepCount'));
+      const r = await postJson('/api/poultry/count', { frames: v.frames, width: v.width });
+      if (!r.ok) throw new Error(r.error);
+      shed.still = r.still.length;
+      shed.resting = r.resting;
+      $('shedStats').hidden = false;
+      $('shedCount').textContent = num(r.count, 0);
+      $('shedStill').textContent = num(r.resting ? 0 : r.still.length, 0);
+      $('shedStillBox').classList.toggle('warn', !r.resting && r.still.length > 0);
+      drawShed(v.frames[v.frames.length - 1], v, r.resting ? { still: [] } : r);
+      if (r.resting) {
+        $('shedNote').textContent = t('restingNight');
+        $('shedNote').hidden = false;
+      }
+      showAction();
+      shedProgress(t('stepWatch'));
+      const w = await api(`/api/poultry/video?lang=${lang}`, { method: 'POST', headers: { 'Content-Type': 'video/mp4' }, body: file });
+      if (w.ok) applyObservation(w);
+    } catch (err) {
+      toast(`${t('error')}: ${err.message}`);
+    } finally {
+      shedProgress('');
+      loadShed();
+    }
+  });
+
+  function applyObservation(w) {
+    const o = w.observation || {};
+    shed.vetLine = w.vetLine;
+    if (!o.ok) return;
+    shed.soundBad = o.unusualSound;
+    shed.vetSummary = o.vetSummary || '';
+    const box = $('shedSound');
+    box.hidden = false;
+    box.classList.toggle('warn', o.unusualSound || !o.heardAudio);
+    $('shedSoundTitle').textContent = !o.heardAudio ? t('soundMissing') : o.unusualSound ? t('soundBadTitle') : t('soundOkTitle');
+    $('shedSoundText').textContent = o.heardAudio && !o.unusualSound ? t('soundOkText') : '';
+    if (o.note) {
+      $('shedNote').textContent = [$('shedNote').hidden ? '' : $('shedNote').textContent, o.note].filter(Boolean).join(' ');
+      $('shedNote').hidden = false;
+    }
+    showAction();
+  }
+
+  // Tap: record 15 seconds of shed sound, then Spark 1.2 listens.
+  let shedRec = null;
+  $('shedSoundBtn').addEventListener('click', async () => {
+    if (shedRec) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks = [];
+      shedRec = new MediaRecorder(stream);
+      shedRec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      let left = 15;
+      $('shedSoundLabel').textContent = fmt('recording', { n: num(left, 0) });
+      const timer = setInterval(() => {
+        left -= 1;
+        $('shedSoundLabel').textContent = fmt('recording', { n: num(left, 0) });
+        if (left <= 0) shedRec.stop();
+      }, 1000);
+      shedRec.onstop = async () => {
+        clearInterval(timer);
+        stream.getTracks().forEach((tr) => tr.stop());
+        shedRec = null;
+        $('shedSoundLabel').textContent = t('listenShed');
+        shedProgress(t('stepSound'));
+        try {
+          const wav = await toWav(new Blob(chunks, { type: chunks[0]?.type || 'audio/webm' }));
+          const r = await api(`/api/poultry/sound?lang=${lang}`, { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: wav });
+          if (!r.ok) throw new Error(r.error);
+          applyObservation(r);
+        } catch (err) {
+          toast(`${t('error')}: ${err.message}`);
+        } finally {
+          shedProgress('');
+        }
+      };
+      shedRec.start();
+    } catch (err) {
+      shedRec = null;
+      toast(`Mic: ${err.message}`);
+    }
+  });
+
+  // Vet sheet: simulated contact, no real call.
+  function openVet() {
+    $('vetSheetName').textContent = shed.vet?.name || t('vet');
+    $('vetSheetPlace').textContent = shed.vet?.village || '';
+    $('vetSheetSummary').textContent = shed.vetSummary || '';
+    $('vetSheet').hidden = false;
+    $('vetSheetClose').focus();
+  }
+  $('shedVetBtn').addEventListener('click', openVet);
+  $('vetSheetClose').addEventListener('click', () => ($('vetSheet').hidden = true));
+  $('vetSheet').addEventListener('click', (e) => {
+    if (e.target === $('vetSheet')) $('vetSheet').hidden = true;
+  });
+  $('vetSheetSay').addEventListener('click', () => speak(shed.vetSummary || $('shedActionText').textContent));
+  $('shedSayBtn').addEventListener('click', () => speak(`${$('shedActionTitle').textContent}. ${$('shedActionText').textContent}`));
+  $('shedListen').addEventListener('click', () => {
+    const parts = [];
+    if (!$('shedStats').hidden) parts.push(`${$('shedCount').textContent} ${t('birdsCounted')}`);
+    if (!$('shedAction').hidden) parts.push($('shedActionTitle').textContent, $('shedActionText').textContent);
+    if (!$('shedSound').hidden) parts.push($('shedSoundTitle').textContent);
+    if (!$('eggCard').hidden) parts.push(`${t('eggsToday')}: ${$('eggText').textContent}`);
+    if (parts.length) speak(parts.join('. '));
+  });
+
   // ---------- delete a land ----------
   function openDeleteSheet() {
     if (!current) return;
@@ -761,6 +996,7 @@
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !$('deleteSheet').hidden) closeDeleteSheet();
+    if (e.key === 'Escape' && !$('vetSheet').hidden) $('vetSheet').hidden = true;
   });
   $('deleteYes').addEventListener('click', async () => {
     if (!current) return;
@@ -889,7 +1125,7 @@
     }
     const r = await api('/api/transcribe', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: wav });
     if (!r.ok || !r.text) return toast(r.error || t('tryAgain'));
-    const box = !$('s-cal').hidden ? $('calAnswer') : !$('s-plan').hidden ? $('planAnswer') : $('s-land').hidden ? $('homeAnswer') : $('landAnswer');
+    const box = !$('s-shed').hidden ? $('shedAnswer') : !$('s-cal').hidden ? $('calAnswer') : !$('s-plan').hidden ? $('planAnswer') : $('s-land').hidden ? $('homeAnswer') : $('landAnswer');
     await ask(r.text, box);
   }
 

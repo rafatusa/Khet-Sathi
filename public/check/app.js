@@ -1,4 +1,4 @@
-// Khet Saathi v0.5.0 - browser side of the model check.
+// Khet Saathi v0.7.0 - browser side of the model check.
 (() => {
   const $ = (id) => document.getElementById(id);
 
@@ -32,6 +32,8 @@
     ['calendar', 'Sowing windows + top 3 crops', 'FAO Crop Calendar'],
     ['sensors', 'Village sensor kit (simulated)', 'simulator'],
     ['alerts', 'Alerts engine', 'rules'],
+    ['mvideo', 'Shed video: behaviour + sound', 'muse-spark-1.2'],
+    ['maudio', 'Shed sound only (audio input)', 'muse-spark-1.2'],
     ['vision', 'Scene description from image', 'spark'],
     ['agent', 'Agent plan with tool calls', 'spark'],
     ['voice', 'Speech → text', 'muse-voice-transcribe-1.0'],
@@ -220,6 +222,29 @@
     mark('sensors', s.readings ? 'PASS' : 'WARN', `${what} · ${s.lands ?? 0} field kit(s) + shed · ${s.readings ?? 0} readings saved${s.errors?.length ? ` · ${s.errors.join('; ')}` : ''}`, r.ms);
     mark('alerts', 'PASS', s.alerts?.length ? `new: ${s.alerts.join(', ')}` : 'no new alerts (rules quiet, or already raised in the last 12 h)', r.ms);
   }
+  // Muse Spark 1.2 media checks: does the model actually receive the video's sound / an audio clip?
+  function markMedia(key, r) {
+    if (!r.ok) return mark(key, 'FAIL', r.error, r.ms);
+    const o = r.observation || {};
+    if (!o.ok) return mark(key, 'FAIL', `reply was not JSON: ${o.raw || ''}`, r.ms);
+    const detail = `heard audio: ${o.heardAudio ? 'yes' : 'NO'} · unusual sound: ${o.unusualSound ? 'yes' : 'no'}${o.crowding ? ' · crowding' : ''}${o.atFeeder ? ` · at feeder: ${o.atFeeder}` : ''} · ${o.note || ''}`;
+    mark(key, o.heardAudio ? 'PASS' : 'WARN', detail, r.ms);
+  }
+  $('mediaVideo').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    mark('mvideo', 'RUNNING');
+    markMedia('mvideo', await api('/api/poultry/video?lang=en', { method: 'POST', headers: { 'Content-Type': 'video/mp4' }, body: f }));
+  });
+  $('mediaAudio').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    mark('maudio', 'RUNNING');
+    markMedia('maudio', await api('/api/poultry/sound?lang=en', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: f }));
+  });
+
   async function simTick() {
     ['sensors', 'alerts'].forEach((k) => mark(k, 'RUNNING'));
     markEngine(await api('/api/sensors/tick', { method: 'POST' }), 'tick');
@@ -440,6 +465,7 @@
   $('simTick').addEventListener('click', busy($('simTick'), simTick));
   $('forceDry').addEventListener('click', busy($('forceDry'), () => force('field', 'soil_moisture', 12)));
   $('forceHot').addEventListener('click', busy($('forceHot'), () => force('shed', 'shed_temp', 35)));
+  $('forceLight').addEventListener('click', busy($('forceLight'), () => force('shed', 'light', 1)));
   $('runAgent').addEventListener('click', busy($('runAgent'), () => runAgent()));
   $('runAll').addEventListener(
     'click',

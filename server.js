@@ -2,27 +2,28 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptText, segmentStream } from './lib/meta.js';
+import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptText, segmentStream, uploadFile, deleteFile, respond, responseText } from './lib/meta.js';
+import { analyseFrames, framesFromSegments, observePrompt, parseObservation, MAX_FRAMES, SAFE_VET_LINE } from './lib/poultry.js';
 import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage, zoomCenter } from './lib/tile.js';
 import { scanLand } from './lib/scan.js';
 import { buildPlan, localToday } from './lib/plan.js';
 import { aezFor, calendarRecords, calendarFor } from './lib/calendar.js';
 import { createEngine } from './lib/engine.js';
-import { fieldDevice, SHED_DEVICE, latestByDevice, FIELD_METRICS, SHED_METRICS } from './lib/sensors.js';
+import { fieldDevice, SHED_DEVICE, latestByDevice, FIELD_METRICS, SHED_METRICS, isNight } from './lib/sensors.js';
 import { env } from './lib/env.js';
 import { runAgent } from './lib/agent.js';
 import { TTS, hasTtsKey, synthesize } from './lib/tts.js';
 import { DEMO_PLACES } from './lib/plot.js';
 import {
   dbConfigured, isId, newId, createLand, listLands, getLand, updateLand, deleteLand, putFile, getFile, deleteFiles, listAlerts, pingDb,
-  recentAlerts, insertAlerts, markAlertRead, insertReadings, latestReadings,
+  recentAlerts, insertAlerts, markAlertRead, insertReadings, latestReadings, listContacts,
 } from './lib/store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.6.0';
+const VERSION = '0.7.0';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -370,6 +371,95 @@ app.get(
       shed: pick(SHED_DEVICE, SHED_METRICS),
       engine: engine.status(),
     };
+  })
+);
+
+// ---------- poultry shed (video from the farmer's phone; sensors simulated) ----------
+let lastShed = null; // latest count and observation, kept in memory for the shed screen
+
+async function raiseShedAlert(title, body) {
+  const recent = await recentAlerts(12).catch(() => []);
+  if (recent.some((a) => !a.land_id && a.title === title)) return;
+  await insertAlerts([{ land_id: null, area: 'shed', severity: 'warn', title, source: 'camera', body: JSON.stringify(body) }]).catch(() => null);
+}
+
+// Frames (JPEG data URLs, 1 per second) pulled from the video by the phone. SAM finds every bird in each.
+app.post(
+  '/api/poultry/count',
+  guard,
+  timed(async (req) => {
+    const frames = (req.body?.frames || []).filter((f) => typeof f === 'string' && f.startsWith('data:image/')).slice(0, MAX_FRAMES);
+    const width = Number(req.body?.width) || 1024;
+    if (frames.length < 2) throw new Error('Send at least 2 frames');
+    const segs = [];
+    for (let i = 0; i < frames.length; i += 4) {
+      const batch = frames.slice(i, i + 4).map(async (f) => collectSegments(await segmentStream({ imageDataUrl: f, prompt: 'chicken' })));
+      segs.push(...(await Promise.all(batch)));
+    }
+    const result = analyseFrames(framesFromSegments(segs, width));
+    // Hens rest at night or with the light off: still birds then are normal, so no warning.
+    const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
+    const lightRow = latestByDevice(await latestReadings([SHED_DEVICE], 20).catch(() => []))[SHED_DEVICE]?.light;
+    result.resting = isNight(hour) || lightRow?.value === 0 && (hour < 6 || hour >= 18);
+    lastShed = { ...(lastShed || {}), count: result, countedAt: new Date().toISOString() };
+    if (result.still.length && !result.resting) await raiseShedAlert('birds_still', { value: result.still.length });
+    return result;
+  })
+);
+
+// The whole clip, with its sound, for Muse Spark 1.2: behaviour and unusual sounds. Never a diagnosis.
+app.post(
+  '/api/poultry/video',
+  guard,
+  express.raw({ type: ['video/mp4', 'video/quicktime', 'application/octet-stream'], limit: '60mb' }),
+  timed(async (req) => {
+    if (!Buffer.isBuffer(req.body) || req.body.length < 1000) throw new Error('No video received');
+    const lang = ['bn', 'hi', 'en'].includes(req.query.lang) ? req.query.lang : 'bn';
+    const fileId = await uploadFile(req.body, 'shed.mp4', 'video/mp4');
+    try {
+      const json = await respond({ content: [{ type: 'input_text', text: observePrompt(lang) }, { type: 'input_file', file_id: fileId }] });
+      const obs = parseObservation(responseText(json));
+      lastShed = { ...(lastShed || {}), video: obs, videoAt: new Date().toISOString() };
+      if (obs.unusualSound) await raiseShedAlert('sound_unusual', {});
+      return { observation: obs, vetLine: SAFE_VET_LINE[lang], model: MODELS.media };
+    } finally {
+      deleteFile(fileId).catch(() => null);
+    }
+  })
+);
+
+// A sound clip only (WAV), for Muse Spark 1.2 audio input.
+app.post(
+  '/api/poultry/sound',
+  guard,
+  express.raw({ type: ['audio/wav', 'audio/x-wav', 'application/octet-stream'], limit: '30mb' }),
+  timed(async (req) => {
+    if (!Buffer.isBuffer(req.body) || req.body.length < 44) throw new Error('No sound received');
+    const lang = ['bn', 'hi', 'en'].includes(req.query.lang) ? req.query.lang : 'bn';
+    const resp = await chat({
+      model: MODELS.media,
+      maxTokens: 4000,
+      messages: [{ role: 'user', content: [
+        { type: 'text', text: observePrompt(lang, { withVideo: false }) },
+        { type: 'input_audio', input_audio: { data: req.body.toString('base64'), format: 'wav' } },
+      ] }],
+    });
+    const obs = parseObservation(messageText(resp).text);
+    lastShed = { ...(lastShed || {}), sound: obs, soundAt: new Date().toISOString() };
+    if (obs.unusualSound) await raiseShedAlert('sound_unusual', {});
+    return { observation: obs, vetLine: SAFE_VET_LINE[lang], model: MODELS.media };
+  })
+);
+
+// Shed screen: latest simulated shed kit, last camera results, the (simulated) vet.
+app.get(
+  '/api/poultry',
+  guard,
+  timed(async () => {
+    const latest = latestByDevice(await latestReadings([SHED_DEVICE], 30));
+    const shed = latest[SHED_DEVICE] ? Object.fromEntries(SHED_METRICS.filter((m) => latest[SHED_DEVICE][m]).map((m) => [m, latest[SHED_DEVICE][m]])) : null;
+    const vets = await listContacts('vet').catch(() => []);
+    return { shed, simulated: true, last: lastShed, vet: vets[0] || null, eggTarget: 300 };
   })
 );
 

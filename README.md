@@ -30,7 +30,8 @@ in each version and when.
 | Empty land: vendors and orders for the chosen crop | In progress (demo vendor data) |
 | Crop calendar: every crop's sowing and harvest (selling) window for the farm's zone on a year bar, grouped into sow now, starting soon and later; tap a crop to ask Saathi | Live (Bangladesh, FAO data) |
 | Standing crop: harvest readiness, field health, harvester → transport → buyer | Planned |
-| Poultry shed: bird counting and inactivity from video, cough detection from audio, shed sensors | Planned |
+| Poultry shed: the farmer films the shed; SAM 3.1 counts birds frame by frame and rings birds that hardly move (not at night, when hens rest); Muse Spark 1.2 watches the clip with its sound for behaviour and unusual sounds. Warning signs only ever say "keep these birds apart and call the vet": the app never names a disease or a medicine | Live (needs the farmer's own video) |
+| Shed care alerts: too hot or cold, humidity, ammonia, water and feed, light left on at night or in daylight, light off in the evening, heat or cold coming, egg count | Live (shed sensors and egg counter **simulated**) |
 | Auto-sell: when eggs or harvest are ready, the agent phones shop owners and negotiates | Planned |
 
 ## Models
@@ -38,6 +39,7 @@ in each version and when.
 | Model | Provider | Role |
 |---|---|---|
 | `muse-spark-1.3` | Meta Model API | Agent brain: reasoning, tool calls, reads satellite and field images |
+| `muse-spark-1.2` | Meta Model API | Watches shed video with its sound and listens to shed sound clips (Meta recommends 1.2 for audio) |
 | `muse-voice-transcribe-1.0` | Meta Model API | Hears the farmer: Bangla, Hindi, Marathi, Tamil, Telugu, Kannada, English |
 | `sam-3.1` | Meta Model API | Finds every field on the satellite image, picks the one under the farmer's GPS point and measures it; tracks animals in video (planned) |
 | Muse Spark Open | Meta open weights (Baseten) | Open-weight path for the same agent (planned) |
@@ -85,6 +87,7 @@ Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 
 | Version | Date | What was built |
 |---|---|---|
+| v0.7.0 | Oct 27 | Poultry shed screen: phone video, frames pulled in the browser, SAM 3.1 bird count and "not moving" rings (suppressed at night), Muse Spark 1.2 video and sound check through the Files and Responses APIs, safety filter that drops any disease or medicine words, simulated vet; shed care rules for cold, humidity, light schedule, heat and cold forecast and eggs; simulated egg counter. No database change |
 | v0.6.0 | Oct 27 | Crop calendar screen from the Home tile: real FAO sowing and harvest windows for the zone, year bars with today marked, closing-first order; new agent tool get_sowing_calendar for "when do I sow, when can I sell" questions. No database change |
 | v0.5.0 | Oct 27 | Simulated village sensor kit (field and shed) and the alerts engine: rules on real weather, FAO sowing windows and simulated sensor readings write alerts every 10 minutes; Home shows them as traffic-light cards with a speaker and a read tick; bench buttons for one tick and demo values (dry soil, hot shed). No database change |
 | v0.4.0 | Oct 27 | What to grow (Scenario 1): soil from SoilGrids, weather from Open-Meteo, sowing windows from the FAO crop calendar; top 3 crops by window and soil, rain-aware sowing advice; the agent's plot and crop tools now use this real data; bench rows for soil, weather and calendar; `sql/002_land_soil_v0.4.0.sql` |

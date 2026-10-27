@@ -68,8 +68,7 @@
         <span class="tile-title" data-t="myCrop"></span>
         <span class="tile-sub" data-t="myCropSub"></span>
       </button>
-      <button class="tile tile-plain" disabled>
-        <span class="soon" data-t="soon"></span>
+      <button class="tile tile-plain tile-live" id="goShed">
         <svg class="tile-ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 7a3 3 0 1 0-5.6 1.5C7 9.5 5 12 5 15a6 6 0 0 0 12 0c0-1.6-.5-3-1.4-4.1"/><path d="M19 7l2 1-2 1"/><path d="M9 21v-1M13 21v-1"/></svg>
         <span class="tile-title sm" data-t="poultry"></span>
       </button>
@@ -258,7 +257,69 @@
     <div class="spacer"></div>
   </section>
 
-  <!-- Mic bar (home + land + plan + calendar) -->
+  <!-- Poultry shed -->
+  <section class="screen" id="s-shed" hidden>
+    <header class="top">
+      <button class="round-btn" data-home aria-label="Home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="display lg" data-t="poultry"></div>
+      <button class="round-btn green" id="shedListen" aria-label="Listen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+    </header>
+    <div class="shed-video" id="shedVideo">
+      <img id="shedFrame" alt="" hidden />
+      <svg id="shedSvg" preserveAspectRatio="xMidYMid meet" hidden></svg>
+      <div class="shed-empty" id="shedEmpty" data-t="shedEmpty"></div>
+      <span class="map-badge" id="shedBadge" hidden></span>
+      <span class="map-badge right" id="shedSam" hidden>SAM 3.1</span>
+    </div>
+    <div class="muted small center" id="shedProgress" hidden></div>
+    <div class="stat-row" id="shedStats" hidden>
+      <div class="stat"><span class="stat-big" id="shedCount">—</span><span class="muted small" data-t="birdsCounted"></span></div>
+      <div class="stat" id="shedStillBox"><span class="stat-big" id="shedStill">—</span><span class="muted small" data-t="birdsStill"></span></div>
+    </div>
+    <div class="notice" id="shedAction" hidden>
+      <div class="notice-title" id="shedActionTitle"></div>
+      <p id="shedActionText"></p>
+      <div class="two-btn">
+        <button class="btn yellow" id="shedVetBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg><span data-t="vet"></span></button>
+        <button class="btn" id="shedSayBtn" data-t="readAloud"></button>
+      </div>
+      <div class="muted small" id="shedVetName"></div>
+    </div>
+    <div class="shed-ok" id="shedSound" hidden>
+      <div class="shed-ok-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></div>
+      <div><b id="shedSoundTitle"></b><div class="muted small" id="shedSoundText"></div></div>
+    </div>
+    <div class="muted small" id="shedNote" hidden></div>
+    <div class="two-btn">
+      <label class="btn primary file-btn"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg><span data-t="takeVideo"></span><input id="shedVideoInput" type="file" accept="video/*" capture="environment" hidden /></label>
+      <button class="btn" id="shedSoundBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/></svg><span id="shedSoundLabel" data-t="listenShed"></span></button>
+    </div>
+    <div class="kit" id="shedKit" hidden>
+      <div class="kit-top"><span data-t="shedSensors"></span><span class="sample" data-t="simulated"></span></div>
+      <div class="kit-grid three" id="shedKitGrid"></div>
+    </div>
+    <div class="kit" id="eggCard" hidden>
+      <div class="kit-top"><span data-t="eggsToday"></span><span class="sample" data-t="simulated"></span></div>
+      <div class="egg-bar"><div id="eggFill"></div></div>
+      <div class="muted small" id="eggText"></div>
+    </div>
+    <div id="shedAnswer" class="answer" hidden></div>
+    <div class="spacer"></div>
+  </section>
+
+  <!-- Vet sheet (simulated contact; no real call) -->
+  <div class="sheet-wrap" id="vetSheet" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="vetSheetName">
+      <h3 id="vetSheetName"></h3>
+      <div class="muted" id="vetSheetPlace"></div>
+      <div class="vet-summary" id="vetSheetSummary"></div>
+      <div class="muted small" data-t="demoNoCall"></div>
+      <button class="btn primary wide" id="vetSheetSay" data-t="readAloud"></button>
+      <button class="btn wide" id="vetSheetClose" data-t="close"></button>
+    </div>
+  </div>
+
+  <!-- Mic bar (home + land + plan + calendar + shed) -->
   <div class="mic-bar" id="micBar" hidden>
     <button id="mic" class="mic" aria-label="Speak">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>

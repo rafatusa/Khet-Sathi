@@ -15,7 +15,9 @@ import { windowState, windowsFor, aezFor, normalizeFao, calendarFor, FAO_KEYS } 
 import { recommendCrops } from '../lib/recommend.js';
 import { buildPlan } from '../lib/plan.js';
 import { readFileSync } from 'node:fs';
-import { seedField, stepField, stepShed, seedShed, latestByDevice, fieldDevice } from '../lib/sensors.js';
+import { seedField, stepField, stepShed, seedShed, latestByDevice, fieldDevice, lightScheduled, isNight } from '../lib/sensors.js';
+import { analyseFrames, safeText, parseObservation } from '../lib/poultry.js';
+import { responseText } from '../lib/meta.js';
 import { fieldAlerts, shedAlerts, dedupe } from '../lib/alerts.js';
 import { createEngine } from '../lib/engine.js';
 import * as memStore from '../lib/store.js';
@@ -418,6 +420,52 @@ check('Agent tool: sowing calendar filters by crop and knows harvest dates', () 
   assert.equal(r.rows.length, 1);
   assert.equal(r.rows[0].harvest_from_month_day, '12-10');
   assert.equal(sowingCalendar({}, { plan: { aez: null } }).rows.length, 0);
+});
+
+// ---------- v0.7.0: poultry shed ----------
+const bird = (x, y) => ({ box: { left: x - 10, top: y - 8, right: x + 10, bottom: y + 8 } });
+check('Poultry: count is the middle of the per-frame counts; a bird that never moves is flagged', () => {
+  const frames = [0, 1, 2, 3, 4].map((i) => ({ width: 1000, objects: [bird(100, 100), bird(300 + i * 40, 200), bird(600, 400 + i * 30), ...(i === 2 ? [bird(900, 50)] : [])] }));
+  const r = analyseFrames(frames);
+  assert.equal(r.count, 3);
+  assert.equal(r.still.length, 1);
+  assert.equal((r.still[0].left + r.still[0].right) / 2, 100);
+  assert.equal(analyseFrames(frames.slice(0, 2)).still.length, 0, 'two frames are too few to judge stillness');
+});
+check('Poultry: disease and medicine words never reach the farmer', () => {
+  assert.equal(safeText('৩টি মুরগি ঝিমোচ্ছে। এটা রানীক্ষেত হতে পারে। ওষুধ দিন।'), '৩টি মুরগি ঝিমোচ্ছে।');
+  assert.equal(safeText('Birds look like they have Newcastle disease. Water is spilled.'), 'Water is spilled.');
+  const o = parseObservation('ok {"heard_audio": true, "unusual_sound": true, "crowding": false, "note": "Some birds are gasping. Could be bird flu.", "vet_summary": "Two birds gasping near the feeder."}');
+  assert.equal(o.unusualSound, true);
+  assert.equal(o.note, 'Some birds are gasping.');
+  assert.equal(parseObservation('no json here').ok, false);
+});
+check('Poultry: Responses API text extraction', () => {
+  assert.equal(responseText({ output_text: ' hi ' }), 'hi');
+  assert.equal(responseText({ output: [{ type: 'message', content: [{ type: 'output_text', text: '{"a":1}' }] }] }), '{"a":1}');
+});
+check('Shed: light schedule, night rest, egg counter', () => {
+  assert.deepEqual([4, 5, 12, 18, 21, 22].map(lightScheduled), [false, true, false, true, true, false]);
+  assert.deepEqual([3, 6, 18, 19].map(isNight), [true, false, false, true]);
+  let s = seedShed(28, 6);
+  assert.equal(s.eggs_today, 0);
+  for (let i = 0; i < 54; i++) s = stepShed(s, { rand: half, hour: 10 });
+  assert.equal(s.eggs_today, 324);
+  assert.equal(stepShed(s, { rand: half, hour: 0, newDay: true }).eggs_today, 0);
+});
+check('Shed alerts: cold, humidity, light at the wrong time, heat and cold forecast, eggs', () => {
+  const base = { shed_temp: 25, shed_humidity: 60, ammonia_ppm: 10, water_pct: 80, feed_pct: 80, eggs_today: 100, light: 0 };
+  const t = (shedOver, opts) => shedAlerts({ ...base, ...shedOver }, opts).map((a) => a.title);
+  assert.deepEqual(t({ shed_temp: 14 }), ['shed_cold']);
+  assert.deepEqual(t({ shed_humidity: 85 }), ['shed_humid']);
+  assert.deepEqual(t({ shed_humidity: 35 }), ['shed_dry']);
+  assert.deepEqual(t({ light: 1 }, { hour: 23 }), ['light_night']);
+  assert.deepEqual(t({ light: 0 }, { hour: 19 }), ['light_evening']);
+  assert.deepEqual(t({ light: 1 }, { hour: 12 }), ['light_day']);
+  assert.deepEqual(t({ light: 1 }, { hour: 19 }), [], 'evening light is wanted');
+  const weather = { days: [{ date: '2026-10-27', tMax: 33, tMin: 24 }, { date: '2026-10-28', tMax: 37, tMin: 11 }] };
+  assert.deepEqual(t({}, { weather, today: '2026-10-27' }), ['heat_coming', 'cold_night']);
+  assert.deepEqual(t({ eggs_today: 310 }), ['eggs_ready']);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

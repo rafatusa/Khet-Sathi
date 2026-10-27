@@ -250,3 +250,28 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cal-today { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--orange); }
 .cal-sub { font-size: 14px; color: var(--muted); }
 .cal-more { align-self: center; min-height: 48px; font-size: 16px; }
+
+/* Poultry shed (v0.7.0) */
+.shed-video { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 22px; overflow: hidden; background: #3B2F22; }
+.shed-video img, .shed-video svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.shed-video img { object-fit: contain; }
+.shed-empty { position: absolute; inset: 0; display: grid; place-items: center; color: #F2EADB; text-align: center; padding: 16px; font-weight: 600; }
+.shed-video .bird { fill: none; stroke: #fff; stroke-opacity: .55; stroke-width: 1.5; }
+.shed-video .still { fill: none; stroke: var(--yellow); stroke-width: 4; }
+#shedStillBox.warn { background: var(--orange-soft); }
+#shedStillBox.warn .stat-big { color: var(--orange); }
+.two-btn { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.two-btn .btn { min-height: 56px; font-size: 17px; padding: 8px 12px; }
+.two-btn .btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.shed-ok { background: #fff; border-radius: 18px; padding: 12px; display: flex; gap: 10px; align-items: center; border-left: 8px solid var(--green); }
+.shed-ok[hidden] { display: none; }
+.shed-ok.warn { border-left-color: var(--orange); }
+.shed-ok-ico { width: 36px; height: 36px; border-radius: 999px; background: var(--green); display: grid; place-items: center; flex-shrink: 0; }
+.shed-ok.warn .shed-ok-ico { background: var(--orange); }
+.shed-ok-ico svg { width: 20px; height: 20px; fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.kit-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kit-grid.three .kit-cell strong { font-size: 20px; }
+.egg-bar { height: 14px; background: #E3E9E0; border-radius: 7px; overflow: hidden; margin: 8px 0 4px; }
+.egg-bar div { height: 100%; width: 0; background: var(--green); }
+.vet-summary { background: var(--ground); border-radius: 14px; padding: 10px 12px; font-size: 16px; }
+.vet-summary:empty { display: none; }
