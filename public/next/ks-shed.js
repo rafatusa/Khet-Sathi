@@ -864,9 +864,16 @@
     $('#mkShopSrc').textContent = m.shops?.length ? m.shopSource || '' : '';
     // Demo land: the demo shop first, then the real shops near the field for information. Real land: real shops only.
     const shops = [...(demo && m.demoShop ? [{ ...m.demoShop, name: m.demoShop.name[L()] }] : []), ...(m.shops || [])];
-    $('#mkShops').innerHTML = shops.length
-      ? shops.map((s, i) => `<button type="button" class="shopb ${P.shop?.id === s.id ? 'on' : ''}" data-shopi="${i}"><span>${I.pin}</span><span class="nm"><b>${esc(s.name)}</b><small>${esc([s.km != null ? fmt('kmAway', { km: num(s.km, 1) }) : '', s.address || '', s.real ? s.source : t('demoTag')].filter(Boolean).join(' · '))}</small></span></button>`).join('')
-      : `<div class="emptybox">${esc(m.shopError ? t('shopSearchDown') : t('noShopsNear'))}</div>`;
+    // The demo shop and the real shops sit in separate boxes; the real ones carry their source's
+    // required credit (Google Maps, or OpenStreetMap contributors), never mixed with other content.
+    const btn = (s, i) => `<button type="button" class="shopb ${P.shop?.id === s.id ? 'on' : ''}" data-shopi="${i}"><span>${I.pin}</span><span class="nm"><b>${esc(s.name)}</b><small>${esc([s.km != null ? fmt('kmAway', { km: num(s.km, 1) }) : '', s.address || '', s.real ? '' : t('demoTag')].filter(Boolean).join(' · '))}</small></span></button>`;
+    const nDemo = demo && m.demoShop ? 1 : 0;
+    const credit = m.shopSource === 'Google Places' ? '<div class="gattr" translate="no" aria-label="Google Maps">Google Maps</div>' : '<div class="gattr osm" translate="no">© OpenStreetMap contributors</div>';
+    $('#mkShops').innerHTML =
+      (nDemo ? `<div class="shopbox demo">${btn(shops[0], 0)}</div>` : '') +
+      (m.shops?.length
+        ? `<div class="shopbox real">${m.shops.map((s, i) => btn(s, i + nDemo)).join('')}${credit}</div>`
+        : `<div class="emptybox">${esc(m.shopError ? t('shopSearchDown') : t('noShopsNear'))}</div>`);
     $('#mkShops').dataset.list = JSON.stringify(shops);
     $('#mkCall').disabled = !shops.length && !demo;
   }

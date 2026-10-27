@@ -2,6 +2,15 @@
 window.KS_TEXT = {
   bn: {
     // v0.11.0
+    greetShed: "নমস্কার! আমি {shed} দেখছি। মুরগি, পানি আর খাবার, বা ডিম বিক্রি নিয়ে জিজ্ঞেস করুন।",
+    chipShed: "শেড কেমন আছে?",
+    qShed: "আমার শেড এখন কেমন আছে?",
+    chipWater: "পানি আর খাবার",
+    qWater: "মুরগির পানি আর খাবার কি যথেষ্ট আছে?",
+    chipEggs: "ডিম বিক্রি",
+    qEggs: "এখন কি ডিম বিক্রি করব?",
+    chipVet: "ডাক্তার লাগবে?",
+    qVet: "শেষ ক্যামেরা দেখা থেকে, ডাক্তারকে ফোন করা দরকার কি?",
     addClipVideo: "এই ক্লিপের ভিডিও দিন",
     heroNextSow: "পরের বোনা: {crop}",
     demoShedName: "ডেমো শেড",
@@ -178,6 +187,15 @@ window.KS_TEXT = {
   },
   hi: {
     // v0.11.0
+    greetShed: "नमस्ते! मैं {shed} पर नज़र रख रहा हूँ। मुर्गियों, पानी और दाने, या अंडे बेचने के बारे में पूछें।",
+    chipShed: "शेड कैसा है?",
+    qShed: "मेरा शेड अभी कैसा है?",
+    chipWater: "पानी और दाना",
+    qWater: "क्या मुर्गियों के पास पर्याप्त पानी और दाना है?",
+    chipEggs: "अंडे बेचें",
+    qEggs: "क्या अभी अंडे बेचूँ?",
+    chipVet: "डॉक्टर चाहिए?",
+    qVet: "पिछली कैमरा जाँच से, क्या डॉक्टर को बुलाना चाहिए?",
     addClipVideo: "इस क्लिप का वीडियो जोड़ें",
     heroNextSow: "अगली बुवाई: {crop}",
     demoShedName: "डेमो शेड",
@@ -354,6 +372,15 @@ window.KS_TEXT = {
   },
   en: {
     // v0.11.0
+    greetShed: "Hello! I am watching {shed}. Ask me about the chickens, water and feed, or selling eggs.",
+    chipShed: "How is my shed?",
+    qShed: "How is my shed doing right now?",
+    chipWater: "Water and feed",
+    qWater: "Do the chickens have enough water and feed?",
+    chipEggs: "Sell eggs",
+    qEggs: "Should I sell eggs now?",
+    chipVet: "Need the vet?",
+    qVet: "From the last camera check, do I need to call the vet?",
     addClipVideo: "Add this clip's video",
     heroNextSow: "Next to sow: {crop}",
     demoShedName: "Demo shed",

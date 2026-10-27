@@ -886,10 +886,18 @@
     $('#thread').scrollTop = 1e9;
     return m;
   }
+  // One conversation per place: switching between a field and a shed starts a fresh thread (v0.11.3).
+  let threadFor = null;
   function renderSaathi() {
+    const key = S.mode === 'shed' ? `shed:${S.shed?.id}` : `land:${S.cur?.id}`;
+    if (threadFor !== key) {
+      $('#thread').innerHTML = '';
+      threadFor = key;
+    }
     if (!$('#thread').children.length) {
       const c = S.plan?.crops?.[0];
-      bubble(c ? fmt('greetCrop', { land: landTitle(S.cur), crop: cropName(c.key) }) : t('saathiHello'));
+      if (S.mode === 'shed') bubble(fmt('greetShed', { shed: shedLine(S.shed) }));
+      else bubble(c ? fmt('greetCrop', { land: landTitle(S.cur), crop: cropName(c.key) }) : t('saathiHello'));
     }
     renderQuick();
     renderPending();
@@ -897,7 +905,7 @@
   }
   function renderQuick() {
     const c = S.plan?.crops?.[0];
-    const q = [['sat', t('chipField'), t('qField')], ['sprout', t('chipGrow'), t('qGrow')], ...(c ? [['seed', fmt('chipPlan', { crop: cropName(c.key) }), fmt('qPlan', { crop: cropName(c.key) })]] : []), ['sun', t('chipWeather'), t('qWeather')]];
+    const q = S.mode === 'shed' ? [['egg', t('chipShed'), t('qShed')], ['drop', t('chipWater'), t('qWater')], ['rupee', t('chipEggs'), t('qEggs')], ['warn', t('chipVet'), t('qVet')]] : [['sat', t('chipField'), t('qField')], ['sprout', t('chipGrow'), t('qGrow')], ...(c ? [['seed', fmt('chipPlan', { crop: cropName(c.key) }), fmt('qPlan', { crop: cropName(c.key) })]] : []), ['sun', t('chipWeather'), t('qWeather')]];
     $('#quick').innerHTML = q.map(([ic, label, text]) => `<button class="chip" type="button" data-q="${esc(text)}">${I[ic]}${esc(label)}</button>`).join('');
   }
   $('#quick').addEventListener('click', (e) => {
@@ -919,7 +927,7 @@
     bubble(text, 'me');
     const tp = typing();
     try {
-      const r = await postJson('/api/ask', { text, landId: S.cur?.id || null });
+      const r = await postJson('/api/ask', S.mode === 'shed' ? { text, shedId: S.shed?.id || null, lang } : { text, landId: S.cur?.id || null });
       tp.remove();
       if (!r.ok) throw new Error(r.error);
       const tools = (r.trace || []).filter((s) => s.type === 'tool').map((s) => s.name.replace(/_/g, ' '));
@@ -1030,10 +1038,14 @@
     const vars = { shop: v.shop || '', total: v.total != null ? money(v.total, v.symbol || '') : '', when: v.when || '', land: landTitle(S.cur), chance: num(v.chance ?? 0), mm: num(v.mm ?? 0), humidity: num(v.humidity ?? 0), value: num(v.value ?? 0, a.title === 'soil_dry' || a.title.startsWith('sell_') ? 0 : 1), days: num(v.days ?? 0), crop: v.crop ? cropName(v.crop) : '', date: v.date ? fd(v.date) : '' };
     return { title: fmt(`a_${a.title}`, vars), body: fmt(`b_${a.title}`, vars) };
   }
+  // Alerts for the place that is picked: the shed's (camera, sensors, egg sale) or this field's (v0.11.3).
+  const shedAlert = (a) => a.area === 'shed' || a.title.startsWith('sell_');
+  const myAlerts = () => S.alerts.filter((a) => (S.mode === 'shed' ? shedAlert(a) : !shedAlert(a) && (!a.land_id || a.land_id === S.cur?.id)));
   function renderPending() {
     const box = $('#pending');
-    if (!S.alerts.length) return (box.innerHTML = `<div class="muted" style="text-align:center;padding:14px">${esc(t('nothingWaiting'))}</div>`);
-    box.innerHTML = S.alerts
+    const list = myAlerts();
+    if (!list.length) return (box.innerHTML = `<div class="muted" style="text-align:center;padding:14px">${esc(t('nothingWaiting'))}</div>`);
+    box.innerHTML = list
       .slice(0, 6)
       .map((a) => {
         const { title, body } = alertText(a);
@@ -1052,8 +1064,8 @@
     );
   }
   function renderBadge() {
-    $('#badge').hidden = !S.alerts.length;
-    $('#badge').textContent = num(S.alerts.length);
+    $('#badge').hidden = !myAlerts().length;
+    $('#badge').textContent = num(myAlerts().length);
   }
   function renderHow() {
     $('#how').innerHTML = [['sat', 'how1'], ['chat', 'how2'], ['check', 'how3'], ['tractor', 'how4']].map(([ic, k]) => `<div class="entry">${I[ic]}<div class="t">${esc(t(k))}</div></div>`).join('');
@@ -1268,7 +1280,7 @@
         anProgress(1, true);
         const pl = pc?.ok ? pc.place : null;
         const blocked = pl && (pl.verdict === 'built' || pl.verdict === 'water');
-        $('#anlist').insertAdjacentHTML('beforeend', `${pl ? `<div class="check">${[[pl.cc ? 'ok' : 'warn', placeLine(pl), 'OpenStreetMap'], ...(pl.cover ? [[blocked ? 'bad' : 'ok', blocked ? t(pl.verdict === 'water' ? 'waterH' : 'coverBuilt') : t('coverMixed'), `${coverLine(pl)} · ESA WorldCover 10 m`]] : [])].map(([s, a, b]) => `<div class="ln"><span class="dot ${s}">${s === 'ok' ? I.check : '!'}</span><div><b>${esc(a)}</b><small>${esc(b)}</small></div></div>`).join('')}</div>` : ''}${blocked ? `<div class="blocked"><b>${esc(t('resiH'))}</b><p>${esc(t('resiT'))}</p></div>` : `<p class="sub">${esc(t('heroNoFieldS'))}</p>`}<div class="btns"><button class="btn" id="anAgain">${esc(t('pickOnMap'))}</button><button class="btn ghost" id="anUseAnyway">${esc(t('useAnyway'))}</button></div>`);
+        $('#anlist').insertAdjacentHTML('beforeend', `${pl ? `<div class="check">${[[pl.cc ? 'ok' : 'warn', placeLine(pl), '© OpenStreetMap contributors'], ...(pl.cover ? [[blocked ? 'bad' : 'ok', blocked ? t(pl.verdict === 'water' ? 'waterH' : 'coverBuilt') : t('coverMixed'), `${coverLine(pl)} · ESA WorldCover 10 m`]] : [])].map(([s, a, b]) => `<div class="ln"><span class="dot ${s}">${s === 'ok' ? I.check : '!'}</span><div><b>${esc(a)}</b><small>${esc(b)}</small></div></div>`).join('')}</div>` : ''}${blocked ? `<div class="blocked"><b>${esc(t('resiH'))}</b><p>${esc(t('resiT'))}</p></div>` : `<p class="sub">${esc(t('heroNoFieldS'))}</p>`}<div class="btns"><button class="btn" id="anAgain">${esc(t('pickOnMap'))}</button><button class="btn ghost" id="anUseAnyway">${esc(t('useAnyway'))}</button></div>`);
         $('#anUseAnyway').addEventListener('click', finishAdd);
         $('#anAgain').addEventListener('click', () => stepTo(1));
         return;
@@ -1289,7 +1301,7 @@
     const pl = p?.place;
     const rows = [];
     if (pl) {
-      rows.push([pl.cc ? 'ok' : 'warn', placeLine(pl) || t('placeUnknown'), 'OpenStreetMap']);
+      rows.push([pl.cc ? 'ok' : 'warn', placeLine(pl) || t('placeUnknown'), '© OpenStreetMap contributors']);
       if (pl.cover) rows.push([p.blocked ? 'bad' : 'ok', p.blocked ? t(pl.verdict === 'water' ? 'waterH' : 'coverBuilt') : pl.verdict === 'cropland' ? t('coverCrop') : t('coverMixed'), `${coverLine(pl)} · ESA WorldCover 10 m`]);
       if (!p.blocked) rows.push([p.calendar?.length ? 'ok' : 'warn', p.calendar?.length ? fmt('cropsForCountry', { area: cropArea(p) }) : t('noFaoHere'), p.aez ? 'FAO crop calendar' : 'MIRCA-OS crop calendar' + (p.picksBy ? ` · ${p.picksBy}` : '')]);
     }

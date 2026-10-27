@@ -9,6 +9,7 @@ import { DEFAULT_RULE, TRAY, cleanRule, sellDue, planDeal, shopPrompt, voiceDeal
 import { withNames as namesOf } from './lib/names.js';
 import { readIndex, createClip, putClipVideo, getClip, clipFrames, clipVideo, saveResult, deleteClip, setToday, todayCamera, MAX_CLIPS, setClipNames } from './lib/clips.js';
 import { threeNames } from './lib/translate.js';
+import { shedFacts, shedAnswer } from './lib/shedchat.js';
 import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage, zoomCenter } from './lib/tile.js';
 import { scanLand } from './lib/scan.js';
@@ -34,7 +35,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.11.2';
+const VERSION = '0.11.3';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -439,8 +440,10 @@ app.post(
   '/api/ask',
   guard,
   timed(async (req) => {
-    const { text, landId } = req.body || {};
+    const { text, landId, shedId, lang } = req.body || {};
     if (!text) throw new Error('text is required');
+    // v0.11.3: a shed is picked, so Saathi answers about the shed (kit, eggs, sell rule, last camera check).
+    if (shedId) return askShed(String(text), String(shedId), lang);
     // No land picked yet: answer for the Bogura demo plot (the Scenario 1 plot with full data).
     let lat = DEMO_PLACES.bogura.lat;
     let lon = DEMO_PLACES.bogura.lon;
@@ -471,6 +474,20 @@ app.post(
     return runAgent({ userText: String(text).slice(0, 2000), lat, lon, context, noField, plan });
   })
 );
+
+async function askShed(text, shedId, lang) {
+  const sheds = await listSheds();
+  const shed = sheds.find((s) => String(s.id) === shedId) || sheds[0];
+  const demo = Boolean(shed?.demo || shed?.builtIn);
+  const latest = latestByDevice(await latestReadings([SHED_DEVICE], 30).catch(() => []))[SHED_DEVICE] || null;
+  const index = await readIndex().catch(() => ({ clips: [] }));
+  const mine = index.clips.filter((c) => (demo ? !c.shedId : c.shedId === shed?.id) && c.result?.count);
+  const last = mine.sort((a, b) => String(b.result.checkedAt).localeCompare(String(a.result.checkedAt)))[0]?.result;
+  const check = last ? { when: last.checkedAt, count: last.count.count, still: last.count.still?.length || 0, resting: Boolean(last.count.resting), unusualSound: Boolean(last.observation?.unusualSound) } : null;
+  const facts = shedFacts({ shed, kit: latest, stock: await eggStock().catch(() => null), tray: TRAY, rule: await loadRule().catch(() => null), check, night: isNight(shedHour()) });
+  const out = await shedAnswer({ text, lang: pickLang(lang), facts });
+  return { ...out, trace: [], mode: 'shed' };
+}
 
 // ---------- alerts + simulated village sensor kit ----------
 const engine = createEngine({

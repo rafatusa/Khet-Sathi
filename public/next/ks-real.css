@@ -185,3 +185,8 @@ nav.bottom button[hidden],.toptabs button[hidden]{display:none}
 #dashShed .sh-kit .zinfo{margin-top:8px}
 header .top>div:nth-child(2){min-width:0;flex:1 1 auto}
 .farmbtn{max-width:100%}
+/* v0.11.3: shop sources kept apart; Google Maps text attribution per its rules (Roboto/sans, 400, 12-16px, #5E5E5E) */
+.shopbox{border-radius:14px;margin:6px 0}
+.shopbox.real{background:var(--bg);padding:6px 8px 4px}
+.gattr{font:400 12px Roboto,ui-sans-serif,system-ui,sans-serif;color:#5E5E5E;text-align:right;padding:2px 4px 4px;letter-spacing:normal}
+.credits{font-size:.72rem;color:var(--muted);margin:18px 0 0;line-height:1.5}

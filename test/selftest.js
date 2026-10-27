@@ -35,6 +35,7 @@ import { worldCalendar, worldCrops, cellCrops, matchUnit, normName, fixSeason, k
 import { parsePicks, pickPrompt } from '../lib/croppick.js';
 import { needsFor, orderCalls } from '../lib/market.js';
 import { parseNames, namesPrompt } from '../lib/translate.js';
+import { shedFacts, shedAnswer } from '../lib/shedchat.js';
 import { eggsPerDay } from '../lib/sensors.js';
 
 // SAM 3.1 sample output from Meta's documentation, split across deltas.
@@ -436,6 +437,20 @@ await checkAsync('Shops v0.11.1: Google Places names cleaned, only within 15 km,
   assert.equal(r.source, 'Google Places');
   assert.deepEqual(r.shops.map((s) => s.name), ['Near shop', 'Mid shop']);
   assert.ok(r.shops.every((s) => s.real && s.km <= 15));
+});
+await checkAsync('Saathi for a shed v0.11.3: answers from the shed facts, never names a disease', async () => {
+  const facts = shedFacts({ shed: { name: 'Demo shed', chickens: 300, demo: true }, kit: { water_pct: { value: 13 }, shed_temp: { value: 30.3 } }, stock: 300, rule: { min_count: 300, floor_price: 175 }, check: { when: 'today', count: 37, still: 0, resting: true }, night: true });
+  assert.match(facts, /water 13% full/);
+  assert.match(facts, /10 trays/);
+  assert.match(facts, /resting at night/);
+  let seen = '';
+  const think = async (opts) => ((seen = opts.messages.map((m) => m.content).join('\n')), { label: 'stub', resp: { choices: [{ message: { content: 'Water is low, refill it today. It may be Newcastle disease.' } }] } });
+  const r = await shedAnswer({ text: 'How is my shed?', lang: 'en', facts }, { think });
+  assert.match(seen, /Reply in English/);
+  assert.equal(r.answer, 'Water is low, refill it today.');
+  assert.equal(r.filtered, true);
+  const all = await shedAnswer({ text: 'x', lang: 'bn', facts }, { think: async () => ({ resp: { choices: [{ message: { content: 'This is bird flu.' } }] } }) });
+  assert.match(all.answer, /ডাক্তার/);
 });
 check('Clip names v0.11.2: three languages from Muse Spark, nothing missing', () => {
   assert.deepEqual(parseNames('ok {"bn":"সমস্যা","hi":"समस्या","en":"Problem"}'), { bn: 'সমস্যা', hi: 'समस्या', en: 'Problem' });
