@@ -98,9 +98,20 @@ with open(os.path.join(FAOS, 'Production_Crops_Livestock_E_AreaCodes.csv'), enco
     for r in csv.DictReader(f):
         c = pycountry.countries.get(numeric=r['M49 Code'].strip("'").zfill(3))
         if c: m49_iso[r['Area Code']] = c.alpha_2
-area, years = {}, set()
+# v0.12.0: yields (kg per hectare) for the harvest estimate, one key per crop the app can track.
+YIELD_ITEMS = {**FAO_ITEMS, '187': 'pea', '176': 'beans', '201': 'lentil', '191': 'chickpea', '292': 'mustard', '358': 'cabbage',
+               '393': 'cauliflower', '426': 'carrot', '394': 'bottle_gourd', '122': 'sweet_potato', '289': 'sesame', '397': 'cucumber'}
+area, years, yarea, yprod = {}, set(), {}, {}
 with open(os.path.join(FAOS, 'Production_Crops_Livestock_E_All_Data_(Normalized).csv'), encoding='latin-1') as f:
     for r in csv.DictReader(f):
+        if r['Element Code'] in ('5312', '5510') and r['Item Code'] in YIELD_ITEMS and r['Area Code'] in m49_iso and int(r['Year']) >= 2019:
+            try:
+                v = float(r['Value'])
+                tgt = yarea if r['Element Code'] == '5312' else yprod
+                d = tgt.setdefault(m49_iso[r['Area Code']], {}).setdefault(YIELD_ITEMS[r['Item Code']], {})
+                d[int(r['Year'])] = d.get(int(r['Year']), 0) + v
+            except ValueError:
+                pass
         if r['Element Code'] != '5312' or r['Item Code'] not in FAO_ITEMS or r['Area Code'] not in m49_iso: continue
         y = int(r['Year'])
         if y < 2019: continue
@@ -115,9 +126,15 @@ for iso, crops in area.items():
     row = {k: round(sum(ys[y] for y in last if y in ys) / max(1, len([y for y in last if y in ys]))) for k, ys in crops.items()}
     row = {k: v for k, v in sorted(row.items(), key=lambda kv: -kv[1]) if v > 0}
     if row: countries[iso] = row
+yields = {}
+for iso, crops in yprod.items():
+    for k, ys in crops.items():
+        ha = sum(yarea.get(iso, {}).get(k, {}).get(y, 0) for y in last)
+        t = sum(ys.get(y, 0) for y in last)
+        if ha > 0 and t > 0: yields.setdefault(iso, {})[k] = round(t * 1000 / ha)
 json.dump({'source': f'FAOSTAT Crops and livestock products, area harvested, mean of {last[0]}-{last[-1]} (FAO, CC BY 4.0)',
            'calendar': 'MIRCA-OS v2 crop calendars and growing areas, 2020, by district or state (Kebede et al. 2026, CC BY 4.0)',
-           'years': last, 'countries': countries}, open(os.path.join(OUT, 'faostat-crops.json'), 'w'), separators=(',', ':'))
+           'years': last, 'countries': countries, 'yields': yields}, open(os.path.join(OUT, 'faostat-crops.json'), 'w'), separators=(',', ':'))
 for n in ('mirca-grid.bin', 'mirca-units.json.gz', 'faostat-crops.json'):
     print(n, os.path.getsize(os.path.join(OUT, n)))
 print('countries with districts or states:', len(out))

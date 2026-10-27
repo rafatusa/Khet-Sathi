@@ -190,3 +190,17 @@ header .top>div:nth-child(2){min-width:0;flex:1 1 auto}
 .shopbox.real{background:var(--bg);padding:6px 8px 4px}
 .gattr{font:400 12px Roboto,ui-sans-serif,system-ui,sans-serif;color:#5E5E5E;text-align:right;padding:2px 4px 4px;letter-spacing:normal}
 .credits{font-size:.72rem;color:var(--muted);margin:18px 0 0;line-height:1.5}
+/* v0.12.0: a growing crop, harvest and sale */
+.growpick{display:flex;gap:12px;align-items:center;width:100%;margin:12px 0 4px;padding:14px;border:2px solid var(--leaf);border-radius:16px;background:var(--leaf-soft);color:var(--ink);font:inherit;text-align:left;cursor:pointer;min-height:56px}
+.growpick>span:first-child{width:36px;height:36px;flex:none;color:var(--leaf)}.growpick b{display:block}.growpick small{color:var(--muted)}
+.cropdash{margin-bottom:0}
+.hvready{display:flex;gap:14px;align-items:center}.hvready .ringwrap{width:118px;flex:none}.hvready .pill{margin-bottom:6px;display:inline-block}
+.rfg.hv{stroke:var(--leaf);transition:stroke-dasharray .8s ease}
+.hvcurve{height:74px;margin-top:8px}
+.linkbtn{background:none;border:0;padding:6px 0;color:var(--leaf);font:600 .9rem var(--f-body,inherit);text-decoration:underline;cursor:pointer;min-height:36px}
+.bookrow{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.bookrow:last-of-type{border-bottom:0}
+.bookrow .bic{width:34px;height:34px;flex:none;color:var(--soil)}.bookrow .nm{flex:1;min-width:0}.bookrow .nm b{display:block}.bookrow .nm small{color:var(--muted)}
+.floorin{display:flex;align-items:center;gap:6px;margin:8px 0}.floorin span{font-weight:700}.floorin input{flex:1;min-width:0;font:700 1.2rem var(--f-display,inherit);padding:8px 10px;border:2px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink)}
+#mkCrop .ruleopt>span:first-child{font-weight:600;display:block}
+#growDateBox input{width:100%}
+.demo.real{background:var(--leaf-soft);color:#1f4d22}

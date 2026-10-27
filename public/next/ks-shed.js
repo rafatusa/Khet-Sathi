@@ -962,10 +962,11 @@
     }
     if (tab === 'market') {
       if (S.mode === 'shed') renderShedMarket();
+      else if (K.growingNow()) window.KSHarvest?.renderMarket();
       else if (!P.market || P.market.landId !== S.cur?.id) loadMarket();
       else renderFieldMarket();
     }
   }
 
-  window.KSShed = { load, render, renderHome, hero, openAddShed, openVet };
+  window.KSShed = { load, render, renderHome, hero, openAddShed, openVet, playCalls, comingSoon };
 })();

@@ -28,6 +28,7 @@ import { DEFAULT_RULE, TRAY, cleanRule, sellDue, planDeal, voiceDeal, parseLines
 import { autoSigns, vetMessage, vetScript, withNames, cleanCall, parseDeaths, parseSince, SIGN_CODES } from '../lib/vetcall.js';
 import { createEngine } from '../lib/engine.js';
 import * as memStore from '../lib/store.js';
+import { sowingFromPasses, rowFor, readiness, harvestAmount, unitFor, samplePrice, DEMO_BUYERS, planCropDeal, voiceCropDeal, cleanCropRule } from '../lib/harvest.js';
 import sharp from 'sharp';
 import { createLand, getLand, putFile, getFile, deleteLand, deleteFiles } from '../lib/store.js';
 import { addressParts, coverShares, verdictFrom, worldCoverTile, shopsFromOverpass, currencyFor, cleanShopName, nearbyShops } from '../lib/place.js';
@@ -915,6 +916,49 @@ await checkAsync('Sentinel-2: clouds masked, NDVI stats, zones, passes, next pas
   assert.equal(h.latest.date, '2026-10-25');
   assert.equal(h.passes[1].cloudy, true, 'a 95% cloudy tile is not read and shows as cloudy');
   assert.equal(h.passes[1].read, false);
+});
+
+// ---------- v0.12.0: a growing crop ----------
+await checkAsync('harvest: sowing estimated from the green-up, calendar row, readiness', async () => {
+  const pass = (date, v) => ({ date, cloudy: false, ndvi: { mean: v } });
+  const passes = [pass('2026-07-01', 0.62), pass('2026-07-20', 0.22), pass('2026-08-10', 0.4), pass('2026-09-01', 0.7), pass('2026-10-01', 0.82), pass('2026-10-25', 0.74)];
+  assert.equal(sowingFromPasses(passes, '2026-10-28'), '2026-07-06');
+  assert.equal(sowingFromPasses(passes.slice(-3), '2026-10-28'), null, 'green the whole window: unknown');
+  const cal = [
+    { key: 'rice', sow: [12, 1, 12, 31], growDays: { min: 105, max: 135 }, areaScope: 'district' },
+    { key: 'rice', sow: [7, 1, 7, 31], growDays: { min: 135, max: 165 }, areaScope: 'district' },
+  ];
+  const row = rowFor(cal, 'rice', '2026-07-25');
+  assert.equal(row.sow[0], 7, 'the Aman row (July sowing), not the Boro row');
+  const r = readiness({ crop: 'rice', sownOn: '2026-07-25', today: '2026-10-28', row, passes });
+  assert.equal(r.harvestStart, '2026-12-07');
+  assert.equal(r.stage, 'ripening', 'past the greenness peak and over 60% of the season');
+  assert.ok(r.pct > 50 && r.pct < 98);
+  assert.equal(r.calendar.source, 'MIRCA-OS');
+  const late = readiness({ crop: 'rice', sownOn: '2026-05-01', today: '2026-10-28', row, passes: [] });
+  assert.equal(late.stage, 'late');
+  assert.equal(late.pct, 100);
+});
+
+await checkAsync('harvest: amount in the local unit, sample price, demo bargaining keeps the floor', async () => {
+  assert.equal(unitFor('BD').key, 'mon');
+  assert.equal(unitFor('IN').key, 'quintal');
+  assert.equal(unitFor('US').key, 't');
+  const a = harvestAmount({ cc: 'BD', crop: 'rice', acres: 1 });
+  assert.ok(a && a.units > 30 && a.units < 80, `about ${a?.units} maund of rice from an acre`);
+  assert.equal(harvestAmount({ cc: 'BD', crop: 'rice', acres: 0 }), null);
+  const price = samplePrice({ crop: 'rice', unit: unitFor('BD'), currency: { perUsd: 120 } });
+  assert.ok(price > 800 && price < 2000, `sample rice price ${price} taka a maund`);
+  for (const b of DEMO_BUYERS) {
+    const deal = planCropDeal({ buyer: b, base: 1300, floor: 1250, lang: 'en' });
+    if (deal.price != null) assert.ok(deal.price >= 1250, `${b.id} never below the floor`);
+    else assert.ok(deal.best < 1250);
+  }
+  const turns = voiceCropDeal(planCropDeal({ buyer: DEMO_BUYERS[0], base: 1300, floor: 1250, lang: 'bn' }), { lang: 'bn', qty: 60, unit: unitFor('BD'), cropName: 'ধান', currency: { symbol: '৳' } });
+  assert.ok(turns.length >= 4 && turns.every((x) => !/[0-9]/.test(x.text)), 'Bangla lines use Bangla digits');
+  assert.throws(() => cleanCropRule({}), /lowest price/);
+  const rule = cleanCropRule({ floor_price: '1250', qty: 60.04, when: 'hold30', ask_first: false });
+  assert.deepEqual([rule.floor_price, rule.qty, rule.when, rule.ask_first], [1250, 60, 'hold30', false]);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

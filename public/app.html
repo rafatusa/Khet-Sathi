@@ -25,7 +25,7 @@
 </header>
 
 <main class="wrap">
-  <div class="demo" data-t="demo"></div>
+  <div class="demo" id="demoBar"></div>
 
   <!-- PASSCODE -->
   <section id="pass" role="tabpanel" hidden>
@@ -42,6 +42,11 @@
       <div class="plantmini" id="plantHome"></div>
       <div class="strip-t"><div class="big" id="heroBig"></div><div class="hi" id="heroSub"></div></div>
       <button class="cta" id="heroCta"><span data-icon="check" id="heroIc"></span><span id="heroCtaT"></span></button>
+    </div>
+    <div class="dash cropdash" id="dashCrop" hidden>
+      <div class="card span2"><div class="lab"><span data-icon="harvester"></span><span data-t="readyH"></span><span class="src-tag">SENTINEL-2 · <span id="hvCalSrc"></span></span></div><div id="hvReady"></div></div>
+      <div class="card span2"><div class="lab"><span data-icon="tractor"></span><span data-t="bookH"></span><span class="src-tag sim" id="hvBookTag" data-t="demoTag"></span></div><div id="hvBook"></div></div>
+      <div class="card span2"><div class="lab"><span data-icon="rupee"></span><span data-t="sellH"></span><span class="src-tag sim" id="hvSellTag" data-t="samplePrices"></span></div><div id="hvSell"></div></div>
     </div>
     <div class="dash" id="dash">
       <div class="card c-score">
@@ -180,6 +185,11 @@
         <button class="cta wide" type="button" id="mkCall"><span data-icon="chat"></span><span data-t="callAndBook"></span></button><p class="muted small" data-t="demoCallNote"></p></div>
       <div class="panel"><div class="lab"><span data-icon="pin"></span><span data-t="nearShops"></span><span class="src-tag" id="mkShopSrc"></span></div><div id="mkShops"></div></div>
     </div>
+    <div class="grid2" id="mkCrop" hidden>
+      <div class="panel"><div class="lab"><span data-icon="rupee"></span><span data-t="cropRuleH"></span><span class="src-tag sim" id="mcTag" data-t="samplePrices"></span></div><div id="mcRule"></div></div>
+      <div class="panel"><div class="lab"><span data-icon="chat"></span><span id="mcOffersH" data-t="offersH"></span></div><div id="mcOffers"></div>
+        <div class="lab" style="margin-top:14px"><span data-icon="pin"></span><span data-t="realBuyersH"></span></div><div id="mcBuyers"></div></div>
+    </div>
     <div class="grid2" id="mkShed" hidden>
       <div class="panel"><div class="lab"><span data-icon="egg"></span><span data-t="eggSaleH"></span><span class="src-tag sim" data-t="simulated"></span></div><div class="bigstat" id="mkStock"></div><div class="rulebox" id="mkRule"></div>
         <div class="btns"><button class="btn" type="button" data-sell data-t="callShopsNow"></button><button class="btn ghost" type="button" data-rule data-t="changeRule"></button></div><p class="muted small" data-t="demoCallNote"></p></div>
@@ -224,6 +234,7 @@
       <div class="blocked" id="blockedBox" hidden><b data-t="resiH"></b><p data-t="resiT"></p><div class="btns"><button class="btn" type="button" id="pickAgain" data-t="pickOnMap"></button><button class="btn ghost" type="button" id="tryDemo" data-t="tryDemo"></button></div></div>
       <div class="prof" id="prof"></div>
       <div class="crops" id="crops"></div>
+      <button class="growpick" id="growingBtn" type="button"><span data-icon="sprout"></span><span><b data-t="growingQ"></b><small data-t="growingS"></small></span></button>
       <div class="btns"><button class="btn ghost" id="noCrop" type="button" data-t="justWatch"></button></div>
     </div>
     <div id="a4" hidden>
@@ -236,6 +247,17 @@
 </div>
 
 <!-- FARM SWITCHER -->
+<div class="sheet" id="growSheet" hidden>
+  <div class="wrap sh narrowsh">
+    <div class="shtop"><button class="iconbtn" id="growClose" data-tl="close">×</button><h2 style="margin:0" data-t="growTitle"></h2></div>
+    <b data-t="whichCrop"></b><div class="chips" id="growCrops"></div>
+    <b data-t="whenSown"></b><div class="chips" id="growWhen"></div>
+    <label class="field" id="growDateBox" hidden><span data-t="pickDate"></span><input type="date" id="growDate"></label>
+    <p class="muted small" id="growNote"></p>
+    <button class="cta wide" type="button" id="growSave"><span data-icon="check"></span><span data-t="saveGrow"></span></button>
+  </div>
+</div>
+
 <div class="sheet" id="farmSheet" hidden>
   <div class="wrap sh">
     <div class="shtop"><button class="iconbtn" id="farmClose" data-tl="close">×</button><h2 style="margin:0" data-t="myFarm"></h2></div>
@@ -331,5 +353,6 @@
 <script src="/next/ks-text.js"></script>
 <script src="/next/ks.js"></script>
 <script src="/next/ks-shed.js"></script>
+<script src="/next/ks-harvest.js"></script>
 </body>
 </html>

@@ -26,6 +26,7 @@ import { fieldPolygonM, areaAcres } from './lib/fieldgeo.js';
 import { DEMO_PLACES } from './lib/plot.js';
 import { nearbyShops, currencyFor } from './lib/place.js';
 import { needsFor, orderCalls, DEMO_SHOP, DEMO_CREW } from './lib/market.js';
+import { sowingFromPasses, rowFor, readiness, harvestAmount, unitFor, samplePrice, DEMO_BUYERS, planCropDeal, voiceCropDeal, cleanCropRule, priceText, digitsFor, unitName } from './lib/harvest.js';
 import {
   dbConfigured, isId, newId, createLand, listLands, getLand, updateLand, deleteLand, putFile, getFile, deleteFiles, listAlerts, pingDb,
   recentAlerts, insertAlerts, markAlertRead, insertReadings, latestReadings, listContacts, CLIP_BUCKET, getSellRule, saveSellRule, insertDeal, listDeals,
@@ -35,7 +36,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.11.3';
+const VERSION = '0.12.0';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -209,7 +210,23 @@ app.patch(
     if (req.body && 'crop' in req.body && !('selected' in req.body)) {
       const crop = req.body.crop == null ? null : String(req.body.crop);
       if (crop !== null && !/^[a-z_]{2,30}$/.test(crop)) throw new Error('Unknown crop');
-      return { land: landView(await updateLand(land.id, { crop })) };
+      const patch = { crop };
+      // v0.12.0: "something is growing": the land becomes a crop land with its sowing date (or null = estimate it).
+      if (req.body.kind === 'crop' || req.body.kind === 'empty') patch.kind = req.body.kind;
+      if ('sown_on' in req.body) {
+        const d = req.body.sown_on == null ? null : String(req.body.sown_on);
+        if (d !== null && (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(`${d}T12:00:00Z`)) || new Date(`${d}T12:00:00Z`).toISOString().slice(0, 10) !== d)) throw new Error('Sowing date must be a real date (YYYY-MM-DD)');
+        if (d !== null && d > localToday('Asia/Dhaka')) throw new Error('Sowing date cannot be in the future');
+        patch.sown_on = d;
+      }
+      // A built-up or water spot never gets a crop (v0.11.0 place check).
+      if (patch.kind === 'crop' && ['built', 'water'].includes(land.place_info?.verdict)) throw new Error('This spot looks like a built-up area or water, so no crop can be tracked here');
+      try {
+        return { land: landView(await updateLand(land.id, patch)) };
+      } catch (err) {
+        if (/sown_on/.test(err.message)) throw new Error('Run SQL 006 in Supabase first to save the sowing date');
+        throw err;
+      }
     }
     const sel = String(req.body?.selected ?? '');
     const obj = (land.objects || []).find((o) => String(o.id) === sel);
@@ -221,7 +238,22 @@ app.patch(
 
 // What to grow: real soil, weather and sowing windows for this land, plus the top crops.
 // Soil and farming zone are saved on the land the first time, so SoilGrids runs once per land.
-async function planForLand(land) {
+// v0.12.0: Home asks for the plan and the harvest at once; both share one build (2 minutes), so the
+// place check never sends OpenStreetMap two requests in the same second.
+const planJobs = new Map();
+function planForLand(land) {
+  const key = `${land.id}|${land.lat},${land.lon}|${(land.objects || []).length}`;
+  const hit = planJobs.get(key);
+  if (hit && Date.now() - hit.at < 120000) return hit.job;
+  const job = buildPlanForLand(land).catch((err) => {
+    planJobs.delete(key);
+    throw err;
+  });
+  planJobs.set(key, { at: Date.now(), job });
+  if (planJobs.size > 200) planJobs.delete(planJobs.keys().next().value);
+  return job;
+}
+async function buildPlanForLand(land) {
   const plan = await buildPlan(land);
   if (plan.soilFresh || (plan.aez && land.aez !== plan.aez)) {
     try {
@@ -252,22 +284,170 @@ app.get(
 // Field health from Sentinel-2 (v0.10.0): real NDVI for the field outline, every pass in 150 days.
 // Cached for 6 hours per land and outline; the first load reads up to 20 passes (a few seconds).
 const healthCache = new Map();
+async function healthFor(land, fresh = false) {
+  const outline = fieldPolygonM(land);
+  const rings = outline || [[[-30, -30], [30, -30], [30, 30], [-30, 30]]]; // no outline: 60 m around the point
+  const key = `${land.id}|${land.selected_object}|${(land.objects || []).length}`;
+  const hit = healthCache.get(key);
+  let health = hit && Date.now() - hit.at < 6 * 3600 * 1000 ? hit.health : null;
+  if (!health || fresh) {
+    health = await fieldHealth({ lat: land.lat, lon: land.lon, rings, today: localToday('Asia/Dhaka') });
+    healthCache.set(key, { at: Date.now(), health });
+  }
+  return { outline, rings, health };
+}
 app.get(
   '/api/lands/:id/field',
   guard,
   timed(async (req) => {
     const land = await getLand(req.params.id);
     if (!land) throw new Error('Land not found');
-    const outline = fieldPolygonM(land);
-    const rings = outline || [[[-30, -30], [30, -30], [30, 30], [-30, 30]]]; // no outline: 60 m around the point
-    const key = `${land.id}|${land.selected_object}|${(land.objects || []).length}`;
-    const hit = healthCache.get(key);
-    let health = hit && Date.now() - hit.at < 6 * 3600 * 1000 ? hit.health : null;
-    if (!health || req.query.fresh === '1') {
-      health = await fieldHealth({ lat: land.lat, lon: land.lon, rings, today: localToday('Asia/Dhaka') });
-      healthCache.set(key, { at: Date.now(), health });
-    }
+    const { outline, rings, health } = await healthFor(land, req.query.fresh === '1');
     return { outline: rings, outlineFound: Boolean(outline), outlineAcres: Math.round(areaAcres(rings) * 100) / 100, groundM: land.ground_m, imagePx: land.image_px, health };
+  })
+);
+
+// ---------- a growing crop (v0.12.0): readiness, amount, booking the harvest, selling it ----------
+async function harvestState(land) {
+  if (!land.crop) throw new Error('Pick the crop that is growing first');
+  const [plan, { health }] = await Promise.all([
+    (land.objects || []).length ? planForLand(land).catch(() => null) : null,
+    healthFor(land).catch(() => ({ health: null })),
+  ]);
+  const today = plan?.today || localToday('Asia/Dhaka');
+  const passes = health?.passes || [];
+  const estimated = !land.sown_on;
+  const sownOn = land.sown_on || sowingFromPasses(passes, today) || null;
+  const currency = plan?.currency || land.place_info?.currency || currencyFor(land.place_info?.cc);
+  const cc = plan?.place?.cc || land.place_info?.cc || null;
+  const demo = land.location_source === 'demo';
+  const unit = unitFor(cc);
+  const ready = sownOn ? readiness({ crop: land.crop, sownOn, today, row: rowFor(plan?.growCalendar?.length ? plan.growCalendar : plan?.calendar, land.crop, sownOn), passes }) : null;
+  const amount = harvestAmount({ cc, crop: land.crop, acres: land.acres });
+  return { land, plan, today, sownOn, estimated, ready, amount, unit, currency, demo, cc, price: demo ? samplePrice({ crop: land.crop, unit, currency }) : null };
+}
+
+app.get(
+  '/api/lands/:id/harvest',
+  guard,
+  timed(async (req) => {
+    const land = await getLand(req.params.id);
+    if (!land) throw new Error('Land not found');
+    const s = await harvestState(land);
+    const buyers = await nearbyShops(Number(land.lat), Number(land.lon), { kind: 'buyers', cropText: land.crop.replace(/_/g, ' ') }).catch(() => ({ shops: [], error: 'Buyer search did not answer' }));
+    const rule = land.sell_rule || null;
+    return {
+      crop: land.crop,
+      sownOn: s.sownOn,
+      estimated: s.estimated,
+      ready: s.ready,
+      amount: s.amount,
+      unit: s.unit,
+      currency: s.currency,
+      demoLand: s.demo,
+      samplePrice: s.price,
+      rule,
+      buyers: buyers.shops,
+      buyerSource: buyers.source || null,
+      buyerError: buyers.error || null,
+      demoBuyers: s.demo ? DEMO_BUYERS.map((b) => ({ id: b.id, name: b.name })) : [],
+      simulated: s.demo,
+    };
+  })
+);
+
+app.post(
+  '/api/lands/:id/harvest/rule',
+  guard,
+  timed(async (req) => {
+    const land = await getLand(req.params.id);
+    if (!land) throw new Error('Land not found');
+    const rule = cleanCropRule(req.body || {}, land.sell_rule || {});
+    try {
+      await updateLand(land.id, { sell_rule: rule });
+    } catch (err) {
+      if (/sell_rule/.test(err.message)) throw new Error('Run SQL 006 in Supabase first to save the selling rule');
+      throw err;
+    }
+    return { rule };
+  })
+);
+
+// Demo lands only: Saathi bargains with the fictional demo buyers by fixed rules. Real lands: coming soon.
+app.post(
+  '/api/lands/:id/harvest/run',
+  guard,
+  timed(async (req) => {
+    const land = await getLand(req.params.id);
+    if (!land) throw new Error('Land not found');
+    if (land.location_source !== 'demo' || req.body?.buyer?.real) return { comingSoon: true, simulated: false };
+    const s = await harvestState(land);
+    const L = pickLang(req.body?.lang);
+    const rule = land.sell_rule || { floor_price: Math.round((s.price * 0.97) / 10) * 10, qty: s.amount?.units || 1, ask_first: true };
+    const qty = rule.qty || s.amount?.units || 1;
+    const cropName = String(req.body?.cropName || land.crop).slice(0, 40);
+    const shops = DEMO_BUYERS.map((b) => {
+      const plan = planCropDeal({ buyer: b, base: s.price, floor: Number(rule.floor_price), lang: L });
+      return { contact_id: b.id, name: b.name[L], names: b.name, turns: voiceCropDeal(plan, { lang: L, qty, unit: s.unit, cropName, currency: s.currency }), price: plan.price, best: plan.best, pickup: plan.pickup };
+    });
+    const ranked = rankOffers(shops).map((x) => x.contact_id);
+    const run = { id: newId(), at: new Date().toISOString(), lang: L, qty, unit: s.unit, floor: Number(rule.floor_price), currency: s.currency, status: 'open', shops, ranked };
+    await updateLand(land.id, { sell_rule: { ...rule, last_run: run } }).catch(() => null);
+    return { run, simulated: true };
+  })
+);
+
+app.post(
+  '/api/lands/:id/harvest/confirm',
+  guard,
+  timed(async (req) => {
+    const land = await getLand(req.params.id);
+    if (!land) throw new Error('Land not found');
+    const run = land.sell_rule?.last_run;
+    if (!run || run.id !== req.body?.runId || run.status !== 'open') throw new Error('These offers are no longer open; call the buyers again');
+    const shop = run.shops.find((x) => x.contact_id === req.body?.buyerId);
+    if (!shop?.price) throw new Error('This buyer did not reach your lowest price');
+    const total = Math.round(shop.price * run.qty);
+    const deal = await insertDeal({
+      land_id: land.id,
+      direction: 'sell',
+      items: [{ item: 'harvest', crop: land.crop, qty: run.qty, unit: run.unit.key, price: shop.price, currency: run.currency.code, symbol: run.currency.symbol, shop: shop.name, pickup: shop.pickup, simulated: true }],
+      total_inr: total,
+      status: 'confirmed',
+    });
+    await updateLand(land.id, { sell_rule: { ...land.sell_rule, last_run: { ...run, status: 'sold', soldTo: shop.contact_id } } }).catch(() => null);
+    return { deal, total, simulated: true };
+  })
+);
+
+// Book the harvester or transport. Demo lands: a scripted demo call with the demo crew. Real lands: coming soon.
+app.post(
+  '/api/lands/:id/harvest/book',
+  guard,
+  timed(async (req) => {
+    const land = await getLand(req.params.id);
+    if (!land) throw new Error('Land not found');
+    const what = req.body?.what === 'transport' ? 'transport' : 'harvester';
+    if (land.location_source !== 'demo') return { comingSoon: true, what, simulated: false };
+    const s = await harvestState(land);
+    const L = pickLang(req.body?.lang);
+    const acres = Number(land.acres) || 1;
+    const usd = what === 'harvester' ? Math.max(8, acres * 25) : Math.max(5, (s.amount?.units || 2) * 1.5);
+    const total = Math.round(usd * (s.currency?.perUsd || 1));
+    const whenIso = s.ready?.harvestStart || s.today;
+    const when = digitsFor(new Date(`${whenIso}T12:00:00Z`).toLocaleDateString({ bn: 'bn-BD', hi: 'hi-IN', en: 'en-IN' }[L], { day: 'numeric', month: 'long', timeZone: 'UTC' }), L);
+    const acresT = digitsFor(String(Math.round(acres * 100) / 100), L);
+    const qtyT = digitsFor(String(s.amount?.units || 2), L);
+    const T = {
+      en: { harvester: ['Hello, this is Khet Saathi calling for a farmer.', `Can your reaper cut ${acresT} acres of the crop from ${when}?`, `Yes, we can come on ${when}. ${priceText(total, s.currency, 'en')} for the job.`, 'Please book it. Thank you.'], transport: ['Hello, this is Khet Saathi calling for a farmer.', `Can you carry about ${qtyT} ${unitName(s.unit, 'en')} to the buyer the day after harvest?`, `Yes, my van can do it. ${priceText(total, s.currency, 'en')}.`, 'Please book it. Thank you.'] },
+      bn: { harvester: ['নমস্কার, আমি খেত সাথী, একজন কৃষকের হয়ে ফোন করছি।', `${when} থেকে ${acresT} একর ফসল কেটে দিতে পারবেন?`, `হ্যাঁ, ${when} আসতে পারি। পুরো কাজ ${priceText(total, s.currency, 'bn')}।`, 'বুক করে দিন। ধন্যবাদ।'], transport: ['নমস্কার, আমি খেত সাথী, একজন কৃষকের হয়ে ফোন করছি।', `কাটার পরদিন প্রায় ${qtyT} ${unitName(s.unit, 'bn')} ফসল ক্রেতার কাছে পৌঁছে দিতে পারবেন?`, `হ্যাঁ, আমার গাড়ি পারবে। ${priceText(total, s.currency, 'bn')}।`, 'বুক করে দিন। ধন্যবাদ।'] },
+      hi: { harvester: ['नमस्ते, मैं खेत साथी हूँ, एक किसान की ओर से फ़ोन कर रहा हूँ।', `क्या आप ${when} से ${acresT} एकड़ फ़सल काट सकते हैं?`, `हाँ, ${when} आ सकते हैं। पूरे काम के ${priceText(total, s.currency, 'hi')}।`, 'कृपया बुक कर दीजिए। धन्यवाद।'], transport: ['नमस्ते, मैं खेत साथी हूँ, एक किसान की ओर से फ़ोन कर रहा हूँ।', `क्या आप कटाई के अगले दिन लगभग ${qtyT} ${unitName(s.unit, 'hi')} फ़सल खरीदार तक पहुँचा सकते हैं?`, `हाँ, मेरी गाड़ी कर देगी। ${priceText(total, s.currency, 'hi')}।`, 'कृपया बुक कर दीजिए। धन्यवाद।'] },
+    }[L][what];
+    const crew = { harvester: { en: 'Demo reaper crew', bn: 'ডেমো ফসল কাটার দল', hi: 'डेमो कटाई टीम' }, transport: { en: 'Demo transport van', bn: 'ডেমো মাল পরিবহন', hi: 'डेमो ढुलाई गाड़ी' } }[what][L];
+    const turns = T.map((text, i) => ({ who: i === 2 ? 'shop' : 'saathi', text }));
+    const deal = await insertDeal({ land_id: land.id, direction: 'buy', items: [{ item: what, crop: land.crop, qty: what === 'harvester' ? acres : s.amount?.units || 2, unit: what === 'harvester' ? 'acre' : s.unit.key, price: total, currency: s.currency.code, symbol: s.currency.symbol, shop: crew, when: whenIso, simulated: true }], total_inr: total, status: 'confirmed' });
+    await insertAlerts([{ land_id: land.id, area: 'market', severity: 'info', title: 'order_booked', source: 'demo', body: JSON.stringify({ shop: crew, total, symbol: s.currency.symbol, when: whenIso }) }]).catch(() => null);
+    return { calls: [{ to: crew, total, when: whenIso, turns }], total, currency: s.currency, deal, simulated: true };
   })
 );
 
@@ -467,6 +647,13 @@ app.post(
           land.kind === 'empty' ? 'the land is empty, nothing planted yet' : `there is a standing crop${land.crop ? ` (${land.crop})` : ''}`,
           land.acres ? `plot size about ${land.acres} acres (measured from satellite)` : 'plot size unknown',
         ].join('; ');
+        // v0.12.0: a standing crop: its sowing date, harvest window and expected amount.
+        if (land.kind === 'crop' && land.crop) {
+          const s = await harvestState(land).catch(() => null);
+          if (s?.ready) context += `; sown ${s.sownOn}${s.estimated ? ' (estimated from satellite greenness)' : ''}; harvest window ${s.ready.harvestStart} to ${s.ready.harvestEnd}; stage ${s.ready.stage}, ${s.ready.pct}% of the way to harvest`;
+          if (s?.amount) context += `; expected harvest about ${s.amount.units} ${s.unit.key === 'mon' ? 'maund (40 kg)' : s.unit.key === 'quintal' ? 'quintal' : 'x 100 kg'} (country average yield, FAOSTAT)`;
+          context += plan?.demoLand ? '; the harvest booking and buyer calls in the Market tab are a demo' : '; no live crop prices yet, and calling buyers is coming soon';
+        }
       }
     }
     if (!landId) plan = await buildPlan({ lat, lon, place: 'bogura' }).catch(() => null);

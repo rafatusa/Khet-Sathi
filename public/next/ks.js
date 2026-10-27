@@ -88,6 +88,7 @@
     $$('[data-tl]').forEach((el) => el.setAttribute('aria-label', t(el.dataset.tl)));
     $$('[data-tp]').forEach((el) => el.setAttribute('placeholder', t(el.dataset.tp)));
     $$('.lang [data-lang]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lang === lang)));
+    applyMode();
   }
   $$('.lang [data-lang]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -128,11 +129,19 @@
     $$('#tabs [data-tab="shed"]').forEach((b) => (b.hidden = S.mode !== 'shed'));
     $('#dash').hidden = S.mode !== 'field';
     $('#dashShed').hidden = S.mode !== 'shed';
-    $('#mkField').hidden = S.mode !== 'field';
+    const growing = S.mode === 'field' && growingNow();
+    $('#dashCrop').hidden = !growing;
+    $('#grow').closest('.card').hidden = growing;
+    $('#mkField').hidden = S.mode !== 'field' || growing;
+    $('#mkCrop').hidden = !growing;
     $('#mkShed').hidden = S.mode !== 'shed';
     $('#modeChip').textContent = t(S.mode === 'shed' ? 'mPoultry' : 'mField');
     $('#modeChip').className = `mchip ${S.mode}`;
     document.body.dataset.mode = S.mode;
+    // v0.12.0: the demo line only for demo places; a farmer's own land says it is real data.
+    const demoPlace = S.mode === 'shed' ? Boolean(S.shed?.demo || S.shed?.builtIn) : !S.cur || S.cur.location_source === 'demo';
+    $('#demoBar').textContent = t(demoPlace ? 'demo' : 'realBar');
+    $('#demoBar').classList.toggle('real', !demoPlace);
   }
   // Desktop: the tabs sit in the header; phones keep the bottom bar.
   const wide = matchMedia('(min-width: 1000px)');
@@ -157,6 +166,8 @@
 
   // ---------- loading a land ----------
   const hasField = (l) => Boolean(l && (l.objects || []).length);
+  // v0.12.0: a crop is growing on this land (the farmer said so); Home and Market follow it to harvest and sale.
+  const growingNow = () => Boolean(S.cur && S.cur.kind === 'crop' && S.cur.crop);
   async function loadLands() {
     const r = await api('/api/lands');
     S.lands = r.ok ? r.lands || [] : [];
@@ -192,6 +203,7 @@
       api(`/api/sensors?landId=${id}`).then((s) => (S.sensors = s.ok ? s : null)).catch(() => null),
     ].filter(Boolean);
     Promise.all(jobs).then(() => renderAll());
+    if (growingNow()) window.KSHarvest?.load();
     // Sentinel-2 reads take a few seconds on the first visit; the server caches them for 6 hours.
     $('#mapLoading').hidden = false;
     api(`/api/lands/${id}/field`)
@@ -244,7 +256,7 @@
   const shedLine = (s) => (s ? `${shedName(s)}${s.chickens ? ` · ${fmt('aboutChickens', { n: num(s.chickens) })}` : ''}` : '');
   function renderHeader() {
     const l = S.cur;
-    $('#farmLine').textContent = S.mode === 'shed' ? shedLine(S.shed) : l ? `${landTitle(l)} · ${l.acres ? `${num(l.acres, 2)} ${t('acShort')}` : t('noOutlineShort')}` : t('noLandYet');
+    $('#farmLine').textContent = S.mode === 'shed' ? shedLine(S.shed) : l ? `${landTitle(l)} · ${l.acres ? `${num(l.acres, 2)} ${t('acShort')}` : t('noOutlineShort')}${growingNow() ? ` · ${cropName(l.crop)}` : ''}` : t('noLandYet');
   }
   function renderAll() {
     renderHeader();
@@ -292,6 +304,7 @@
     if (!l) return { big: t('heroAddH'), sub: t('heroAddS'), cta: t('addLand'), icon: 'plus', go: openAdd };
     if (!hasField(l)) return { big: t('heroNoFieldH'), sub: t('heroNoFieldS'), cta: t('rescan'), icon: 'pin', go: rescan };
     if (S.plan?.blocked) return { big: t('resiH'), sub: placeLine(S.plan.place), cta: t('addField'), icon: 'pin', go: openAdd };
+    if (growingNow()) return window.KSHarvest?.hero() || { big: cropName(l.crop), sub: t('loadingPlan'), cta: t('askSaathi'), icon: 'chat', go: () => ask(fmt('qPlanHarvest', { crop: cropName(l.crop) })) };
     const c = S.plan?.crops?.[0];
     if (c) {
       const sub = [placeLine(S.plan.place), whenText(c)].filter(Boolean).join(' · ');
@@ -320,6 +333,7 @@
     renderDonut();
     renderNextPass();
     renderJourney();
+    if (growingNow()) window.KSHarvest?.renderHome();
   }
 
   function healthWord(v) {
@@ -486,6 +500,8 @@
         })
         .join('') || emptyBox(t('noCropsText'));
     if (p.picksBy) box.insertAdjacentHTML('beforeend', `<div class="muted small">${esc(fmt('picksBy', { model: p.picksBy, area: cropArea(p) }))}</div>`);
+    box.insertAdjacentHTML('beforeend', `<button class="btn ghost" type="button" id="alreadyGrowing">${I.sprout}<span>${esc(t('alreadyGrowing'))}</span></button>`);
+    $('#alreadyGrowing').addEventListener('click', () => window.KSHarvest?.openGrow({ land: S.cur, plan: S.plan }));
     box.querySelectorAll('[data-crop]').forEach((b) => b.addEventListener('click', () => ask(fmt('qPlan', { crop: cropName(b.dataset.crop) }))));
   }
 
@@ -585,9 +601,9 @@
     ];
   }
   function renderJourney() {
-    const c = topCrop();
+    const c = topCrop() || (growingNow() ? { key: S.cur.crop } : null);
     const today = S.plan?.today || new Date().toISOString().slice(0, 10);
-    const steps = seasonSteps(c, today);
+    const steps = (growingNow() && window.KSHarvest?.steps()) || seasonSteps(c, today);
     $('#journeyH').textContent = c ? fmt('seasonOf', { crop: cropName(c.key) }) : t('seasonNone');
     if (!steps.length) {
       // No crop to plan: still loading, no FAO calendar for this area (offer the AI estimate), or no open window.
@@ -1083,7 +1099,7 @@
       ? conf
           .map((d) => {
             const it = (d.items || [])[0] || {};
-            const label = it.item === 'eggs' ? fmt('dealEggs', { trays: num(it.trays), shop: it.shop || '' }) : ['seed', 'fert', 'plough'].includes(it.item) ? `${(d.items || []).map((x) => t(`buy_${x.item}`)).join(' + ')} · ${it.shop || ''}` : it.item || d.direction;
+            const label = it.item === 'eggs' ? fmt('dealEggs', { trays: num(it.trays), shop: it.shop || '' }) : ['seed', 'fert', 'plough'].includes(it.item) ? `${(d.items || []).map((x) => t(`buy_${x.item}`)).join(' + ')} · ${it.shop || ''}` : it.item === 'harvest' ? `${cropName(it.crop)} · ${num(it.qty, 1)} ${t(`u_${it.unit}`)} · ${it.shop || ''}` : it.item === 'harvester' || it.item === 'transport' ? `${t(it.item === 'harvester' ? 'harvesterL' : 'transportL')} · ${it.shop || ''}` : it.item || d.direction;
             return `<div class="entry">${I[d.direction === 'sell' ? 'rupee' : 'cart']}<div class="t"><b>${esc(label)}</b><div class="who">${esc(new Date(d.created_at).toLocaleDateString(loc(), { day: 'numeric', month: 'short' }))} · ${esc(t('simulated'))}</div></div><span class="a ${d.direction === 'sell' ? 'in-c' : 'out-c'}">${d.direction === 'sell' ? '+' : '−'}${esc(money(Number(d.total_inr || 0), dealCur(d)))}</span></div>`;
           })
           .join('')
@@ -1309,6 +1325,7 @@
     $('#blockedBox').hidden = !p?.blocked;
     $('#prof').hidden = Boolean(p?.blocked);
     $('#noCrop').textContent = t(p?.blocked ? 'keepAnyway' : 'justWatch');
+    $('#growingBtn').hidden = Boolean(p?.blocked);
   }
   $('#pickAgain').addEventListener('click', () => stepTo(1));
   $('#tryDemo').addEventListener('click', () => {
@@ -1342,6 +1359,7 @@
       );
   }
   $('#noCrop').addEventListener('click', finishAdd);
+  $('#growingBtn').addEventListener('click', () => window.KSHarvest?.openGrow({ land: AD.land, plan: AD.plan, done: finishAdd }));
   function showPlan() {
     stepTo(4);
     const c = AD.crop;
@@ -1383,7 +1401,7 @@
 
   // Shared with ks-shed.js (poultry, egg sale, buying for a field, demo calls).
   window.KS = {
-    S, $, $$, I, t, fmt, num, esc, fd, loc, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, cropName, placeLine, shedLine,
+    S, $, $$, I, t, fmt, num, esc, fd, loc, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea,
     lang: () => lang, show, ask, speak, toWav, renderAll, renderHeader, loadSide, loadSheds, openShed, openFarm, bubble, count, mini, lineChart,
     playUrl: (url) =>
       new Promise((done) => {
