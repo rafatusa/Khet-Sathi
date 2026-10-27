@@ -73,8 +73,7 @@
         <svg class="tile-ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 7a3 3 0 1 0-5.6 1.5C7 9.5 5 12 5 15a6 6 0 0 0 12 0c0-1.6-.5-3-1.4-4.1"/><path d="M19 7l2 1-2 1"/><path d="M9 21v-1M13 21v-1"/></svg>
         <span class="tile-title sm" data-t="poultry"></span>
       </button>
-      <button class="tile tile-plain" disabled>
-        <span class="soon" data-t="soon"></span>
+      <button class="tile tile-plain tile-live" id="goCalendar">
         <svg class="tile-ico sm" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
         <span class="tile-title sm" data-t="calendar"></span>
       </button>
@@ -229,7 +228,37 @@
     <div class="spacer"></div>
   </section>
 
-  <!-- Mic bar (home + land + plan) -->
+  <!-- Crop calendar -->
+  <section class="screen" id="s-cal" hidden>
+    <header class="top">
+      <button class="round-btn" data-home aria-label="Home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="display lg" data-t="calendar"></div>
+      <button class="round-btn green" id="calListen" aria-label="Listen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+    </header>
+    <div class="zone-card">
+      <div class="zone-name" id="calZoneName"></div>
+      <div class="muted small" id="calZone"></div>
+    </div>
+    <div class="cal-legend">
+      <span><span class="sw sw-sow"></span><span data-t="legendSow"></span></span>
+      <span><span class="sw sw-harvest"></span><span data-t="legendHarvest"></span></span>
+      <span><span class="sw sw-today"></span><span data-t="legendToday"></span></span>
+    </div>
+    <div class="cal-months" id="calMonths" aria-hidden="true"></div>
+    <div class="muted small center" id="calLoading" data-t="loadingCal" hidden></div>
+    <div class="notice" id="calNotice" hidden>
+      <div class="notice-head">
+        <div class="notice-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg></div>
+        <div><div class="notice-title" id="calNoticeTitle"></div><p id="calNoticeText"></p></div>
+      </div>
+    </div>
+    <div id="calList" class="cal-list"></div>
+    <div id="calAnswer" class="answer" hidden></div>
+    <p class="credits" data-t="calCredits"></p>
+    <div class="spacer"></div>
+  </section>
+
+  <!-- Mic bar (home + land + plan + calendar) -->
   <div class="mic-bar" id="micBar" hidden>
     <button id="mic" class="mic" aria-label="Speak">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>

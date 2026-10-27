@@ -8,10 +8,10 @@ import { cleanForSpeech, extractAudio, ensureWav } from '../lib/tts.js';
 import { acresFromPx, pickPlot, inSouthAsia, dropBlobs } from '../lib/plot.js';
 import { env } from '../lib/env.js';
 import { scanLand, choosePass } from '../lib/scan.js';
-import { plotProfile, cropWindows } from '../lib/agent.js';
+import { plotProfile, cropWindows, sowingCalendar } from '../lib/agent.js';
 import { textureClass, summarizeSoilGrids, soilForLand } from '../lib/soil.js';
 import { summarizeForecast, rainAdvice } from '../lib/weather.js';
-import { windowState, windowsFor, aezFor, normalizeFao } from '../lib/calendar.js';
+import { windowState, windowsFor, aezFor, normalizeFao, calendarFor, FAO_KEYS } from '../lib/calendar.js';
 import { recommendCrops } from '../lib/recommend.js';
 import { buildPlan } from '../lib/plan.js';
 import { readFileSync } from 'node:fs';
@@ -396,6 +396,28 @@ await checkAsync('Engine: seeds kits, then a forced dry soil raises one alert, n
   await engine.force(fieldDevice(land.id), 'soil_moisture', 11);
   assert.equal((await memStore.listAlerts(20)).filter((a) => a.land_id === land.id && a.title === 'soil_dry').length, 1, 'deduped for 12 h');
   assert.ok(forced.readings > 0);
+});
+
+// ---------- v0.6.0: crop calendar ----------
+check('Calendar: every FAO Bangladesh crop has an app key', () => {
+  const missing = [...new Set(faoSaved.map((r) => r.crop))].filter((c) => !FAO_KEYS[c]);
+  assert.deepEqual(missing, []);
+});
+check('Calendar: Bogura zone on Oct 27, closing first, then open, soon, later', () => {
+  const rows = calendarFor(faoSaved, '4. Karatoya-Bangali Floodplain', TODAY);
+  assert.equal(rows.length, 15);
+  assert.deepEqual(rows.slice(0, 2).map((r) => [r.key, r.status, r.daysLeft]).sort(), [['bottle_gourd', 'closing', 3], ['mustard', 'closing', 3]]);
+  const order = { closing: 0, open: 1, soon: 2, later: 3 };
+  for (let i = 1; i < rows.length; i++) assert.ok(order[rows[i - 1].status] <= order[rows[i].status]);
+  assert.deepEqual(rows.filter((r) => r.status === 'soon').map((r) => r.key).sort(), ['barley', 'potato']);
+  assert.equal(rows.filter((r) => r.status === 'closing' || r.status === 'open').length, 9);
+});
+check('Agent tool: sowing calendar filters by crop and knows harvest dates', () => {
+  const plan = { aez: '4. Karatoya-Bangali Floodplain', today: TODAY, calendarSource: 'FAO', calendar: calendarFor(faoSaved, '4. Karatoya-Bangali Floodplain', TODAY) };
+  const r = sowingCalendar({ crop: 'mustard' }, { plan });
+  assert.equal(r.rows.length, 1);
+  assert.equal(r.rows[0].harvest_from_month_day, '12-10');
+  assert.equal(sowingCalendar({}, { plan: { aez: null } }).rows.length, 0);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

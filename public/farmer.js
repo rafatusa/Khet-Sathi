@@ -1,4 +1,4 @@
-// Khet Saathi farmer app (v0.5.0): language, home, add land (photo + GPS),
+// Khet Saathi farmer app (v0.6.0): language, home, add land (photo + GPS),
 // satellite plot with SAM 3.1 outline (zoomed scan), re-scan, ask Saathi by voice or tap, spoken replies.
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -57,7 +57,7 @@
   // ---------- screens + language ----------
   function show(id) {
     document.querySelectorAll('.screen').forEach((s) => (s.hidden = s.id !== id));
-    $('micBar').hidden = !(id === 's-home' || id === 's-land' || id === 's-plan');
+    $('micBar').hidden = !['s-home', 's-land', 's-plan', 's-cal'].includes(id);
     window.scrollTo(0, 0);
   }
   function applyLang() {
@@ -631,6 +631,118 @@
     $('kitWhen').textContent = newest ? fmt('kitWhen', { ago: ago(newest) }) : '';
   }
 
+  // ---------- crop calendar ----------
+  let cal = null;
+  $('goCalendar').addEventListener('click', () => openCalendar());
+
+  // Position of a month/day on a January-to-December bar, in percent.
+  const yearPos = (m, d) => (((m - 1) * 30.44 + (d - 1)) / 365.25) * 100;
+  function barSegs(win, cls) {
+    const a = yearPos(win[0], win[1]);
+    const b = yearPos(win[2], win[3]);
+    const seg = (left, width) => `<div class="cal-seg ${cls}" style="left:${left.toFixed(2)}%;width:${Math.max(width, 0.8).toFixed(2)}%"></div>`;
+    return b >= a ? seg(a, b - a) : seg(a, 100 - a) + seg(0, b); // windows across the new year wrap
+  }
+  const monthDay = (m, d) => new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, m - 1, d)));
+  const span = (w) => `${monthDay(w[0], w[1])} - ${monthDay(w[2], w[3])}`;
+  function calTag(r) {
+    if (r.status === 'closing') return r.daysLeft === 0 ? t('closingToday') : fmt('closing', { n: num(r.daysLeft, 0) });
+    if (r.status === 'open') return fmt('openTag', { n: num(r.daysLeft, 0) });
+    if (r.status === 'soon') return fmt('soonTag', { n: num(r.daysUntil, 0) });
+    return fmt('laterTag', { n: num(r.daysUntil, 0) });
+  }
+
+  async function openCalendar() {
+    show('s-cal');
+    $('calAnswer').hidden = true;
+    $('calNotice').hidden = true;
+    $('calList').replaceChildren();
+    $('calMonths').innerHTML = Array.from({ length: 12 }, (_, i) =>
+      `<span>${esc(new Intl.DateTimeFormat(locale(), { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, i, 15))))}</span>`).join('');
+    $('calLoading').hidden = false;
+    try {
+      const landId = current?.id || '';
+      const r = await api(`/api/calendar${landId ? `?landId=${encodeURIComponent(landId)}` : ''}`);
+      if (!r.ok) throw new Error(r.error);
+      cal = r;
+      renderCalendar(r);
+    } catch (err) {
+      $('calNoticeTitle').textContent = t('error');
+      $('calNoticeText').textContent = err.message;
+      $('calNotice').hidden = false;
+    } finally {
+      $('calLoading').hidden = true;
+    }
+  }
+
+  function renderCalendar(r) {
+    $('calZoneName').textContent = r.place ? t(`place_${r.place}`) : t('landYour');
+    if (!r.aez) {
+      $('calZone').textContent = '';
+      $('calNoticeTitle').textContent = t('noCalendarTitle');
+      $('calNoticeText').textContent = t('noCalendarText');
+      $('calNotice').hidden = false;
+      return;
+    }
+    const zoneNo = (r.aez.match(/^(\d+)\./) || [])[1] || '';
+    const zoneName = zoneNo === '4' ? t('aez_name') : r.aez.replace(/^\d+\.\s*/, '');
+    $('calZone').textContent = `${fmt('zoneLabel', { zone: zoneName, n: num(zoneNo || 0, 0) })}${r.aezAssumed ? ` · ${t('zoneAssumedShort')}` : ''}`;
+    const today = r.today.split('-').map(Number);
+    const todayPos = yearPos(today[1], today[2]);
+    const groups = {
+      now: r.rows.filter((x) => x.status === 'closing' || x.status === 'open'),
+      soon: r.rows.filter((x) => x.status === 'soon'),
+      later: r.rows.filter((x) => x.status === 'later'),
+    };
+    const list = $('calList');
+    const head = (text) => {
+      const h = document.createElement('h2');
+      h.className = 'cal-head';
+      h.textContent = text;
+      list.append(h);
+    };
+    const row = (x) => {
+      const name = t(`crop_${x.key}`);
+      const b = document.createElement('button');
+      b.className = 'cal-row';
+      b.innerHTML = `
+        <span class="cal-row-top"><span class="cal-name">${esc(name)}</span><span class="tag st-${x.status}">${esc(calTag(x))}</span></span>
+        <span class="cal-bar" aria-hidden="true">${barSegs(x.sow, 'sow')}${barSegs(x.harvest, 'harvest')}<span class="cal-today" style="left:${todayPos.toFixed(2)}%"></span></span>
+        <span class="cal-sub">${esc(fmt('calSub', { sow: span(x.sow), harvest: span(x.harvest) }))}</span>`;
+      b.addEventListener('click', () => ask(fmt('calAsk', { crop: name }), $('calAnswer')));
+      return b;
+    };
+    if (groups.now.length) {
+      head(fmt('calNow', { n: num(groups.now.length, 0) }));
+      const shown = groups.now.slice(0, 5);
+      shown.forEach((x) => list.append(row(x)));
+      if (groups.now.length > shown.length) {
+        const more = document.createElement('button');
+        more.className = 'btn cal-more';
+        more.textContent = fmt('calMore', { n: num(groups.now.length - shown.length, 0) });
+        more.addEventListener('click', () => {
+          const rest = groups.now.slice(shown.length).map(row);
+          more.replaceWith(...rest);
+        });
+        list.append(more);
+      }
+    }
+    if (groups.soon.length) {
+      head(t('calSoon'));
+      groups.soon.forEach((x) => list.append(row(x)));
+    }
+    if (groups.later.length) {
+      head(t('calLater'));
+      groups.later.slice(0, 4).forEach((x) => list.append(row(x)));
+    }
+  }
+
+  $('calListen').addEventListener('click', () => {
+    if (!cal?.rows?.length) return;
+    const now = cal.rows.filter((x) => x.status === 'closing' || x.status === 'open').slice(0, 5);
+    speak(`${t('calSayNow')} ${now.map((x) => `${t(`crop_${x.key}`)}, ${calTag(x)}`).join('. ')}.`);
+  });
+
   // ---------- delete a land ----------
   function openDeleteSheet() {
     if (!current) return;
@@ -777,7 +889,7 @@
     }
     const r = await api('/api/transcribe', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: wav });
     if (!r.ok || !r.text) return toast(r.error || t('tryAgain'));
-    const box = !$('s-plan').hidden ? $('planAnswer') : $('s-land').hidden ? $('homeAnswer') : $('landAnswer');
+    const box = !$('s-cal').hidden ? $('calAnswer') : !$('s-plan').hidden ? $('planAnswer') : $('s-land').hidden ? $('homeAnswer') : $('landAnswer');
     await ask(r.text, box);
   }
 

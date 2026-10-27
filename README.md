@@ -28,7 +28,7 @@ in each version and when.
 | Agent plans with tools: plot profile → input prices → draft order | Live (demo vendor data) |
 | Empty land, what to grow: real soil (SoilGrids), 10-day rain and soil moisture (Open-Meteo) and FAO sowing windows pick 3 crops, with days left to sow, days to harvest and when to sow around rain | Live (Bangladesh; profit figures are samples) |
 | Empty land: vendors and orders for the chosen crop | In progress (demo vendor data) |
-| Crop calendar: when to sow which crop, with proactive alerts | In progress |
+| Crop calendar: every crop's sowing and harvest (selling) window for the farm's zone on a year bar, grouped into sow now, starting soon and later; tap a crop to ask Saathi | Live (Bangladesh, FAO data) |
 | Standing crop: harvest readiness, field health, harvester → transport → buyer | Planned |
 | Poultry shed: bird counting and inactivity from video, cough detection from audio, shed sensors | Planned |
 | Auto-sell: when eggs or harvest are ready, the agent phones shop owners and negotiates | Planned |
@@ -85,6 +85,7 @@ Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 
 | Version | Date | What was built |
 |---|---|---|
+| v0.6.0 | Oct 27 | Crop calendar screen from the Home tile: real FAO sowing and harvest windows for the zone, year bars with today marked, closing-first order; new agent tool get_sowing_calendar for "when do I sow, when can I sell" questions. No database change |
 | v0.5.0 | Oct 27 | Simulated village sensor kit (field and shed) and the alerts engine: rules on real weather, FAO sowing windows and simulated sensor readings write alerts every 10 minutes; Home shows them as traffic-light cards with a speaker and a read tick; bench buttons for one tick and demo values (dry soil, hot shed). No database change |
 | v0.4.0 | Oct 27 | What to grow (Scenario 1): soil from SoilGrids, weather from Open-Meteo, sowing windows from the FAO crop calendar; top 3 crops by window and soil, rain-aware sowing advice; the agent's plot and crop tools now use this real data; bench rows for soil, weather and calendar; `sql/002_land_soil_v0.4.0.sql` |
 | v0.3.2 | Oct 27 | Delete a saved land from its screen, with a confirm sheet; removes the land and both of its pictures from storage. Visible keyboard focus on buttons |

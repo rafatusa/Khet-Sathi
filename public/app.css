@@ -226,3 +226,27 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .kit-cell strong { font-family: var(--display); font-weight: 800; font-size: 24px; display: block; line-height: 1.1; }
 .kit-cell.warn { background: var(--orange-soft); }
 .kit-cell.warn strong { color: var(--orange); }
+
+/* Crop calendar (v0.6.0) */
+.tile-live { cursor: pointer; }
+.zone-card { background: #fff; border-radius: 18px; padding: 10px 12px; }
+.zone-name { font-family: var(--display); font-weight: 800; font-size: 19px; }
+.cal-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 14px; color: var(--muted); align-items: center; }
+.sw { display: inline-block; width: 18px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+.sw-sow { background: var(--green); }
+.sw-harvest { background: var(--yellow); box-shadow: inset 0 0 0 2px #8A6A00; }
+.sw-today { width: 3px; height: 14px; background: var(--orange); border-radius: 0; }
+.cal-months { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); font-size: 10px; letter-spacing: -0.2px; color: var(--muted); text-align: center; margin: 0 12px; overflow: hidden; white-space: nowrap; }
+.cal-list { display: flex; flex-direction: column; gap: 10px; }
+.cal-head { font-family: var(--display); font-weight: 800; font-size: 20px; margin: 6px 2px 0; }
+.cal-row { background: #fff; border-radius: 18px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; border: none; text-align: left; width: 100%; font: inherit; color: inherit; cursor: pointer; }
+.cal-row-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.cal-name { font-family: var(--display); font-weight: 800; font-size: 21px; line-height: 1.15; }
+.tag.st-later { background: #ECEFEA; color: var(--muted); }
+.cal-bar { position: relative; height: 14px; background: #E3E9E0; border-radius: 7px; overflow: hidden; }
+.cal-seg { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
+.cal-seg.sow { background: var(--green); }
+.cal-seg.harvest { background: var(--yellow); box-shadow: inset 0 0 0 2px #8A6A00; } /* outline keeps 3:1 against the track */
+.cal-today { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--orange); }
+.cal-sub { font-size: 14px; color: var(--muted); }
+.cal-more { align-self: center; min-height: 48px; font-size: 16px; }

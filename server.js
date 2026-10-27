@@ -6,7 +6,8 @@ import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptTe
 import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage, zoomCenter } from './lib/tile.js';
 import { scanLand } from './lib/scan.js';
-import { buildPlan } from './lib/plan.js';
+import { buildPlan, localToday } from './lib/plan.js';
+import { aezFor, calendarRecords, calendarFor } from './lib/calendar.js';
 import { createEngine } from './lib/engine.js';
 import { fieldDevice, SHED_DEVICE, latestByDevice, FIELD_METRICS, SHED_METRICS } from './lib/sensors.js';
 import { env } from './lib/env.js';
@@ -21,7 +22,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.5.0';
+const VERSION = '0.6.0';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -214,6 +215,38 @@ app.get(
     if (!land) throw new Error('Land not found');
     if (!(land.objects || []).length) throw new Error('No farm field was found on this land');
     return { plan: await planForLand(land) };
+  })
+);
+
+// Crop calendar: every crop's sowing and harvest window for the land's FAO zone.
+// Uses the given land, else the newest land in Bangladesh, else the Bogura demo zone.
+app.get(
+  '/api/calendar',
+  guard,
+  timed(async (req) => {
+    let land = req.query.landId ? await getLand(req.query.landId) : null;
+    if (!land) {
+      for (const l of await listLands()) {
+        if (aezFor(l).aez) {
+          land = l;
+          break;
+        }
+      }
+    }
+    if (!land) land = { place: 'bogura', ...DEMO_PLACES.bogura };
+    const { aez, assumed } = aezFor(land);
+    const today = localToday('Asia/Dhaka');
+    if (!aez) return { aez: null, place: land.place || null, today, rows: [] };
+    const cal = await calendarRecords();
+    return {
+      aez,
+      aezAssumed: assumed,
+      place: land.place || null,
+      landId: land.id || null,
+      today,
+      rows: calendarFor(cal.records, aez, today),
+      source: cal.source,
+    };
   })
 );
 
