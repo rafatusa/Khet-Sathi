@@ -8,7 +8,13 @@ import { cleanForSpeech, extractAudio, ensureWav } from '../lib/tts.js';
 import { acresFromPx, pickPlot, inSouthAsia, dropBlobs } from '../lib/plot.js';
 import { env } from '../lib/env.js';
 import { scanLand, choosePass } from '../lib/scan.js';
-import { plotProfile } from '../lib/agent.js';
+import { plotProfile, cropWindows } from '../lib/agent.js';
+import { textureClass, summarizeSoilGrids, soilForLand } from '../lib/soil.js';
+import { summarizeForecast, rainAdvice } from '../lib/weather.js';
+import { windowState, windowsFor, aezFor, normalizeFao } from '../lib/calendar.js';
+import { recommendCrops } from '../lib/recommend.js';
+import { buildPlan } from '../lib/plan.js';
+import { readFileSync } from 'node:fs';
 import sharp from 'sharp';
 import { createLand, getLand, putFile, getFile, deleteLand, deleteFiles } from '../lib/store.js';
 
@@ -148,7 +154,8 @@ check('Scan: nothing found keeps the close-up, all errors keep the wide view', (
 });
 check('Agent: no plot profile invented when no field was found', () => {
   assert.ok(plotProfile({ lat: 1, lon: 2 }, { noField: true }).error);
-  assert.equal(plotProfile({ lat: 1, lon: 2 }).soil, 'alluvial loam');
+  assert.ok(plotProfile({ lat: 1, lon: 2 }).error, 'no plan means no made-up soil');
+  assert.deepEqual(cropWindows({ noField: true }).crops, []);
 });
 
 async function checkAsync(name, fn) {
@@ -232,6 +239,107 @@ await checkAsync('Delete: land row and both pictures removed (memory store)', as
   assert.equal(await deleteFiles([land.tile_path, land.photo_path, null]), 2);
   assert.equal(await getFile('x/tile.jpg'), null);
   assert.equal(await deleteLand(land.id), false);
+});
+
+// ---------- v0.4.0: soil, weather, sowing windows ----------
+const fx = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}.json`, import.meta.url), 'utf8'));
+const faoSaved = JSON.parse(readFileSync(new URL('../lib/data/fao-bd-calendar.json', import.meta.url), 'utf8')).records;
+const TODAY = '2026-10-27';
+
+check('Soil: USDA texture triangle', () => {
+  assert.equal(textureClass(26.5, 42, 31.5), 'clay_loam');
+  assert.equal(textureClass(18.4, 45.5, 36.1), 'silty_clay_loam');
+  assert.equal(textureClass(40, 40, 20), 'loam');
+  assert.equal(textureClass(90, 5, 5), 'sand');
+  assert.equal(textureClass(10, 30, 60), 'clay');
+});
+check('Soil: SoilGrids topsoil for Bolpur and Bogura (real responses, Oct 27)', () => {
+  const bol = summarizeSoilGrids(fx('sg_bolpur'));
+  const bog = summarizeSoilGrids(fx('sg_bogura'));
+  assert.equal(bol.texture, 'clay_loam');
+  assert.equal(bog.texture, 'silty_clay_loam');
+  assert.equal(bog.ph, 6.4);
+});
+check('Weather: Open-Meteo forecast and rain advice for Bogura (real response)', () => {
+  const w = summarizeForecast(fx('om_bogura'));
+  assert.equal(w.days.length, 10);
+  assert.equal(w.rainNext10Mm, 22.9);
+  const r = rainAdvice(w.days, TODAY);
+  assert.deepEqual([r.rainDate, r.sowBefore, r.sowAfter], ['2026-10-29', '2026-10-28', '2026-10-31']);
+  assert.equal(rainAdvice(w.days.map((d) => ({ ...d, rainChance: 5, rainMm: 0 })), TODAY), null);
+});
+check('Calendar: sowing windows across the new year', () => {
+  assert.deepEqual(windowState([10, 1, 10, 30], TODAY), { state: 'now', start: '2026-10-01', end: '2026-10-30', daysLeft: 3 });
+  assert.equal(windowState([11, 1, 12, 15], TODAY).daysUntil, 5);
+  const wrap = windowState([12, 1, 1, 15], '2027-01-10');
+  assert.equal(wrap.state, 'now');
+  assert.equal(wrap.end, '2027-01-15');
+});
+check('Calendar: FAO zone only exact for the demo plot; none for India', () => {
+  assert.deepEqual(aezFor({ place: 'bogura', lat: 24.88, lon: 89.33 }), { aez: '4. Karatoya-Bangali Floodplain', assumed: false });
+  assert.equal(aezFor({ lat: 23.8, lon: 90.4 }).assumed, true);
+  assert.equal(aezFor({ place: 'bolpur', lat: 23.64, lon: 87.73 }).aez, null);
+});
+check('Calendar: FAO API shape normalised like the saved copy', () => {
+  const one = normalizeFao([{ crop: { name: 'Mustard' }, aez: { name: 'Z' }, sessions: [{ early_sowing: { month: '10', day: '1' }, later_sowing: { month: '10', day: '30' }, early_harvest: { month: '12', day: '10' }, late_harvest: { month: '12', day: '20' }, growing_period: { value: '70 - 90', period: 'days' } }] }]);
+  assert.deepEqual(one[0].sow, [10, 1, 10, 30]);
+});
+check('Recommend: Bogura on Oct 27 gives mustard, bottle gourd, potato', () => {
+  const soil = summarizeSoilGrids(fx('sg_bogura'));
+  const crops = recommendCrops(windowsFor(faoSaved, '4. Karatoya-Bangali Floodplain', TODAY), soil);
+  assert.deepEqual(crops.map((c) => [c.key, c.status]), [['mustard', 'closing'], ['bottle_gourd', 'closing'], ['potato', 'soon']]);
+  assert.equal(crops[0].daysLeft, 3);
+  assert.deepEqual(crops[0].growDays, { min: 70, max: 90 });
+});
+check('Recommend: heavy clay drops potato and mustard', () => {
+  const crops = recommendCrops(windowsFor(faoSaved, '4. Karatoya-Bangali Floodplain', TODAY), { texture: 'clay', ph: 6.5 });
+  assert.ok(!crops.some((c) => c.key === 'potato' || c.key === 'mustard'));
+});
+
+// Fake network: answers SoilGrids, Open-Meteo and FAO from the saved real responses.
+const fakeFetch = (fail = []) => async (url) => {
+  const u = String(url);
+  const which = u.includes('soilgrids') ? 'soil' : u.includes('open-meteo') ? 'weather' : 'fao';
+  if (fail.includes(which)) throw new Error(`${which} down`);
+  const lat = Number(new URL(u).searchParams.get('lat') || new URL(u).searchParams.get('latitude'));
+  const place = lat > 30 ? 'punjab' : lat > 24 ? 'bogura' : 'bolpur';
+  const body = which === 'soil' ? fx(`sg_${place}`) : which === 'weather' ? fx(`om_${place}`) : [];
+  return { ok: true, status: 200, json: async () => body };
+};
+
+await checkAsync('Plan: Bogura demo land end to end (soil, weather, zone, 3 crops)', async () => {
+  const p = await buildPlan({ place: 'bogura', lat: 24.88, lon: 89.33 }, { fetchImpl: fakeFetch(['fao']), today: TODAY });
+  assert.equal(p.soil.texture, 'silty_clay_loam');
+  assert.equal(p.weather.soilMoistureLevel, 'dry');
+  assert.equal(p.rain.rainDate, '2026-10-29');
+  assert.equal(p.aez, '4. Karatoya-Bangali Floodplain');
+  assert.match(p.calendarSource, /saved copy/);
+  assert.equal(p.crops.length, 3);
+});
+await checkAsync('Plan: Bolpur gets soil and weather but no crops (no FAO data for India)', async () => {
+  const p = await buildPlan({ place: 'bolpur', lat: 23.64, lon: 87.73 }, { fetchImpl: fakeFetch(), today: TODAY });
+  assert.equal(p.soil.texture, 'clay_loam');
+  assert.ok(p.weather);
+  assert.equal(p.aez, null);
+  assert.deepEqual(p.crops, []);
+});
+await checkAsync('Plan: SoilGrids down uses the dated demo copy; saved soil is reused', async () => {
+  const r = await soilForLand({ place: 'bogura', lat: 24.88, lon: 89.33 }, { fetchImpl: fakeFetch(['soil']) });
+  assert.match(r.soil.source, /saved copy/);
+  assert.equal(r.error, 'soil down');
+  const saved = await soilForLand({ soil: { texture: 'loam', ph: 6 } }, { fetchImpl: fakeFetch(['soil']) });
+  assert.equal(saved.soil.texture, 'loam');
+  const none = await soilForLand({ lat: 23.8, lon: 90.4 }, { fetchImpl: fakeFetch(['soil']) });
+  assert.equal(none.soil, null);
+});
+await checkAsync('Agent tools: real profile and crop windows from the plan', async () => {
+  const p = await buildPlan({ place: 'bogura', lat: 24.88, lon: 89.33 }, { fetchImpl: fakeFetch(['fao']), today: TODAY });
+  const prof = plotProfile({}, { plan: p });
+  assert.equal(prof.soil.texture, 'silty_clay_loam');
+  assert.equal(prof.rain_warning.day, '2026-10-29');
+  const win = cropWindows({ plan: p });
+  assert.equal(win.crops[0].crop, 'Mustard');
+  assert.equal(win.crops[0].days_left_to_sow, 3);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

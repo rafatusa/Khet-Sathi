@@ -1,4 +1,4 @@
-// Khet Saathi farmer app (v0.3.2): language, home, add land (photo + GPS),
+// Khet Saathi farmer app (v0.4.0): language, home, add land (photo + GPS),
 // satellite plot with SAM 3.1 outline (zoomed scan), re-scan, ask Saathi by voice or tap, spoken replies.
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -57,7 +57,7 @@
   // ---------- screens + language ----------
   function show(id) {
     document.querySelectorAll('.screen').forEach((s) => (s.hidden = s.id !== id));
-    $('micBar').hidden = !(id === 's-home' || id === 's-land');
+    $('micBar').hidden = !(id === 's-home' || id === 's-land' || id === 's-plan');
     window.scrollTo(0, 0);
   }
   function applyLang() {
@@ -149,14 +149,14 @@
     gps = null;
     setLoc('wait', t('locating'));
     if (!navigator.geolocation) {
-      setPlace('bolpur');
+      setPlace(defaultPlace());
       return setLoc('warn', t('locDenied'));
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude: lat, longitude: lon } = pos.coords;
         if (!inSouthAsia(lat, lon)) {
-          setPlace('bolpur');
+          setPlace(defaultPlace());
           return setLoc('warn', t('locFar'));
         }
         gps = { lat, lon };
@@ -164,12 +164,14 @@
         setLoc('ok', `${t('locOk')} · ${num(lat, 4)}, ${num(lon, 4)}`);
       },
       () => {
-        setPlace('bolpur');
+        setPlace(defaultPlace());
         setLoc('warn', t('locDenied'));
       },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
     );
   }
+  // Empty land defaults to the Bogura demo plot (full soil, weather and sowing data).
+  const defaultPlace = () => (captureKind === 'empty' ? 'bogura' : 'bolpur');
   function openCapture(kind) {
     captureKind = kind;
     photoDataUrl = null;
@@ -242,7 +244,7 @@
     };
   }
   $('analyseBtn').addEventListener('click', async () => {
-    if (!gps && !place) setPlace('bolpur');
+    if (!gps && !place) setPlace(defaultPlace());
     const body = { kind: captureKind, lang, photoDataUrl };
     if (place) body.place = place;
     else Object.assign(body, gps);
@@ -307,6 +309,7 @@
     const nothingHere = noField && ground > 0 && ground < 600;
     $('landNotice').hidden = !noField;
     $('landStats').hidden = noField;
+    $('seePlanBtn').hidden = noField || land.kind !== 'empty';
     $('askTitle').hidden = noField;
     $('askChips').hidden = noField;
     if (noField) {
@@ -397,6 +400,139 @@
       toast(`${t('error')}: ${err.message}`);
     }
   }
+  // ---------- what to grow (Scenario 1) ----------
+  const locale = () => ({ bn: 'bn-BD', hi: 'hi-IN', en: 'en-IN' }[lang] || 'bn-BD');
+  const fmt = (key, vars) => Object.entries(vars).reduce((s, [k, v]) => s.split(`{${k}}`).join(v), t(key));
+  const dayDate = (iso) => new Date(`${iso}T12:00:00Z`);
+  const longDate = (iso) => new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(dayDate(iso));
+  const weekday = (iso, style = 'long') => new Intl.DateTimeFormat(locale(), { weekday: style, timeZone: 'UTC' }).format(dayDate(iso));
+  const money = (n) => `৳ ${num(n, 0).replace(/\B(?=([0-9০-৯०-९]{3})+(?![0-9০-৯०-९]))/g, ',')}`;
+  let plan = null;
+
+  $('seePlanBtn').addEventListener('click', () => openPlan());
+  $('planBack').addEventListener('click', () => (current ? renderLand(current) : goHome()));
+
+  async function openPlan() {
+    if (!current) return;
+    show('s-plan');
+    plan = null;
+    $('planImg').src = imgUrl(current.tileUrl);
+    $('planPlotTitle').textContent = `${acresText(current.acres)} ${t('acres')}${current.place ? ` · ${health?.demoPlaces?.[current.place]?.[lang] || ''}` : ''}`;
+    $('planChips').replaceChildren();
+    $('planWx').hidden = true;
+    $('planNotice').hidden = true;
+    $('planHead').hidden = true;
+    $('planZoneNote').hidden = true;
+    $('planCrops').replaceChildren();
+    $('planAnswer').hidden = true;
+    $('planLoading').hidden = false;
+    try {
+      const r = await api(`/api/lands/${current.id}/plan`);
+      if (!r.ok) throw new Error(r.error);
+      plan = r.plan;
+      renderPlan(plan);
+    } catch (err) {
+      showPlanNotice(t('error'), err.message);
+    } finally {
+      $('planLoading').hidden = true;
+    }
+  }
+
+  function showPlanNotice(title, text) {
+    $('planNoticeTitle').textContent = title;
+    $('planNoticeText').textContent = text;
+    $('planNotice').hidden = false;
+  }
+
+  function chip(text) {
+    const c = document.createElement('span');
+    c.className = 'soil-chip';
+    c.textContent = text;
+    return c;
+  }
+
+  function renderPlan(p) {
+    const chips = $('planChips');
+    if (p.soil) {
+      chips.append(chip(t(`soil_${p.soil.texture}`)));
+      if (Number.isFinite(p.soil.ph)) chips.append(chip(`pH ${num(p.soil.ph)}`));
+    } else chips.append(chip(t('soilUnknown')));
+    if (p.weather?.soilMoistureLevel) chips.append(chip(t(`moist_${p.weather.soilMoistureLevel}`)));
+
+    // Weather card: rain warning with the best days to sow, and the next 5 days.
+    if (p.weather) {
+      $('planWx').hidden = false;
+      if (p.rain) {
+        $('wxTitle').textContent = fmt('rainTitle', { day: weekday(p.rain.rainDate) });
+        const b = p.rain.sowBefore && weekday(p.rain.sowBefore);
+        const a = p.rain.sowAfter && weekday(p.rain.sowAfter);
+        $('wxText').textContent = b && a ? fmt('rainBeforeAfter', { before: b, after: a }) : a ? fmt('rainAfterOnly', { after: a }) : b ? fmt('rainBeforeOnly', { before: b }) : '';
+      } else {
+        $('wxTitle').textContent = t('noRainTitle');
+        $('wxText').textContent = t('noRainText');
+      }
+      const days = $('wxDays');
+      days.replaceChildren();
+      for (const d of p.weather.days.slice(0, 5)) {
+        const el = document.createElement('div');
+        el.className = `wx-day${(d.rainChance ?? 0) >= 60 || (d.rainMm ?? 0) >= 10 ? ' rain' : ''}`;
+        el.innerHTML = `${esc(weekday(d.date, 'short'))}<strong>${esc(num(d.rainChance ?? 0, 0))}%</strong>`;
+        days.append(el);
+      }
+    } else {
+      chips.append(chip(t('weatherUnknown')));
+    }
+
+    if (!p.aez) return showPlanNotice(t('noCalendarTitle'), t('noCalendarText'));
+    if (!p.crops.length) return showPlanNotice(t('noCropsTitle'), t('noCropsText'));
+    $('planHead').textContent = fmt('cropsFor', { n: num(p.crops.length, 0) });
+    $('planHead').hidden = false;
+    $('planZoneNote').textContent = t('zoneAssumed');
+    $('planZoneNote').hidden = !p.aezAssumed;
+    for (const c of p.crops) $('planCrops').append(cropCard(c));
+  }
+
+  function cropTag(c) {
+    if (c.status === 'closing') return c.daysLeft === 0 ? t('closingToday') : fmt('closing', { n: num(c.daysLeft, 0) });
+    if (c.status === 'open') return fmt('openTag', { n: num(c.daysLeft, 0) });
+    return fmt('soonTag', { n: num(c.daysUntil, 0) });
+  }
+  function cropWhy(c) {
+    const when = c.status === 'soon' ? fmt('whyStarts', { date: longDate(c.windowStart) }) : fmt('whySowBy', { date: longDate(c.windowEnd) });
+    return `${when} ${t('soilFit')} ${t(`water_${c.water}`)}`;
+  }
+  function cropDays(c) {
+    if (!c.growDays) return '—';
+    return c.growDays.min === c.growDays.max ? num(c.growDays.min, 0) : `${num(c.growDays.min, 0)}-${num(c.growDays.max, 0)}`;
+  }
+
+  function cropCard(c) {
+    const name = t(`crop_${c.key}`);
+    const el = document.createElement('div');
+    el.className = `crop st-${c.status}`; // st- prefix: .soon is already the Home tile badge
+    el.innerHTML = `
+      <div class="crop-top"><div class="crop-name">${esc(name)}</div><span class="tag st-${c.status}">${esc(cropTag(c))}</span></div>
+      <div class="nums">
+        <div class="num"><strong>${esc(cropDays(c))}</strong><span class="muted small">${esc(t('daysToHarvest'))}</span></div>
+        <div class="num"><strong>${esc(money(c.sampleProfitBdtPerAcre))}</strong><span class="muted small">${esc(t('profitPerAcre'))}</span><span class="sample">${esc(t('sample'))}</span></div>
+      </div>
+      <div class="why">${esc(cropWhy(c))}</div>
+      <div class="crop-btns">
+        <button class="btn${c === plan.crops[0] ? ' primary' : ''}" data-pick>${esc(t('pick'))}</button>
+        <button class="btn sq" data-say aria-label="${esc(t('listen'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></button>
+      </div>`;
+    el.querySelector('[data-pick]').addEventListener('click', () => ask(fmt('pickAsk', { crop: name }), $('planAnswer')));
+    el.querySelector('[data-say]').addEventListener('click', () => speak(`${name}. ${cropTag(c)}. ${cropDays(c)} ${t('daysToHarvest')}. ${cropWhy(c)}`));
+    return el;
+  }
+
+  $('planListen').addEventListener('click', () => {
+    if (!plan) return;
+    const parts = [$('wxTitle').textContent, $('wxText').textContent];
+    for (const c of plan.crops) parts.push(`${t(`crop_${c.key}`)}, ${cropTag(c)}.`);
+    speak(parts.filter(Boolean).join(' '));
+  });
+
   // ---------- delete a land ----------
   function openDeleteSheet() {
     if (!current) return;
@@ -543,7 +679,7 @@
     }
     const r = await api('/api/transcribe', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: wav });
     if (!r.ok || !r.text) return toast(r.error || t('tryAgain'));
-    const box = $('s-land').hidden ? $('homeAnswer') : $('landAnswer');
+    const box = !$('s-plan').hidden ? $('planAnswer') : $('s-land').hidden ? $('homeAnswer') : $('landAnswer');
     await ask(r.text, box);
   }
 

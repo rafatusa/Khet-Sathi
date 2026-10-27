@@ -164,6 +164,8 @@
       <div class="tech" id="samLine"></div>
     </div>
 
+    <button class="btn primary wide xl-btn" id="seePlanBtn" data-t="seePlan" hidden></button>
+
     <div class="stat-row" id="landStats">
       <div class="stat"><span class="stat-big" id="statAcres">—</span><span class="muted small" data-t="acres"></span></div>
       <div class="stat"><span class="stat-big" id="statFields">—</span><span class="muted small" data-t="fields"></span></div>
@@ -176,7 +178,47 @@
     <div class="spacer"></div>
   </section>
 
-  <!-- Mic bar (home + land) -->
+  <!-- What to grow (Scenario 1) -->
+  <section class="screen" id="s-plan" hidden>
+    <header class="top">
+      <button class="round-btn" id="planBack" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="display lg" data-t="planTitle"></div>
+      <button class="round-btn green" id="planListen" aria-label="Listen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+    </header>
+    <div class="plot-row">
+      <img id="planImg" alt="" />
+      <div class="plot-main">
+        <div class="plot-title" id="planPlotTitle"></div>
+        <div class="soil-chips" id="planChips"></div>
+      </div>
+    </div>
+    <div class="wx" id="planWx" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 15a4 4 0 1 1 .9-7.9A5 5 0 0 1 17.5 9 3.5 3.5 0 0 1 17 16H7z"/><path d="M9 19l-1 2M13 19l-1 2M17 19l-1 2"/></svg>
+      <div class="wx-main">
+        <b id="wxTitle"></b>
+        <span id="wxText"></span>
+        <div class="wx-days" id="wxDays"></div>
+      </div>
+    </div>
+    <div class="muted small center" id="planLoading" data-t="loadingPlan" hidden></div>
+    <div class="notice" id="planNotice" hidden>
+      <div class="notice-head">
+        <div class="notice-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg></div>
+        <div>
+          <div class="notice-title" id="planNoticeTitle"></div>
+          <p id="planNoticeText"></p>
+        </div>
+      </div>
+    </div>
+    <h2 class="section-title" id="planHead" hidden></h2>
+    <div class="muted small" id="planZoneNote" hidden></div>
+    <div class="crop-list" id="planCrops"></div>
+    <div id="planAnswer" class="answer" hidden></div>
+    <p class="credits" id="planCredits" data-t="credits"></p>
+    <div class="spacer"></div>
+  </section>
+
+  <!-- Mic bar (home + land + plan) -->
   <div class="mic-bar" id="micBar" hidden>
     <button id="mic" class="mic" aria-label="Speak">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>

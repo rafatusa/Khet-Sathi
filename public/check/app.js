@@ -1,4 +1,4 @@
-// Khet Saathi v0.3.2 - browser side of the model check.
+// Khet Saathi v0.4.0 - browser side of the model check.
 (() => {
   const $ = (id) => document.getElementById(id);
 
@@ -27,6 +27,9 @@
     ['tile', 'Satellite image for plot', 'Esri World Imagery'],
     ['sam', 'Field outlines from satellite', 'sam-3.1'],
     ['zoom', 'Field outlines, zoomed 225 m (farmer app scan)', 'sam-3.1'],
+    ['soil', 'Soil at this point', 'ISRIC SoilGrids'],
+    ['weather', '10-day weather + soil moisture', 'Open-Meteo'],
+    ['calendar', 'Sowing windows + top 3 crops', 'FAO Crop Calendar'],
     ['vision', 'Scene description from image', 'spark'],
     ['agent', 'Agent plan with tool calls', 'spark'],
     ['voice', 'Speech → text', 'muse-voice-transcribe-1.0'],
@@ -187,6 +190,25 @@
     const detail = `"${r.prompt}": ${r.count} object(s)${r.diagnostics?.length ? ` · ${r.diagnostics.length} warning(s)` : ''}${r.count === 0 ? ' · try "field" or the zoomed scan' : ''}`;
     // 0 objects is not a pass: SAM answered but found no fields (v0.3.0 hid this as PASS).
     mark('sam', !ok ? 'FAIL' : r.count === 0 ? 'WARN' : 'PASS', detail, r.ms);
+  }
+
+  // Soil, weather and crop calendar for the point in the Lat/Lon boxes.
+  async function runPlanCheck() {
+    ['soil', 'weather', 'calendar'].forEach((k) => mark(k, 'RUNNING'));
+    const q = new URLSearchParams({ lat: $('lat').value, lon: $('lon').value });
+    const r = await api(`/api/plan?${q}`);
+    if (!r.ok) return ['soil', 'weather', 'calendar'].forEach((k) => mark(k, 'FAIL', r.error, r.ms));
+    const p = r.plan;
+    const s = p.soil;
+    mark('soil', s ? (p.soilError ? 'WARN' : 'PASS') : 'FAIL',
+      s ? `${s.texture.replace(/_/g, ' ')} · clay ${s.clay}% sand ${s.sand}% silt ${s.silt}% · pH ${s.ph} · ${s.source}${p.soilError ? ` · live lookup failed: ${p.soilError}` : ''}` : p.soilError || 'no soil data', r.ms);
+    const w = p.weather;
+    mark('weather', w ? 'PASS' : 'FAIL',
+      w ? `rain next 10 days ${w.rainNext10Mm} mm · soil moisture ${w.soilMoisture} (${w.soilMoistureLevel})${p.rain ? ` · rain ${p.rain.chance}% on ${p.rain.rainDate}` : ' · no heavy rain in 3 days'}` : p.weatherError || 'no forecast', r.ms);
+    if (!p.aez) return mark('calendar', 'WARN', 'No FAO sowing calendar for this area (FAO covers Bangladesh, not India)', r.ms);
+    const crops = p.crops.map((c) => `${c.faoName} (${c.status}${c.daysLeft != null ? `, ${c.daysLeft} d left` : `, in ${c.daysUntil} d`})`).join(', ');
+    mark('calendar', p.crops.length ? (p.calendarError ? 'WARN' : 'PASS') : 'WARN',
+      `${p.aez}${p.aezAssumed ? ' (assumed)' : ''} · ${crops || 'nothing to sow now'} · ${p.calendarSource}`, r.ms);
   }
 
   // The same scan the farmer app runs: centre 225 m enlarged, "field", then the wide view.
@@ -395,6 +417,7 @@
   $('segment').addEventListener('click', busy($('segment'), runSegment));
   $('describe').addEventListener('click', busy($('describe'), runVision));
   $('zoomScan').addEventListener('click', busy($('zoomScan'), runZoomScan));
+  $('planCheck').addEventListener('click', busy($('planCheck'), runPlanCheck));
   $('runAgent').addEventListener('click', busy($('runAgent'), () => runAgent()));
   $('runAll').addEventListener(
     'click',
@@ -407,6 +430,7 @@
       if (!Object.values(samples).includes($('agentText').value)) $('agentText').value = SAMPLES.hi;
       await Promise.all([runSegment(), runVision(), runAgent()]);
       await runZoomScan();
+      await runPlanCheck();
       const v = $(`row-voice`).children[2].textContent;
       if (v === 'NOT RUN') mark('voice', 'NOT RUN', 'Hold the mic button and speak to test');
     })

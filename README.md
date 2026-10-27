@@ -24,7 +24,8 @@ in each version and when.
 | Delete a saved land (asks once, removes its pictures too) | Live |
 | Talk mode: farmer speaks Bangla/Hindi → agent → spoken reply | Live |
 | Agent plans with tools: plot profile → input prices → draft order | Live (demo vendor data) |
-| Empty land: photo + satellite + soil + weather → what to grow → vendors | In progress |
+| Empty land, what to grow: real soil (SoilGrids), 10-day rain and soil moisture (Open-Meteo) and FAO sowing windows pick 3 crops, with days left to sow, days to harvest and when to sow around rain | Live (Bangladesh; profit figures are samples) |
+| Empty land: vendors and orders for the chosen crop | In progress (demo vendor data) |
 | Crop calendar: when to sow which crop, with proactive alerts | In progress |
 | Standing crop: harvest readiness, field health, harvester → transport → buyer | Planned |
 | Poultry shed: bird counting and inactivity from video, cough detection from audio, shed sensors | Planned |
@@ -43,7 +44,11 @@ in each version and when.
 ## Data sources
 
 - Satellite imagery: Esri World Imagery (Esri, Maxar, Earthstar Geographics). The server fetches a 600 m view around the farmer's location, then crops the centre 225 m and enlarges it 2.7x for SAM 3.1. At the full 600 m view SAM read Bolpur's small plots as one big field; on the close-up it outlined about 47 separate plots
-- Demo plots (used when GPS is off or outside South Asia): Bolpur (West Bengal), Bogura (Bangladesh), Ludhiana (Punjab)
+- Soil: ISRIC SoilGrids 250 m (CC BY 4.0), topsoil 0-15 cm texture and pH, looked up once per land and saved; dated copies for the demo plots in case the service is down
+- Weather: Open-Meteo (CC BY 4.0), 10-day rain chance and amount, temperature and topsoil moisture, refreshed hourly
+- Sowing windows: FAO Crop Calendar for Bangladesh by farming zone (AEZ), fetched daily, with a copy saved on Oct 27, 2026 as a fallback. FAO has no calendar for India, so Indian plots show soil and weather only. FAO publishes no zone map, so only the Bogura demo plot is placed in its exact zone; other Bangladesh points use the same zone and say so on screen
+- Profit per acre on crop cards is a **sample figure**, labelled on screen, until a market price source is added
+- Demo plots (used when GPS is off or outside South Asia): Bogura (Bangladesh, default for empty land), Bolpur (West Bengal), Ludhiana (Punjab)
 - Storage: Supabase Postgres + private storage bucket for land photos and satellite tiles; falls back to in-memory storage if not configured
 - Vendors, buyers, shop owners, sensors and shed cameras: **simulated** for the hackathon and labelled as such in the app
 - Orders and deals are drafts until the farmer confirms. Nothing is bought, sold or paid in this prototype
@@ -78,6 +83,7 @@ Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 
 | Version | Date | What was built |
 |---|---|---|
+| v0.4.0 | Oct 27 | What to grow (Scenario 1): soil from SoilGrids, weather from Open-Meteo, sowing windows from the FAO crop calendar; top 3 crops by window and soil, rain-aware sowing advice; the agent's plot and crop tools now use this real data; bench rows for soil, weather and calendar; `sql/002_land_soil_v0.4.0.sql` |
 | v0.3.2 | Oct 27 | Delete a saved land from its screen, with a confirm sheet; removes the land and both of its pictures from storage. Visible keyboard focus on buttons |
 | v0.3.1 | Oct 27 | Zoomed SAM 3.1 scan for small plots (centre 225 m enlarged, concept "field", wide "farm field" fallback); whole-image outlines ignored; re-scan for lands saved with 0 fields; "no farm field here" screen with demo land; agent refuses soil advice where no field was found; acres under 1 shown to 2 decimals; bench shows 0 outlines as WARN and adds the farmer-app scan; all environment variables trimmed. New dependency: `sharp` (image crop) |
 | v0.3.0 | Oct 27 | Farmer app: language picker, home, add land with photo + GPS, SAM 3.1 plot detection and acreage, tap-to-correct field, ask by voice or tap with spoken answers; Supabase storage (`sql/001_core_tables_v0.3.0.sql`); dev bench moved to /check/ |

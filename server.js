@@ -6,6 +6,7 @@ import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptTe
 import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage, zoomCenter } from './lib/tile.js';
 import { scanLand } from './lib/scan.js';
+import { buildPlan } from './lib/plan.js';
 import { env } from './lib/env.js';
 import { runAgent } from './lib/agent.js';
 import { TTS, hasTtsKey, synthesize } from './lib/tts.js';
@@ -17,7 +18,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.3.2';
+const VERSION = '0.4.0';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -188,6 +189,31 @@ app.patch(
   })
 );
 
+// What to grow: real soil, weather and sowing windows for this land, plus the top crops.
+// Soil and farming zone are saved on the land the first time, so SoilGrids runs once per land.
+async function planForLand(land) {
+  const plan = await buildPlan(land);
+  if (plan.soilFresh || (plan.aez && land.aez !== plan.aez)) {
+    try {
+      await updateLand(land.id, { soil: plan.soil, aez: plan.aez });
+    } catch (err) {
+      plan.saveError = err.message; // shown on the bench; the plan itself is still returned
+    }
+  }
+  return plan;
+}
+
+app.get(
+  '/api/lands/:id/plan',
+  guard,
+  timed(async (req) => {
+    const land = await getLand(req.params.id);
+    if (!land) throw new Error('Land not found');
+    if (!(land.objects || []).length) throw new Error('No farm field was found on this land');
+    return { plan: await planForLand(land) };
+  })
+);
+
 // The farmer deletes a land: the row first, then its pictures.
 app.delete(
   '/api/lands/:id',
@@ -229,10 +255,12 @@ app.post(
   timed(async (req) => {
     const { text, landId } = req.body || {};
     if (!text) throw new Error('text is required');
-    let lat = DEMO_PLACES.bolpur.lat;
-    let lon = DEMO_PLACES.bolpur.lon;
+    // No land picked yet: answer for the Bogura demo plot (the Scenario 1 plot with full data).
+    let lat = DEMO_PLACES.bogura.lat;
+    let lon = DEMO_PLACES.bogura.lon;
     let context = 'no plot added yet';
     let noField = false;
+    let plan = null;
     if (landId) {
       const land = await getLand(landId);
       if (land && !(land.objects || []).length) {
@@ -244,13 +272,15 @@ app.post(
       } else if (land) {
         lat = land.lat;
         lon = land.lon;
+        plan = await planForLand(land).catch(() => null);
         context = [
           land.kind === 'empty' ? 'the land is empty, nothing planted yet' : `there is a standing crop${land.crop ? ` (${land.crop})` : ''}`,
           land.acres ? `plot size about ${land.acres} acres (measured from satellite)` : 'plot size unknown',
         ].join('; ');
       }
     }
-    return runAgent({ userText: String(text).slice(0, 2000), lat, lon, context, noField });
+    if (!landId) plan = await buildPlan({ lat, lon, place: 'bogura' }).catch(() => null);
+    return runAgent({ userText: String(text).slice(0, 2000), lat, lon, context, noField, plan });
   })
 );
 
@@ -263,7 +293,21 @@ app.post(
   timed(async (req) => {
     const { text, lat, lon } = req.body || {};
     if (!text) throw new Error('text is required');
-    return runAgent({ userText: String(text).slice(0, 2000), lat: Number(lat), lon: Number(lon) });
+    const plan = await buildPlan({ lat: Number(lat), lon: Number(lon) }).catch(() => null);
+    return runAgent({ userText: String(text).slice(0, 2000), lat: Number(lat), lon: Number(lon), plan });
+  })
+);
+
+// Soil, weather and crop calendar for any point (or a demo place), for the bench.
+app.get(
+  '/api/plan',
+  guard,
+  timed(async (req) => {
+    const place = DEMO_PLACES[req.query.place] ? req.query.place : null;
+    const lat = place ? DEMO_PLACES[place].lat : Number(req.query.lat);
+    const lon = place ? DEMO_PLACES[place].lon : Number(req.query.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error('lat and lon are required');
+    return { plan: await buildPlan({ lat, lon, place }) };
   })
 );
 
