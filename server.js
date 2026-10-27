@@ -11,13 +11,13 @@ import { runAgent } from './lib/agent.js';
 import { TTS, hasTtsKey, synthesize } from './lib/tts.js';
 import { DEMO_PLACES } from './lib/plot.js';
 import {
-  dbConfigured, isId, newId, createLand, listLands, getLand, updateLand, putFile, getFile, listAlerts, pingDb,
+  dbConfigured, isId, newId, createLand, listLands, getLand, updateLand, deleteLand, putFile, getFile, deleteFiles, listAlerts, pingDb,
 } from './lib/store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.3.1';
+const VERSION = '0.3.2';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -185,6 +185,26 @@ app.patch(
     if (!obj) throw new Error('That field is not on this map');
     const updated = await updateLand(land.id, { selected_object: obj.id, acres: obj.acres ?? null });
     return { land: landView(updated) };
+  })
+);
+
+// The farmer deletes a land: the row first, then its pictures.
+app.delete(
+  '/api/lands/:id',
+  guard,
+  timed(async (req) => {
+    const land = await getLand(req.params.id);
+    if (!land) throw new Error('Land not found');
+    const deleted = await deleteLand(land.id);
+    if (!deleted) throw new Error('Land could not be deleted');
+    let filesRemoved = 0;
+    let storageError = null;
+    try {
+      filesRemoved = await deleteFiles([land.tile_path, land.photo_path]);
+    } catch (err) {
+      storageError = err.message; // the land is gone; leftover pictures are only reported
+    }
+    return { deleted: true, id: land.id, filesRemoved, storageError };
   })
 );
 

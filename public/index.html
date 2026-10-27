@@ -172,6 +172,7 @@
     <h2 class="section-title" id="askTitle" data-t="askSaathi"></h2>
     <div class="chips" id="askChips"></div>
     <div id="landAnswer" class="answer" hidden></div>
+    <div class="del-row"><button class="btn danger-ghost" id="deleteBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg><span data-t="deleteLand"></span></button></div>
     <div class="spacer"></div>
   </section>
 
@@ -181,6 +182,21 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
     </button>
     <div id="micLabel" class="mic-label" data-t="holdToTalk"></div>
+  </div>
+
+  <!-- Delete confirm sheet -->
+  <div class="sheet-wrap" id="deleteSheet" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
+      <div class="sheet-head">
+        <img id="deleteThumb" alt="" />
+        <div>
+          <h3 id="deleteTitle" data-t="deleteTitle"></h3>
+          <div class="muted" data-t="deleteText"></div>
+        </div>
+      </div>
+      <button class="btn danger wide" id="deleteYes" data-t="deleteYes"></button>
+      <button class="btn wide" id="deleteNo" data-t="deleteNo"></button>
+    </div>
   </div>
 
   <div id="toast" class="toast" hidden></div>

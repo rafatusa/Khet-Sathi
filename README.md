@@ -21,6 +21,7 @@ in each version and when.
 | Small-plot scan: SAM 3.1 runs on an enlarged 225 m close-up, so tiny Bengal plots are outlined one by one; wide 600 m view as fallback | Live |
 | Honest empty states: "no farm field here" for a town spot, re-scan for older lands, SAM's answer shown on screen | Live |
 | Tap a different field on the map if the guess is wrong | Live |
+| Delete a saved land (asks once, removes its pictures too) | Live |
 | Talk mode: farmer speaks Bangla/Hindi → agent → spoken reply | Live |
 | Agent plans with tools: plot profile → input prices → draft order | Live (demo vendor data) |
 | Empty land: photo + satellite + soil + weather → what to grow → vendors | In progress |
@@ -77,6 +78,7 @@ Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 
 | Version | Date | What was built |
 |---|---|---|
+| v0.3.2 | Oct 27 | Delete a saved land from its screen, with a confirm sheet; removes the land and both of its pictures from storage. Visible keyboard focus on buttons |
 | v0.3.1 | Oct 27 | Zoomed SAM 3.1 scan for small plots (centre 225 m enlarged, concept "field", wide "farm field" fallback); whole-image outlines ignored; re-scan for lands saved with 0 fields; "no farm field here" screen with demo land; agent refuses soil advice where no field was found; acres under 1 shown to 2 decimals; bench shows 0 outlines as WARN and adds the farmer-app scan; all environment variables trimmed. New dependency: `sharp` (image crop) |
 | v0.3.0 | Oct 27 | Farmer app: language picker, home, add land with photo + GPS, SAM 3.1 plot detection and acreage, tap-to-correct field, ask by voice or tap with spoken answers; Supabase storage (`sql/001_core_tables_v0.3.0.sql`); dev bench moved to /check/ |
 | v0.2.1 | Oct 27 | README rewritten for the full product scope; developer documentation kept out of the repo |

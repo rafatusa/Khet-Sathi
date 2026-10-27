@@ -1,4 +1,4 @@
-// Khet Saathi farmer app (v0.3.1): language, home, add land (photo + GPS),
+// Khet Saathi farmer app (v0.3.2): language, home, add land (photo + GPS),
 // satellite plot with SAM 3.1 outline (zoomed scan), re-scan, ask Saathi by voice or tap, spoken replies.
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -397,6 +397,43 @@
       toast(`${t('error')}: ${err.message}`);
     }
   }
+  // ---------- delete a land ----------
+  function openDeleteSheet() {
+    if (!current) return;
+    $('deleteThumb').src = imgUrl(current.tileUrl);
+    $('deleteSheet').hidden = false;
+    $('deleteNo').focus(); // the safe choice has focus
+  }
+  function closeDeleteSheet() {
+    $('deleteSheet').hidden = true;
+    $('deleteBtn').focus();
+  }
+  $('deleteBtn').addEventListener('click', openDeleteSheet);
+  $('deleteNo').addEventListener('click', closeDeleteSheet);
+  $('deleteSheet').addEventListener('click', (e) => {
+    if (e.target === $('deleteSheet')) closeDeleteSheet();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('deleteSheet').hidden) closeDeleteSheet();
+  });
+  $('deleteYes').addEventListener('click', async () => {
+    if (!current) return;
+    const btn = $('deleteYes');
+    btn.disabled = true;
+    try {
+      const r = await api(`/api/lands/${current.id}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error(r.error);
+      $('deleteSheet').hidden = true;
+      current = null;
+      toast(t('deleted'));
+      goHome();
+    } catch (err) {
+      toast(`${t('error')}: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   $('landListen').addEventListener('click', () => {
     if (!current) return;
     const kind = current.kind === 'empty' ? t('emptyLand') : t('standingCrop');

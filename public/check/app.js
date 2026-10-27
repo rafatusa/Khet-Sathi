@@ -1,4 +1,4 @@
-// Khet Saathi v0.3.1 - browser side of the model check.
+// Khet Saathi v0.3.2 - browser side of the model check.
 (() => {
   const $ = (id) => document.getElementById(id);
 

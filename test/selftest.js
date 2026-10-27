@@ -10,6 +10,7 @@ import { env } from '../lib/env.js';
 import { scanLand, choosePass } from '../lib/scan.js';
 import { plotProfile } from '../lib/agent.js';
 import sharp from 'sharp';
+import { createLand, getLand, putFile, getFile, deleteLand, deleteFiles } from '../lib/store.js';
 
 // SAM 3.1 sample output from Meta's documentation, split across deltas.
 const outputText =
@@ -220,6 +221,17 @@ await checkAsync('Scan: SAM errors are reported, not hidden', async () => {
   assert.equal(r.objects.length, 0);
   assert.equal(r.image.groundMeters, 600);
   assert.match(r.sam.error, /zoom: model_not_found/);
+});
+
+await checkAsync('Delete: land row and both pictures removed (memory store)', async () => {
+  const land = await createLand({ kind: 'empty', lat: 23.64, lon: 87.73, tile_path: 'x/tile.jpg', photo_path: 'x/photo.jpg' });
+  await putFile('x/tile.jpg', Buffer.from('t'), 'image/jpeg');
+  await putFile('x/photo.jpg', Buffer.from('p'), 'image/jpeg');
+  assert.equal(await deleteLand(land.id), true);
+  assert.equal(await getLand(land.id), null);
+  assert.equal(await deleteFiles([land.tile_path, land.photo_path, null]), 2);
+  assert.equal(await getFile('x/tile.jpg'), null);
+  assert.equal(await deleteLand(land.id), false);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);
