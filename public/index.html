@@ -264,12 +264,29 @@
       <div class="display lg" data-t="poultry"></div>
       <button class="round-btn green" id="shedListen" aria-label="Listen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
     </header>
+    <div class="clip-row" id="clipRow"></div>
     <div class="shed-video" id="shedVideo">
       <img id="shedFrame" alt="" hidden />
       <svg id="shedSvg" preserveAspectRatio="xMidYMid meet" hidden></svg>
       <div class="shed-empty" id="shedEmpty" data-t="shedEmpty"></div>
       <span class="map-badge" id="shedBadge" hidden></span>
       <span class="map-badge right" id="shedSam" hidden>SAM 3.1</span>
+    </div>
+    <div class="clip-saved" id="clipSaved" hidden>
+      <span id="clipChecked"></span>
+      <button class="btn clip-btn" id="clipRecheck" data-t="recheck"></button>
+    </div>
+    <label class="clip-today" id="clipToday" hidden>
+      <span><b data-t="todayCam"></b><span class="muted small" data-t="todayCamSub"></span></span>
+      <input type="checkbox" id="clipTodayInput" class="switch" />
+    </label>
+    <div class="clip-dialog" id="clipSave" hidden>
+      <b data-t="saveTitle"></b>
+      <label class="muted small" for="clipName" data-t="nameLabel"></label>
+      <input id="clipName" class="clip-name" type="text" maxlength="40" />
+      <div class="muted small" data-t="saveRule"></div>
+      <button class="btn primary wide" id="clipSaveBtn" data-t="saveBtn"></button>
+      <button class="btn wide" id="clipOnceBtn" data-t="onceBtn"></button>
     </div>
     <div class="muted small center" id="shedProgress" hidden></div>
     <div class="stat-row" id="shedStats" hidden>
@@ -306,6 +323,16 @@
     <div id="shedAnswer" class="answer" hidden></div>
     <div class="spacer"></div>
   </section>
+
+  <!-- Delete a saved clip -->
+  <div class="sheet-wrap" id="clipDelSheet" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="clipDelTitle">
+      <h3 id="clipDelTitle" data-t="clipDelTitle"></h3>
+      <div class="muted" data-t="clipDelText"></div>
+      <button class="btn danger wide" id="clipDelYes" data-t="deleteYes"></button>
+      <button class="btn wide" id="clipDelNo" data-t="deleteNo"></button>
+    </div>
+  </div>
 
   <!-- Vet sheet (simulated contact; no real call) -->
   <div class="sheet-wrap" id="vetSheet" hidden>

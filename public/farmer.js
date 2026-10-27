@@ -1,4 +1,4 @@
-// Khet Saathi farmer app (v0.7.0): language, home, add land (photo + GPS),
+// Khet Saathi farmer app (v0.7.1): language, home, add land (photo + GPS),
 // satellite plot with SAM 3.1 outline (zoomed scan), re-scan, ask Saathi by voice or tap, spoken replies.
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -758,7 +758,9 @@
   async function openShed() {
     show('s-shed');
     $('shedAnswer').hidden = true;
-    await loadShed();
+    pending = null;
+    $('clipSave').hidden = true;
+    await Promise.all([loadShed(), loadClips()]);
   }
 
   async function loadShed() {
@@ -859,17 +861,218 @@
     $('shedVetName').innerHTML = shed.vet ? `${esc(shed.vet.name)} <span class="sample">${esc(t('simulated'))}</span>` : '';
   }
 
+  // ---------- saved clips: the simulated shed camera ----------
+  let clips = { clips: [], todayId: null, max: 5 };
+  let clipSel = null; // selected saved clip id
+  let pending = null; // { file, v } picked but not yet saved or checked
+
+  function resetShedResult() {
+    $('shedAction').hidden = true;
+    $('shedSound').hidden = true;
+    $('shedNote').hidden = true;
+    $('shedStats').hidden = true;
+    shed.still = 0;
+    shed.soundBad = false;
+    shed.vetSummary = '';
+  }
+
+  async function loadClips() {
+    try {
+      const r = await api('/api/clips');
+      if (r.ok) clips = r;
+    } catch {
+      return;
+    }
+    if (clipSel && !clips.clips.some((c) => c.id === clipSel)) clipSel = null;
+    if (!clipSel && !pending) clipSel = clips.todayId || clips.clips[0]?.id || null;
+    renderClipRow();
+    if (clipSel && !pending) showClip(clips.clips.find((c) => c.id === clipSel));
+  }
+
+  function renderClipRow() {
+    const row = $('clipRow');
+    row.replaceChildren();
+    if (!clips.clips.length) return;
+    for (const c of clips.clips) {
+      const b = document.createElement('div');
+      b.className = `clip${c.id === clipSel ? ' on' : ''}`;
+      b.setAttribute('role', 'button');
+      b.tabIndex = 0;
+      b.innerHTML = `<b>${esc(c.name)}</b><span>${esc(fmt('secondsShort', { n: num(c.seconds, 0) }))}</span>` +
+        (c.id === clipSel ? `<button class="clip-del" aria-label="${esc(t('clipDelete'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : '');
+      const pick = () => {
+        pending = null;
+        $('clipSave').hidden = true;
+        clipSel = c.id;
+        renderClipRow();
+        showClip(c);
+      };
+      b.addEventListener('click', (e) => (e.target.closest('.clip-del') ? openClipDelete() : pick()));
+      b.addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && pick());
+      row.append(b);
+    }
+    const add = document.createElement('button');
+    add.className = 'clip add';
+    add.textContent = t('clipsNew');
+    add.addEventListener('click', () => $('shedVideoInput').click());
+    row.append(add);
+  }
+
+  // Saved clip: its last frame, rings, count and sound result, with no new model calls.
+  function showClip(c) {
+    if (!c) return;
+    resetShedResult();
+    const frame = imgUrl(`/api/clips/${c.id}/frame/${c.frames - 1}`);
+    const r = c.result;
+    const still = r?.count && !r.count.resting && !isNightNow() ? r.count.still : [];
+    drawShed(frame, { width: c.width, height: c.height, seconds: c.seconds }, { still });
+    $('shedBadge').textContent = t('savedClipBadge');
+    $('clipSaved').hidden = false;
+    $('clipChecked').textContent = r?.checkedAt ? fmt('lastChecked', { when: ago(r.checkedAt) }) : t('notChecked');
+    $('clipToday').hidden = false;
+    $('clipTodayInput').checked = clips.todayId === c.id;
+    if (r?.count) {
+      shed.still = still.length;
+      shed.resting = r.count.resting || isNightNow();
+      $('shedStats').hidden = false;
+      $('shedCount').textContent = num(r.count.count, 0);
+      $('shedStill').textContent = num(still.length, 0);
+      $('shedStillBox').classList.toggle('warn', still.length > 0);
+      if (shed.resting && r.count.still.length) {
+        $('shedNote').textContent = t('restingNight');
+        $('shedNote').hidden = false;
+      }
+    }
+    shed.vetLine = SAFE_LINE();
+    if (r?.observation) applyObservation({ observation: r.observation, vetLine: SAFE_LINE() });
+    else showAction();
+  }
+  const SAFE_LINE = () => t('b_birds_still').split(' · ').pop();
+  const isNightNow = () => {
+    const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
+    return h >= 19 || h < 6;
+  };
+
+  $('clipTodayInput').addEventListener('change', async (e) => {
+    if (!clipSel) return;
+    try {
+      const r = await postJson(`/api/clips/${clipSel}/today`, { on: e.target.checked });
+      if (!r.ok) throw new Error(r.error);
+      clips.todayId = r.todayId;
+    } catch (err) {
+      e.target.checked = !e.target.checked;
+      toast(`${t('error')}: ${err.message}`);
+    }
+  });
+
+  $('clipRecheck').addEventListener('click', async () => {
+    if (!clipSel) return;
+    $('clipRecheck').disabled = true;
+    shedProgress(t('stepWatch'));
+    try {
+      const r = await postJson(`/api/clips/${clipSel}/check?lang=${lang}`, {});
+      if (!r.ok) throw new Error(r.error);
+      clips.clips = clips.clips.map((c) => (c.id === r.clip.id ? r.clip : c));
+      showClip(r.clip);
+    } catch (err) {
+      toast(`${t('error')}: ${err.message}`);
+    } finally {
+      $('clipRecheck').disabled = false;
+      shedProgress('');
+    }
+  });
+
+  function openClipDelete() {
+    $('clipDelSheet').hidden = false;
+    $('clipDelNo').focus();
+  }
+  $('clipDelNo').addEventListener('click', () => ($('clipDelSheet').hidden = true));
+  $('clipDelSheet').addEventListener('click', (e) => e.target === $('clipDelSheet') && ($('clipDelSheet').hidden = true));
+  $('clipDelYes').addEventListener('click', async () => {
+    if (!clipSel) return;
+    try {
+      const r = await api(`/api/clips/${clipSel}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error(r.error);
+      $('clipDelSheet').hidden = true;
+      clipSel = null;
+      toast(t('clipDeleted'));
+      resetShedResult();
+      $('clipSaved').hidden = true;
+      $('clipToday').hidden = true;
+      $('shedFrame').hidden = true;
+      $('shedSvg').setAttribute('hidden', '');
+      $('shedEmpty').hidden = false;
+      $('shedBadge').hidden = true;
+      $('shedSam').hidden = true;
+      await loadClips();
+    } catch (err) {
+      toast(`${t('error')}: ${err.message}`);
+    }
+  });
+
+  // A newly picked video: show it, then ask whether to save it or check it once.
   $('shedVideoInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
-    if (file.size > 60 * 1024 * 1024) return toast(t('videoTooBig'));
-    $('shedAction').hidden = true;
-    $('shedSound').hidden = true;
-    $('shedNote').hidden = true;
+    if (file.size > 50 * 1024 * 1024) return toast(t('videoTooBig'));
+    resetShedResult();
+    $('clipSaved').hidden = true;
+    $('clipToday').hidden = true;
     try {
       shedProgress(t('stepFrames'));
       const v = await extractFrames(file);
+      pending = { file, v };
+      clipSel = null;
+      renderClipRow();
+      drawShed(v.frames[v.frames.length - 1], v, { still: [] });
+      $('clipName').value = fmt('defaultClipName', { n: num(clips.clips.length + 1, 0) });
+      $('clipSaveBtn').disabled = clips.clips.length >= (clips.max || 5);
+      if ($('clipSaveBtn').disabled) toast(t('clipsFull'));
+      $('clipSave').hidden = false;
+    } catch (err) {
+      toast(`${t('error')}: ${err.message}`);
+    } finally {
+      shedProgress('');
+    }
+  });
+
+  $('clipOnceBtn').addEventListener('click', async () => {
+    if (!pending) return;
+    $('clipSave').hidden = true;
+    const { file, v } = pending;
+    pending = null;
+    await checkOnce(file, v);
+  });
+
+  $('clipSaveBtn').addEventListener('click', async () => {
+    if (!pending) return;
+    const { file, v } = pending;
+    const name = $('clipName').value.trim() || fmt('defaultClipName', { n: num(clips.clips.length + 1, 0) });
+    $('clipSave').hidden = true;
+    try {
+      shedProgress(t('saving'));
+      const c = await postJson('/api/clips', { name, seconds: v.seconds, width: v.width, height: v.height, frames: v.frames });
+      if (!c.ok) throw new Error(c.error);
+      const up = await api(`/api/clips/${c.clip.id}/video`, { method: 'PUT', headers: { 'Content-Type': file.type === 'video/quicktime' ? 'video/quicktime' : 'video/mp4' }, body: file });
+      if (!up.ok) throw new Error(up.error);
+      pending = null;
+      clipSel = c.clip.id;
+      shedProgress(t('stepWatch'));
+      const r = await postJson(`/api/clips/${c.clip.id}/check?lang=${lang}`, {});
+      if (!r.ok) throw new Error(r.error);
+      await loadClips();
+    } catch (err) {
+      toast(`${t('error')}: ${err.message}`);
+      await loadClips();
+    } finally {
+      shedProgress('');
+    }
+  });
+
+  // Check once without saving (v0.7.0 flow).
+  async function checkOnce(file, v) {
+    try {
       shedProgress(t('stepCount'));
       const r = await postJson('/api/poultry/count', { frames: v.frames, width: v.width });
       if (!r.ok) throw new Error(r.error);
@@ -894,7 +1097,7 @@
       shedProgress('');
       loadShed();
     }
-  });
+  }
 
   function applyObservation(w) {
     const o = w.observation || {};
@@ -904,7 +1107,9 @@
     shed.vetSummary = o.vetSummary || '';
     const box = $('shedSound');
     box.hidden = false;
-    box.classList.toggle('warn', o.unusualSound || !o.heardAudio);
+    const bad = o.unusualSound || !o.heardAudio;
+    box.classList.toggle('warn', bad);
+    box.querySelector('.shed-ok-ico svg').innerHTML = bad ? '<path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/>' : '<path d="M5 12l5 5 9-10"/>';
     $('shedSoundTitle').textContent = !o.heardAudio ? t('soundMissing') : o.unusualSound ? t('soundBadTitle') : t('soundOkTitle');
     $('shedSoundText').textContent = o.heardAudio && !o.unusualSound ? t('soundOkText') : '';
     if (o.note) {
@@ -997,6 +1202,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !$('deleteSheet').hidden) closeDeleteSheet();
     if (e.key === 'Escape' && !$('vetSheet').hidden) $('vetSheet').hidden = true;
+    if (e.key === 'Escape' && !$('clipDelSheet').hidden) $('clipDelSheet').hidden = true;
   });
   $('deleteYes').addEventListener('click', async () => {
     if (!current) return;

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptText, segmentStream, uploadFile, deleteFile, respond, responseText } from './lib/meta.js';
 import { analyseFrames, framesFromSegments, observePrompt, parseObservation, MAX_FRAMES, SAFE_VET_LINE } from './lib/poultry.js';
+import { readIndex, createClip, putClipVideo, getClip, clipFrames, clipVideo, saveResult, deleteClip, setToday, todayCamera, MAX_CLIPS } from './lib/clips.js';
 import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage, zoomCenter } from './lib/tile.js';
 import { scanLand } from './lib/scan.js';
@@ -17,13 +18,13 @@ import { TTS, hasTtsKey, synthesize } from './lib/tts.js';
 import { DEMO_PLACES } from './lib/plot.js';
 import {
   dbConfigured, isId, newId, createLand, listLands, getLand, updateLand, deleteLand, putFile, getFile, deleteFiles, listAlerts, pingDb,
-  recentAlerts, insertAlerts, markAlertRead, insertReadings, latestReadings, listContacts,
+  recentAlerts, insertAlerts, markAlertRead, insertReadings, latestReadings, listContacts, CLIP_BUCKET,
 } from './lib/store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.7.0';
+const VERSION = '0.7.1';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -325,6 +326,7 @@ app.post(
 const engine = createEngine({
   store: { listLands, getLand, latestReadings, insertReadings, recentAlerts, insertAlerts },
   planForLand,
+  camera: todayCamera,
   log: (m) => console.log(m),
 });
 const ENGINE_EVERY_MS = 10 * 60 * 1000;
@@ -383,50 +385,138 @@ async function raiseShedAlert(title, body) {
   await insertAlerts([{ land_id: null, area: 'shed', severity: 'warn', title, source: 'camera', body: JSON.stringify(body) }]).catch(() => null);
 }
 
-// Frames (JPEG data URLs, 1 per second) pulled from the video by the phone. SAM finds every bird in each.
+const shedHour = () => Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
+
+// SAM 3.1 on each frame (4 at a time), then count and still birds. Hens resting at night are normal.
+async function countFrames(frameUrls, width) {
+  const frames = frameUrls.filter((f) => typeof f === 'string' && f.startsWith('data:image/')).slice(0, MAX_FRAMES);
+  if (frames.length < 2) throw new Error('Send at least 2 frames');
+  const segs = [];
+  for (let i = 0; i < frames.length; i += 4) {
+    const batch = frames.slice(i, i + 4).map(async (f) => collectSegments(await segmentStream({ imageDataUrl: f, prompt: 'chicken' })));
+    segs.push(...(await Promise.all(batch)));
+  }
+  const result = analyseFrames(framesFromSegments(segs, width));
+  const hour = shedHour();
+  const lightRow = latestByDevice(await latestReadings([SHED_DEVICE], 20).catch(() => []))[SHED_DEVICE]?.light;
+  result.resting = isNight(hour) || (lightRow?.value === 0 && (hour < 6 || hour >= 18));
+  return result;
+}
+
+// Muse Spark 1.2 watches the clip with its sound (Files API upload, deleted afterwards). Never a diagnosis.
+async function observeVideo(buffer, lang) {
+  const fileId = await uploadFile(buffer, 'shed.mp4', 'video/mp4');
+  try {
+    const json = await respond({ content: [{ type: 'input_text', text: observePrompt(lang) }, { type: 'input_file', file_id: fileId }] });
+    return parseObservation(responseText(json));
+  } finally {
+    deleteFile(fileId).catch(() => null);
+  }
+}
+const pickLang = (q) => (['bn', 'hi', 'en'].includes(q) ? q : 'bn');
+
+// Frames (JPEG data URLs) pulled from the video by the phone. SAM finds every bird in each.
 app.post(
   '/api/poultry/count',
   guard,
   timed(async (req) => {
-    const frames = (req.body?.frames || []).filter((f) => typeof f === 'string' && f.startsWith('data:image/')).slice(0, MAX_FRAMES);
-    const width = Number(req.body?.width) || 1024;
-    if (frames.length < 2) throw new Error('Send at least 2 frames');
-    const segs = [];
-    for (let i = 0; i < frames.length; i += 4) {
-      const batch = frames.slice(i, i + 4).map(async (f) => collectSegments(await segmentStream({ imageDataUrl: f, prompt: 'chicken' })));
-      segs.push(...(await Promise.all(batch)));
-    }
-    const result = analyseFrames(framesFromSegments(segs, width));
-    // Hens rest at night or with the light off: still birds then are normal, so no warning.
-    const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
-    const lightRow = latestByDevice(await latestReadings([SHED_DEVICE], 20).catch(() => []))[SHED_DEVICE]?.light;
-    result.resting = isNight(hour) || lightRow?.value === 0 && (hour < 6 || hour >= 18);
+    const result = await countFrames(req.body?.frames || [], Number(req.body?.width) || 1024);
     lastShed = { ...(lastShed || {}), count: result, countedAt: new Date().toISOString() };
     if (result.still.length && !result.resting) await raiseShedAlert('birds_still', { value: result.still.length });
     return result;
   })
 );
 
-// The whole clip, with its sound, for Muse Spark 1.2: behaviour and unusual sounds. Never a diagnosis.
+// The whole clip, with its sound, for Muse Spark 1.2: behaviour and unusual sounds.
 app.post(
   '/api/poultry/video',
   guard,
   express.raw({ type: ['video/mp4', 'video/quicktime', 'application/octet-stream'], limit: '60mb' }),
   timed(async (req) => {
     if (!Buffer.isBuffer(req.body) || req.body.length < 1000) throw new Error('No video received');
-    const lang = ['bn', 'hi', 'en'].includes(req.query.lang) ? req.query.lang : 'bn';
-    const fileId = await uploadFile(req.body, 'shed.mp4', 'video/mp4');
-    try {
-      const json = await respond({ content: [{ type: 'input_text', text: observePrompt(lang) }, { type: 'input_file', file_id: fileId }] });
-      const obs = parseObservation(responseText(json));
-      lastShed = { ...(lastShed || {}), video: obs, videoAt: new Date().toISOString() };
-      if (obs.unusualSound) await raiseShedAlert('sound_unusual', {});
-      return { observation: obs, vetLine: SAFE_VET_LINE[lang], model: MODELS.media };
-    } finally {
-      deleteFile(fileId).catch(() => null);
-    }
+    const lang = pickLang(req.query.lang);
+    const obs = await observeVideo(req.body, lang);
+    lastShed = { ...(lastShed || {}), video: obs, videoAt: new Date().toISOString() };
+    if (obs.unusualSound) await raiseShedAlert('sound_unusual', {});
+    return { observation: obs, vetLine: SAFE_VET_LINE[lang], model: MODELS.media };
   })
 );
+
+// ---------- saved shed clips: the simulated shed camera (v0.7.1) ----------
+app.get('/api/clips', guard, timed(async () => ({ ...(await readIndex()), max: MAX_CLIPS })));
+
+// Step 1: name + frames (from the phone). Step 2: PUT the video. Step 3: check.
+app.post(
+  '/api/clips',
+  guard,
+  timed(async (req) => ({ clip: await createClip(req.body || {}) }))
+);
+
+app.put(
+  '/api/clips/:id/video',
+  guard,
+  express.raw({ type: ['video/mp4', 'video/quicktime', 'application/octet-stream'], limit: '50mb' }),
+  timed(async (req) => {
+    if (!Buffer.isBuffer(req.body) || req.body.length < 1000) throw new Error('No video received');
+    return { clip: await putClipVideo(req.params.id, req.body, req.get('content-type')) };
+  })
+);
+
+// Runs SAM on the saved frames and Spark on the saved video, and keeps the result with the clip.
+app.post(
+  '/api/clips/:id/check',
+  guard,
+  timed(async (req) => {
+    const clip = await getClip(req.params.id);
+    if (!clip) throw new Error('Clip not found');
+    const lang = pickLang(req.query.lang);
+    const count = await countFrames(await clipFrames(clip), clip.width);
+    let observation = null;
+    let videoError = null;
+    const video = await clipVideo(clip);
+    if (video) {
+      try {
+        observation = await observeVideo(video.buffer, lang);
+      } catch (err) {
+        videoError = err.message;
+      }
+    }
+    const saved = await saveResult(clip.id, { count, observation, videoError, lang });
+    const index = await readIndex();
+    if (index.todayId === clip.id) engine.run().catch(() => null); // today's camera: raise its warnings now
+    return { clip: saved, vetLine: SAFE_VET_LINE[lang] };
+  })
+);
+
+app.post(
+  '/api/clips/:id/today',
+  guard,
+  timed(async (req) => {
+    const index = await setToday(req.body?.on ? req.params.id : null);
+    if (index.todayId) engine.run().catch(() => null);
+    return index;
+  })
+);
+
+app.delete(
+  '/api/clips/:id',
+  guard,
+  timed(async (req) => ({ deleted: await deleteClip(req.params.id) }))
+);
+
+// Frames of a saved clip, for the shed screen.
+app.get('/api/clips/:id/frame/:n', guard, async (req, res) => {
+  try {
+    const clip = await getClip(req.params.id);
+    const n = Number(req.params.n);
+    if (!clip || !Number.isInteger(n) || n < 0 || n >= clip.frames) return res.status(404).end();
+    const f = await getFile(`${clip.id}/f${n}.jpg`, CLIP_BUCKET);
+    if (!f) return res.status(404).end();
+    res.set('Content-Type', 'image/jpeg').set('Cache-Control', 'private, max-age=86400').send(f.buffer);
+  } catch {
+    res.status(502).end();
+  }
+});
 
 // A sound clip only (WAV), for Muse Spark 1.2 audio input.
 app.post(

@@ -18,7 +18,8 @@ import { readFileSync } from 'node:fs';
 import { seedField, stepField, stepShed, seedShed, latestByDevice, fieldDevice, lightScheduled, isNight } from '../lib/sensors.js';
 import { analyseFrames, safeText, parseObservation } from '../lib/poultry.js';
 import { responseText } from '../lib/meta.js';
-import { fieldAlerts, shedAlerts, dedupe } from '../lib/alerts.js';
+import { fieldAlerts, shedAlerts, cameraAlerts, dedupe } from '../lib/alerts.js';
+import * as clipsLib from '../lib/clips.js';
 import { createEngine } from '../lib/engine.js';
 import * as memStore from '../lib/store.js';
 import sharp from 'sharp';
@@ -466,6 +467,34 @@ check('Shed alerts: cold, humidity, light at the wrong time, heat and cold forec
   const weather = { days: [{ date: '2026-10-27', tMax: 33, tMin: 24 }, { date: '2026-10-28', tMax: 37, tMin: 11 }] };
   assert.deepEqual(t({}, { weather, today: '2026-10-27' }), ['heat_coming', 'cold_night']);
   assert.deepEqual(t({ eggs_today: 310 }), ['eggs_ready']);
+});
+
+// ---------- v0.7.1: saved shed clips (simulated camera) ----------
+check('Camera alerts: still birds by day only, unusual sound any time', () => {
+  const clip = { name: 'সমস্যার দিন', result: { count: { still: [{}, {}, {}] }, observation: { unusualSound: true } } };
+  assert.deepEqual(cameraAlerts(clip, { hour: 11 }).map((a) => a.title), ['birds_still', 'sound_unusual']);
+  assert.deepEqual(cameraAlerts(clip, { hour: 23 }).map((a) => a.title), ['sound_unusual'], 'hens rest at night');
+  assert.deepEqual(cameraAlerts({ result: null }), []);
+});
+
+await checkAsync('Clips: save, keep result, set as today\'s camera, delete (memory store)', async () => {
+  const jpg = `data:image/jpeg;base64,${testJpeg.toString('base64')}`;
+  const a = await clipsLib.createClip({ name: 'স্বাভাবিক দিন', seconds: 28, width: 1024, height: 576, frames: [jpg, jpg, jpg] });
+  const b = await clipsLib.createClip({ name: 'সমস্যার দিন', seconds: 42, width: 1024, height: 576, frames: [jpg, jpg] });
+  await clipsLib.putClipVideo(b.id, Buffer.alloc(2000), 'video/mp4');
+  assert.equal((await clipsLib.clipFrames(a)).length, 3);
+  assert.ok(await clipsLib.clipVideo(await clipsLib.getClip(b.id)));
+  await clipsLib.saveResult(b.id, { count: { count: 186, still: [{}] } });
+  await clipsLib.setToday(b.id);
+  const cam = await clipsLib.todayCamera();
+  assert.equal(cam.name, 'সমস্যার দিন');
+  assert.equal(cam.result.count.count, 186);
+  await clipsLib.deleteClip(b.id);
+  assert.equal(await clipsLib.todayCamera(), null, 'deleting today\'s clip clears the camera');
+  const idx = await clipsLib.readIndex();
+  assert.deepEqual(idx.clips.map((c) => c.name), ['স্বাভাবিক দিন']);
+  for (let i = 0; i < 4; i++) await clipsLib.createClip({ name: `c${i}`, frames: [jpg, jpg] });
+  await assert.rejects(clipsLib.createClip({ name: 'sixth', frames: [jpg, jpg] }), /Up to 5/);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

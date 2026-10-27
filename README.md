@@ -31,6 +31,7 @@ in each version and when.
 | Crop calendar: every crop's sowing and harvest (selling) window for the farm's zone on a year bar, grouped into sow now, starting soon and later; tap a crop to ask Saathi | Live (Bangladesh, FAO data) |
 | Standing crop: harvest readiness, field health, harvester → transport → buyer | Planned |
 | Poultry shed: the farmer films the shed; SAM 3.1 counts birds frame by frame and rings birds that hardly move (not at night, when hens rest); Muse Spark 1.2 watches the clip with its sound for behaviour and unusual sounds. Warning signs only ever say "keep these birds apart and call the vet": the app never names a disease or a medicine | Live (needs the farmer's own video) |
+| Saved shed clips: up to 5 of the farmer's own shed videos, each checked once and kept with its result; one can be set as "today's camera" so its warnings reach Home by themselves | Live (**simulated camera**: a saved clip stands in for a CCTV feed) |
 | Shed care alerts: too hot or cold, humidity, ammonia, water and feed, light left on at night or in daylight, light off in the evening, heat or cold coming, egg count | Live (shed sensors and egg counter **simulated**) |
 | Auto-sell: when eggs or harvest are ready, the agent phones shop owners and negotiates | Planned |
 
@@ -87,6 +88,7 @@ Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 
 | Version | Date | What was built |
 |---|---|---|
+| v0.7.1 | Oct 27 | Shed clip library (simulated camera): save up to 5 named clips with their frames and last result in a private `shed-clips` bucket, re-check on demand, choose today's camera for automatic alerts, delete with a confirm sheet; `sql/003_shed_clips_v0.7.1.sql` |
 | v0.7.0 | Oct 27 | Poultry shed screen: phone video, frames pulled in the browser, SAM 3.1 bird count and "not moving" rings (suppressed at night), Muse Spark 1.2 video and sound check through the Files and Responses APIs, safety filter that drops any disease or medicine words, simulated vet; shed care rules for cold, humidity, light schedule, heat and cold forecast and eggs; simulated egg counter. No database change |
 | v0.6.0 | Oct 27 | Crop calendar screen from the Home tile: real FAO sowing and harvest windows for the zone, year bars with today marked, closing-first order; new agent tool get_sowing_calendar for "when do I sow, when can I sell" questions. No database change |
 | v0.5.0 | Oct 27 | Simulated village sensor kit (field and shed) and the alerts engine: rules on real weather, FAO sowing windows and simulated sensor readings write alerts every 10 minutes; Home shows them as traffic-light cards with a speaker and a read tick; bench buttons for one tick and demo values (dry soil, hot shed). No database change |
