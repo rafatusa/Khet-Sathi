@@ -227,3 +227,17 @@ body[data-auth="out"] #farmBtn,body[data-auth="out"] #topTabs,body[data-auth="ou
 header{position:sticky}header .wrap.top{position:relative}
 .memenu .menu-lang{display:none;margin:4px 6px 6px;align-self:flex-start}
 @media (max-width:560px){body[data-auth="in"] .hbtns>.lang{display:none}.memenu .menu-lang{display:inline-flex}.memenu button[data-lang]{padding:8px 14px;min-height:40px}}
+/* v0.14.0: demo farm / farm view bar, demo card, admin Settings */
+.viewbar{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#123320;color:#fff;border-radius:12px;padding:10px 14px;margin:12px 0 0;font-size:.9rem}
+.viewbar button{background:#fff;color:#123320;border:0;border-radius:999px;padding:8px 16px;font:700 .85rem var(--f-body);cursor:pointer;min-height:40px;white-space:nowrap}
+body[data-view="farm"] .viewbar{background:var(--turmeric-soft);color:#5c4400}body[data-view="farm"] .viewbar button{background:#5c4400;color:#fff}
+.demopick{display:flex;gap:12px;align-items:center;width:100%;margin:12px 0 4px;padding:12px 14px;border:2px solid var(--turmeric);border-radius:16px;background:var(--turmeric-soft);color:var(--ink);font:inherit;text-align:left;cursor:pointer;min-height:56px}
+.demopick>span:first-child{width:34px;height:34px;flex:none;color:var(--leaf)}.demopick b{display:block}.demopick small{color:#5c4400}
+.demopick .tag{margin-left:auto;font:500 .7rem var(--f-mono);background:var(--surface);color:#5c4400;border-radius:6px;padding:2px 7px}
+.adt{width:100%;border-collapse:collapse;font-size:.9rem}.adt td,.adt th{padding:9px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.adt th{font:700 .7rem var(--f-body);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.st{font-weight:700}.st.ok{color:#1f6b1c}.st.fail{color:#a33024}.st.off{color:var(--muted)}
+.adbar{height:8px;border-radius:5px;background:var(--line);overflow:hidden;margin-top:6px}.adbar i{display:block;height:100%;background:var(--leaf)}
+.small-btn{min-height:36px;padding:6px 12px;font-size:.82rem;margin-left:auto}
+#settings .panel{margin-bottom:16px}#settings .lab{display:flex;align-items:center;gap:8px}
+body[data-page="landing"]>header,body[data-page="landing"]>main,body[data-page="landing"] nav.bottom{display:none!important}

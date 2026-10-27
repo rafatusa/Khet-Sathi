@@ -1,4 +1,4 @@
-// Khet Sathi server: farmer app at /, model-check bench at /check/.
+// Khet Sathi server: landing page and farmer app at /, admin model checks in the Settings tab.
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,14 +30,15 @@ import { sowingFromPasses, rowFor, readiness, harvestAmount, unitFor, samplePric
 import {
   dbConfigured, isId, newId, createLand, listLands, getLand, updateLand, deleteLand, putFile, getFile, deleteFiles, listAlerts, pingDb,
   recentAlerts, insertAlerts, markAlertRead, insertReadings, latestReadings, listContacts, CLIP_BUCKET, getSellRule, saveSellRule, insertDeal, listDeals,
-  listSheds, createShed, metricHistory, demoTemplates,
+  listSheds, createShed, metricHistory, demoTemplates, farmCounts, moveLand,
 } from './lib/store.js';
-import { runAs, currentOwner, userFromToken, sendCode, verifyCode, refreshSession, signOut, useLimit, LIMITS } from './lib/auth.js';
+import { runAs, currentOwner, currentScope, scopeFor, isAdmin, userFromToken, sendCode, verifyCode, refreshSession, signOut, useLimit, LIMITS, usageToday, listUsers, seenUsers } from './lib/auth.js';
+import { runChecks } from './lib/checks.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.13.2';
+const VERSION = '0.14.0';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -45,6 +46,8 @@ const PUB = path.join(__dirname, 'public');
 app.get(['/', '/index.html'], (req, res) => res.sendFile(path.join(PUB, 'app.html')));
 app.get(['/next', '/next/', '/next/index.html'], (req, res) => res.redirect(302, '/'));
 // Express matches /classic and /classic/ alike, so one route tells them apart (relative links need the slash).
+// v0.14.0: the model bench page is retired; the checks live in the admin Settings tab.
+app.get(['/check', '/check/', '/check/index.html'], (req, res) => res.redirect(302, '/'));
 // v0.13.0: the classic app (shared passcode) is retired; its address opens the app.
 app.get(['/classic', '/classic/', '/classic.html'], (req, res) => res.redirect(302, '/'));
 app.use(express.static(PUB));
@@ -57,8 +60,39 @@ async function guard(req, res, next) {
   const token = h.startsWith('Bearer ') ? h.slice(7) : req.method === 'GET' ? String(req.query.t || '') : '';
   const user = await userFromToken(token).catch(() => null);
   if (!user) return res.status(401).json({ ok: false, error: 'Sign in first', signIn: true });
+  // v0.14.0: the demo farm (X-View: demo) or, for an admin, someone's farm (X-View: farm:<id>), read only.
+  const view = req.get('x-view') || (req.method === 'GET' ? String(req.query.view || '') : '');
+  const scope = scopeFor(user, view);
+  if (scope.readOnly && req.method !== 'GET' && !readOnlyAllowed(req, scope)) {
+    return res.status(200).json({ ok: false, readOnly: true, error: scope.mode === 'demo' ? 'This is the demo farm, so nothing is saved' : 'Read only: this is someone else\'s farm' });
+  }
   req.user = user;
-  return runAs(user, next);
+  req.scope = scope;
+  return runAs(user, next, scope);
+}
+// Read-only visitors may still talk to Sathi and, in the demo farm, play the demo calls (nothing is saved).
+const RO_TALK = /^\/api\/(ask|speak|transcribe|vet\/message)$/;
+const RO_DEMO_CALLS = /^\/api\/(vet\/call|sell\/run|lands\/[^/]+\/(order|harvest\/run|harvest\/book))$/;
+function readOnlyAllowed(req, scope) {
+  const p = req.path;
+  if (RO_TALK.test(p)) return true;
+  return scope.mode === 'demo' && RO_DEMO_CALLS.test(p);
+}
+// Demo calls in the demo farm count against a small daily cap per person (they cost voice generation).
+function demoCallCap(req, res, next) {
+  if (req.scope?.mode === 'demo' && req.scope.readOnly && RO_DEMO_CALLS.test(req.path)) {
+    try {
+      runAs(req.user, () => useLimit('demoCall'), req.scope);
+    } catch (err) {
+      return res.status(200).json({ ok: false, error: err.message });
+    }
+  }
+  return next();
+}
+// Admin-only routes: the Settings tab and the model bench.
+function adminOnly(req, res, next) {
+  if (!req.scope?.admin) return res.status(200).json({ ok: false, adminOnly: true, error: 'For admins only' });
+  return next();
 }
 
 // Wraps a handler so every response has { ok, ms, ... }.
@@ -67,7 +101,7 @@ function timed(handler) {
     const t0 = Date.now();
     try {
       // Runs as the signed-in farm again: a body parser (video upload) can drop the async context.
-      const data = await runAs(req.user || null, () => handler(req));
+      const data = await runAs(req.user || null, () => handler(req), req.scope || null);
       res.json({ ok: true, ms: Date.now() - t0, ...data });
     } catch (err) {
       res.status(200).json({ ok: false, ms: Date.now() - t0, error: err.message || String(err) });
@@ -107,42 +141,63 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.get('/api/db', guard, timed(async () => pingDb()));
+app.get('/api/db', guard, adminOnly, timed(async () => pingDb()));
 
 // ---------- sign-in (v0.13.0): email + 6-digit code, no password, no link ----------
 app.post('/api/auth/send', timed(async (req) => sendCode(req.body?.email)));
 app.post('/api/auth/verify', timed(async (req) => ({ session: await verifyCode(req.body?.email, req.body?.code) })));
 app.post('/api/auth/refresh', timed(async (req) => ({ session: await refreshSession(req.body?.refresh_token) })));
 app.post('/api/auth/signout', timed(async (req) => signOut(String(req.get('authorization') || '').replace(/^Bearer /, ''))));
-app.get('/api/auth/me', guard, timed(async (req) => ({ email: req.user.email, limits: LIMITS })));
+app.get('/api/auth/me', guard, timed(async (req) => ({ email: req.user.email, admin: isAdmin(req.user), limits: LIMITS })));
 
-// A new farm gets its own copy of each shared demo land (one per place), so the demo places are
-// ready to try and nothing one person does there shows up for anyone else. Pictures stay shared.
-const seeding = new Map();
-async function seedFarm() {
-  const owner = currentOwner();
-  if (!owner) return;
-  if (!seeding.has(owner)) {
-    seeding.set(
-      owner,
-      (async () => {
-        if ((await listLands()).length) return;
-        const seen = new Set();
-        for (const tpl of await demoTemplates()) {
-          if (seen.has(tpl.place)) continue;
-          seen.add(tpl.place);
-          const { id, created_at, owner_id, sell_rule, ...rest } = tpl;
-          await createLand({ ...rest, id: newId(), created_at: new Date(Date.now() - seen.size * 1000).toISOString() });
-        }
-      })().finally(() => setTimeout(() => seeding.delete(owner), 60000))
-    );
-  }
-  return seeding.get(owner);
-}
+// v0.14.0: a person's farm holds only their own real places. The demo places (no owner) live in the
+// demo farm: the admin makes and edits them there, everyone else can watch it read only.
+
+// ---------- admin: the Settings tab ----------
+app.get(
+  '/api/admin/overview',
+  guard,
+  adminOnly,
+  timed(async () => {
+    const [users, counts, demo] = await Promise.all([listUsers().catch((e) => ({ error: e.message })), farmCounts(), runAs(null, () => demoTemplates())]);
+    const list = Array.isArray(users) ? users : [];
+    const farms = list
+      .map((u) => ({
+        id: u.id,
+        email: u.email,
+        admin: isAdmin(u),
+        lands: counts.lands[u.id] || 0,
+        sheds: counts.sheds[u.id] || 0,
+        deals: counts.deals[u.id] || 0,
+        lastActive: seenUsers.get(u.id) ? new Date(seenUsers.get(u.id).at).toISOString() : u.lastSignIn || null,
+      }))
+      .sort((a, b) => String(b.lastActive || '').localeCompare(String(a.lastActive || '')));
+    const day = new Date().toISOString().slice(0, 10);
+    const usage = usageToday();
+    const emailOf = Object.fromEntries(list.map((u) => [u.id, u.email]));
+    for (const k of Object.keys(usage.top)) usage.top[k] = { ...usage.top[k], email: emailOf[usage.top[k].owner] || null, owner: undefined };
+    return {
+      farms,
+      usersError: Array.isArray(users) ? null : users.error,
+      signedInToday: farms.filter((f) => String(f.lastActive || '').startsWith(day)).length,
+      usage,
+      demoPlaces: demo.map((l) => ({ id: l.id, place: l.place, place_info: l.place_info || null, crop: l.crop, kind: l.kind, sown_on: l.sown_on || null, acres: l.acres })),
+    };
+  })
+);
+app.get('/api/admin/checks', guard, adminOnly, timed(async (req) => runChecks({ force: req.query.run === '1' })));
+// Moves one of the admin's own lands into the demo farm, or a demo land back into the admin's farm.
+app.post(
+  '/api/admin/demo/:id',
+  guard,
+  adminOnly,
+  timed(async (req) => ({ land: landView(await runAs(null, () => moveLand(req.params.id, { toDemo: req.body?.toDemo !== false, owner: req.user.id }))) }))
+);
 
 app.get(
   '/api/models',
   guard,
+  adminOnly,
   timed(async () => {
     const ids = await listModels();
     const needed = Object.values(MODELS);
@@ -165,6 +220,8 @@ app.post(
     let lo = Number(lon);
     let source = 'gps';
     if (place && DEMO_PLACES[place]) {
+      // v0.14.0: demo places are made only by an admin inside the demo farm; a person's farm is real places only.
+      if (currentScope()?.mode !== 'demo') throw new Error('Demo places are made by the admin in the demo farm. Add your own field with your location or a photo');
       ({ lat: la, lon: lo } = DEMO_PLACES[place]);
       source = 'demo';
     }
@@ -230,7 +287,6 @@ app.get(
   '/api/lands',
   guard,
   timed(async () => {
-    await seedFarm().catch(() => null);
     return { lands: await listLands() };
   })
 );
@@ -428,6 +484,7 @@ app.post(
 app.post(
   '/api/lands/:id/harvest/run',
   guard,
+  demoCallCap,
   timed(async (req) => {
     const land = await getLand(req.params.id);
     if (!land) throw new Error('Land not found');
@@ -475,6 +532,7 @@ app.post(
 app.post(
   '/api/lands/:id/harvest/book',
   guard,
+  demoCallCap,
   timed(async (req) => {
     const land = await getLand(req.params.id);
     if (!land) throw new Error('Land not found');
@@ -492,7 +550,7 @@ app.post(
     const T = {
       en: { harvester: ['Hello, this is Khet Sathi calling for a farmer.', `Can your reaper cut ${acresT} acres of the crop from ${when}?`, `Yes, we can come on ${when}. ${priceText(total, s.currency, 'en')} for the job.`, 'Please book it. Thank you.'], transport: ['Hello, this is Khet Sathi calling for a farmer.', `Can you carry about ${qtyT} ${unitName(s.unit, 'en')} to the buyer the day after harvest?`, `Yes, my van can do it. ${priceText(total, s.currency, 'en')}.`, 'Please book it. Thank you.'] },
       bn: { harvester: ['নমস্কার, আমি খেত সাথী, একজন কৃষকের হয়ে ফোন করছি।', `${when} থেকে ${acresT} একর ফসল কেটে দিতে পারবেন?`, `হ্যাঁ, ${when} আসতে পারি। পুরো কাজ ${priceText(total, s.currency, 'bn')}।`, 'বুক করে দিন। ধন্যবাদ।'], transport: ['নমস্কার, আমি খেত সাথী, একজন কৃষকের হয়ে ফোন করছি।', `কাটার পরদিন প্রায় ${qtyT} ${unitName(s.unit, 'bn')} ফসল ক্রেতার কাছে পৌঁছে দিতে পারবেন?`, `হ্যাঁ, আমার গাড়ি পারবে। ${priceText(total, s.currency, 'bn')}।`, 'বুক করে দিন। ধন্যবাদ।'] },
-      hi: { harvester: ['नमस्ते, मैं खेत साथी हूँ, एक किसान की ओर से फ़ोन कर रहा हूँ।', `क्या आप ${when} से ${acresT} एकड़ फ़सल काट सकते हैं?`, `हाँ, ${when} आ सकते हैं। पूरे काम के ${priceText(total, s.currency, 'hi')}।`, 'कृपया बुक कर दीजिए। धन्यवाद।'], transport: ['नमस्ते, मैं खेत साथी हूँ, एक किसान की ओर से फ़ोन कर रहा हूँ।', `क्या आप कटाई के अगले दिन लगभग ${qtyT} ${unitName(s.unit, 'hi')} फ़सल खरीदार तक पहुँचा सकते हैं?`, `हाँ, मेरी गाड़ी कर देगी। ${priceText(total, s.currency, 'hi')}।`, 'कृपया बुक कर दीजिए। धन्यवाद।'] },
+      hi: { harvester: ['नमस्ते, मैं खेत साथी हूँ, एक किसान की ओर से फ़ोन कर रही हूँ।', `क्या आप ${when} से ${acresT} एकड़ फ़सल काट सकते हैं?`, `हाँ, ${when} आ सकते हैं। पूरे काम के ${priceText(total, s.currency, 'hi')}।`, 'कृपया बुक कर दीजिए। धन्यवाद।'], transport: ['नमस्ते, मैं खेत साथी हूँ, एक किसान की ओर से फ़ोन कर रही हूँ।', `क्या आप कटाई के अगले दिन लगभग ${qtyT} ${unitName(s.unit, 'hi')} फ़सल खरीदार तक पहुँचा सकते हैं?`, `हाँ, मेरी गाड़ी कर देगी। ${priceText(total, s.currency, 'hi')}।`, 'कृपया बुक कर दीजिए। धन्यवाद।'] },
     }[L][what];
     const crew = { harvester: { en: 'Demo reaper crew', bn: 'ডেমো ফসল কাটার দল', hi: 'डेमो कटाई टीम' }, transport: { en: 'Demo transport van', bn: 'ডেমো মাল পরিবহন', hi: 'डेमो ढुलाई गाड़ी' } }[what][L];
     const turns = T.map((text, i) => ({ who: i === 2 ? 'shop' : 'saathi', text }));
@@ -548,6 +606,7 @@ app.get(
 app.post(
   '/api/lands/:id/order',
   guard,
+  demoCallCap,
   timed(async (req) => {
     const land = await getLand(req.params.id);
     if (!land) throw new Error('Land not found');
@@ -881,10 +940,12 @@ function noteClip(clip) {
 async function ownShedIds() {
   return new Set((await listSheds()).filter((s) => !s.demo && !s.builtIn).map((s) => s.id));
 }
+// v0.14.0: the demo shed's clips (no shed id) belong to the demo farm; a farm sees only its own sheds' clips.
+const inDemo = () => currentScope()?.mode === 'demo';
 async function allowedClip(id) {
   const clip = await getClip(id);
   if (!clip) return null;
-  if (!clip.shedId) return clip;
+  if (!clip.shedId) return inDemo() ? clip : null;
   return (await ownShedIds()).has(clip.shedId) ? clip : null;
 }
 app.get(
@@ -893,7 +954,7 @@ app.get(
   timed(async () => {
     const index = await readIndex();
     const mine = await ownShedIds();
-    const clips = index.clips.filter((c) => !c.shedId || mine.has(c.shedId));
+    const clips = index.clips.filter((c) => (inDemo() ? !c.shedId : mine.has(c.shedId)));
     clips.forEach(nameClip);
     clips.forEach(noteClip);
     return { ...index, clips, todayId: clips.some((c) => c.id === index.todayId) ? index.todayId : null, max: MAX_CLIPS };
@@ -906,7 +967,10 @@ app.post(
   guard,
   timed(async (req) => {
     // Only a farm's own shed takes new clips; the demo shed's camera is built in.
-    if (!(await ownShedIds()).has(String(req.body?.shedId || ''))) throw new Error('Add a shed of your own to save its camera clips');
+    // The admin adds the demo shed's clips in the demo farm (no shed id); everyone else only to their own sheds.
+    const demoClip = inDemo() && !currentScope()?.readOnly && (!req.body?.shedId || req.body.shedId === 'shed-default');
+    if (!demoClip && !(await ownShedIds()).has(String(req.body?.shedId || ''))) throw new Error('Add a shed of your own to save its camera clips');
+    if (demoClip) req.body.shedId = null;
     const clip = await createClip(req.body || {});
     nameClip(clip);
     return { clip };
@@ -920,7 +984,7 @@ app.put(
   timed(async (req) => {
     if (!Buffer.isBuffer(req.body) || req.body.length < 1000) throw new Error('No video received');
     const own = await allowedClip(req.params.id);
-    if (!own || !own.shedId) throw new Error('Clip not found');
+    if (!own) throw new Error('Clip not found');
     return { clip: await putClipVideo(req.params.id, req.body, req.get('content-type')) };
   })
 );
@@ -959,7 +1023,7 @@ app.post(
   timed(async (req) => {
     // Today's camera is the demo shed's setting; a farm can pick one of its own clips for it.
     const clip = await allowedClip(req.params.id);
-    if (!clip || !clip.shedId) throw new Error('Only your own shed clips can be set as today\'s camera');
+    if (!clip) throw new Error('Clip not found');
     const index = await setToday(req.body?.on ? req.params.id : null);
     if (index.todayId) engine.run().catch(() => null);
     return index;
@@ -1080,6 +1144,7 @@ app.post('/api/vet/message', guard, timed(async (req) => ({ message: vetMessage(
 app.post(
   '/api/vet/call',
   guard,
+  demoCallCap,
   timed(async (req) => {
     if (req.body?.consent !== true) throw new Error('The farmer has to agree before Sathi calls the vet');
     const call = cleanCall(req.body);
@@ -1180,7 +1245,7 @@ app.post(
 // Money tab: confirmed and draft deals, newest first (simulated money).
 app.get('/api/deals', guard, timed(async () => ({ deals: await listDeals(), simulated: true })));
 
-app.post('/api/sell/run', guard, timed(async (req) => ({ run: await runSale(pickLang(req.body?.lang || req.query.lang)) })));
+app.post('/api/sell/run', guard, demoCallCap, timed(async (req) => ({ run: await runSale(pickLang(req.body?.lang || req.query.lang)) })));
 
 // The farmer's one tap: the deal is saved (simulated money) and the sold eggs leave the stock.
 app.post(
@@ -1220,12 +1285,13 @@ app.post(
 );
 
 // Bench: one simulator tick now.
-app.post('/api/sensors/tick', guard, timed(async () => ({ summary: await engine.run() })));
+app.post('/api/sensors/tick', guard, adminOnly, timed(async () => ({ summary: await engine.run() })));
 
 // Bench demo control: hold one reading out of range for two ticks so an alert fires on camera.
 app.post(
   '/api/sensors/force',
   guard,
+  adminOnly,
   timed(async (req) => {
     const { target, metric, value } = req.body || {};
     const allowed = target === 'shed' ? SHED_METRICS : FIELD_METRICS;
@@ -1245,6 +1311,7 @@ app.post(
 app.post(
   '/api/agent',
   guard,
+  adminOnly,
   timed(async (req) => {
     const { text, lat, lon } = req.body || {};
     if (!text) throw new Error('text is required');
@@ -1257,6 +1324,7 @@ app.post(
 app.post(
   '/api/open-check',
   guard,
+  adminOnly,
   timed(async () => {
     if (!hasOpenKey()) throw new Error('BASETEN_API_KEY missing in Railway Variables');
     const tools = [{ type: 'function', function: { name: 'get_egg_count', description: 'Eggs collected in the shed today', parameters: { type: 'object', properties: {} } } }];
@@ -1275,6 +1343,7 @@ app.post(
 app.get(
   '/api/plan',
   guard,
+  adminOnly,
   timed(async (req) => {
     const place = DEMO_PLACES[req.query.place] ? req.query.place : null;
     const lat = place ? DEMO_PLACES[place].lat : Number(req.query.lat);
@@ -1288,6 +1357,7 @@ app.get(
 app.get(
   '/api/scan',
   guard,
+  adminOnly,
   timed(async (req) => {
     const scan = await scanLand({ lat: Number(req.query.lat), lon: Number(req.query.lon) });
     return { image: scan.image.dataUrl, imagePx: scan.image.width, objects: scan.objects, plot: scan.plot?.id ?? null, acres: scan.plot?.acres ?? null, sam: scan.sam };
@@ -1297,6 +1367,7 @@ app.get(
 app.get(
   '/api/tile',
   guard,
+  adminOnly,
   timed(async (req) => {
     const lat = Number(req.query.lat);
     const lon = Number(req.query.lon);
@@ -1308,6 +1379,7 @@ app.get(
 app.post(
   '/api/vision',
   guard,
+  adminOnly,
   timed(async (req) => {
     const { imageDataUrl, question } = req.body || {};
     if (!imageDataUrl?.startsWith('data:image/')) throw new Error('imageDataUrl must be a data:image URL');
@@ -1338,6 +1410,7 @@ app.post(
 app.post(
   '/api/segment',
   guard,
+  adminOnly,
   timed(async (req) => {
     const { imageDataUrl, prompt } = req.body || {};
     if (!imageDataUrl?.startsWith('data:image/')) throw new Error('imageDataUrl must be a data:image URL');

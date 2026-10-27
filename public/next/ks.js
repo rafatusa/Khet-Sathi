@@ -54,7 +54,11 @@
     })(t0);
   }
   let toastT;
-  function toast(m) {
+  let toastLock = 0;
+  function toast(m, { lock = false } = {}) {
+    // A read-only notice stays on screen for a moment instead of being replaced by the caller's error line.
+    if (!lock && Date.now() < toastLock) return;
+    if (lock) toastLock = Date.now() + 2500;
     const el = $('#toast');
     el.hidden = true;
     void el.offsetWidth;
@@ -86,10 +90,17 @@
         .finally(() => (refreshing = null));
     return refreshing;
   }
+  // v0.14.0: which farm the app is showing: null (mine), 'demo' (the demo farm) or 'farm:<id>' (an admin viewing a farm).
+  const viewParam = () => (S.view ? (S.view === 'demo' ? 'demo' : `farm:${S.view.id}`) : '');
   async function api(path, opts = {}, retried = false) {
     if (sess && sess.expires_at - Date.now() < 60000) await refreshSess();
-    const res = await fetch(path, { ...opts, headers: { ...(sess ? { Authorization: `Bearer ${sess.access_token}` } : {}), ...(opts.headers || {}) } });
+    const scoped = viewParam() && path.startsWith('/api/') && !path.startsWith('/api/auth') && !path.startsWith('/api/admin');
+    const res = await fetch(path, { ...opts, headers: { ...(sess ? { Authorization: `Bearer ${sess.access_token}` } : {}), ...(scoped ? { 'X-View': viewParam() } : {}), ...(opts.headers || {}) } });
     const json = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+    if (json && json.readOnly) {
+      toast(t(S.view === 'demo' ? 'roToast' : 'roToastFarm'), { lock: true });
+      throw new Error(json.error || t('roToast'));
+    }
     if (res.status === 401) {
       if (!retried && (await refreshSess())) return api(path, opts, true);
       showPass();
@@ -99,10 +110,10 @@
   }
   const postJson = (path, body) => api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   // Pictures and video cannot send headers, so their links carry the token.
-  const imgUrl = (u) => (u ? `${u}${u.includes('?') ? '&' : '?'}t=${encodeURIComponent(sess?.access_token || '')}` : '');
+  const imgUrl = (u) => (u ? `${u}${u.includes('?') ? '&' : '?'}t=${encodeURIComponent(sess?.access_token || '')}${viewParam() ? `&view=${encodeURIComponent(viewParam())}` : ''}` : '');
 
   // ---------- state ----------
-  const S = { tab: 'home', mode: 'field', lands: [], sheds: [], cur: null, shed: null, plan: null, field: null, sensors: null, deals: [], alerts: [], health: null, pass: 0, layer: 'sat', zoom: 1, playing: null, chat: [] };
+  const S = { view: null, admin: false, tab: 'home', mode: 'field', lands: [], sheds: [], cur: null, shed: null, plan: null, field: null, sensors: null, deals: [], alerts: [], health: null, pass: 0, layer: 'sat', zoom: 1, playing: null, chat: [] };
 
   // ---------- text on the page ----------
   function applyLang() {
@@ -143,6 +154,7 @@
     if (tab === 'field') renderField();
     if (tab === 'saathi') renderSaathi();
     if (tab === 'money') renderMoney();
+    if (tab === 'settings') window.KSAdmin?.render();
     if (tab === 'shed' || tab === 'market') window.KSShed?.render(tab);
     window.scrollTo({ top: 0, behavior: RM ? 'auto' : 'smooth' });
   }
@@ -162,7 +174,8 @@
     $('#modeChip').className = `mchip ${S.mode}`;
     document.body.dataset.mode = S.mode;
     // v0.12.0: the demo line only for demo places; a farmer's own land says it is real data.
-    const demoPlace = S.mode === 'shed' ? Boolean(S.shed?.demo || S.shed?.builtIn) : !S.cur || S.cur.location_source === 'demo';
+    // v0.14.0: demo places exist only in the demo farm, so the demo line shows only there.
+    const demoPlace = S.view === 'demo';
     $('#demoBar').textContent = t(demoPlace ? 'demo' : 'realBar');
     $('#demoBar').classList.toggle('real', !demoPlace);
   }
@@ -178,8 +191,30 @@
 
   // ---------- sign in ----------
   const LG = { email: '', wait: 0, timer: null };
-  function showPass() {
+  // Signed out: the landing page first; its buttons open the email sign-in.
+  let afterLogin = null;
+  function showLanding() {
     document.body.dataset.auth = 'out';
+    document.body.dataset.page = 'landing';
+    $('#meBtn').hidden = true;
+    $$('.sheet').forEach((s) => (s.hidden = true));
+    $('#landing').hidden = false;
+    window.scrollTo({ top: 0 });
+  }
+  $('#landing').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-lp]');
+    if (!b) return;
+    afterLogin = b.dataset.lp === 'demo' ? 'demo' : null;
+    showSignIn();
+  });
+  function showPass() {
+    if (sess) return showSignIn();
+    showLanding();
+  }
+  function showSignIn() {
+    document.body.dataset.auth = 'out';
+    delete document.body.dataset.page;
+    $('#landing').hidden = true;
     $('#meBtn').hidden = true;
     $$('.sheet').forEach((s) => (s.hidden = true));
     show('pass');
@@ -267,8 +302,9 @@
     const tok = sess?.access_token;
     saveSess(null);
     fetch('/api/auth/signout', { method: 'POST', headers: tok ? { Authorization: `Bearer ${tok}` } : {} }).catch(() => null);
-    Object.assign(S, { lands: [], sheds: [], cur: null, shed: null, plan: null, field: null, deals: [], alerts: [], chat: [] });
-    showPass();
+    Object.assign(S, { view: null, admin: false, lands: [], sheds: [], cur: null, shed: null, plan: null, field: null, deals: [], alerts: [], chat: [] });
+    renderViewBar();
+    showLanding();
   });
 
   // ---------- loading a land ----------
@@ -959,7 +995,8 @@
     $('#passSlider').max = Math.max(0, cp.length - 1);
     $('#passSlider').value = S.pass;
     $('#passDate').textContent = p ? fd(p.date) : '';
-    $('#scanTxt').textContent = S.layer === 'ndvi' && p ? `SENTINEL-2 L2A · NDVI · 10 ${t('mShort')} · ${fd(p.date)}` : `${t('satBase')} · Esri`;
+    const approxOutline = (S.cur?.objects || []).some((o) => o.approx);
+    $('#scanTxt').textContent = (S.layer === 'ndvi' && p ? `SENTINEL-2 L2A · NDVI · 10 ${t('mShort')} · ${fd(p.date)}` : `${t('satBase')} · Esri`) + (approxOutline ? ` · ${t('approxTag')}` : '');
     $('#legendRow').style.visibility = S.layer === 'ndvi' ? 'visible' : 'hidden';
     $('#ramp').style.background = `linear-gradient(90deg,${RAMP.map((c) => `rgb(${c})`).join(',')})`;
     $('#lgLo').textContent = t('bare');
@@ -1257,6 +1294,8 @@
     $('#lonIn').value = '';
     $('#placeTag').textContent = '';
     $('#findBtn').disabled = true;
+    // Demo places are added only inside the demo farm (by an admin); a person's farm is real places only.
+    $('#presets').hidden = S.view !== 'demo';
     $('#presets').innerHTML = ['bogura', 'bolpur', 'punjab'].map((p) => `<button class="chip" type="button" data-pre="${p}">${I.pin}${esc(t(`place_${p}`))}</button>`).join('');
     $('#addSheet').hidden = false;
     stepTo(1);
@@ -1397,7 +1436,9 @@
       if (!r.ok) throw new Error(r.error);
       AD.land = r.land;
       anProgress(2);
-      $('#anvis').innerHTML = `<div class="anmap"><img src="${imgUrl(r.land.tileUrl)}" alt=""><div class="mono">${esc(r.fields ? fmt('fieldsFound', { n: num(r.fields), ac: num(r.land.acres, 2) }) : t('noFieldFound'))}</div></div>`;
+      // v0.14.0: SAM 3.1 not answering: a labelled 1-acre area stands in (rescan later for the real outline).
+      const approx = Boolean(r.sam?.approx);
+      $('#anvis').innerHTML = `<div class="anmap"><img src="${imgUrl(r.land.tileUrl)}" alt=""><div class="mono">${esc(approx ? t('samApprox') : r.fields ? fmt('fieldsFound', { n: num(r.fields), ac: num(r.land.acres, 2) }) : t('noFieldFound'))}</div></div>`;
       if (!r.fields) {
         // No field outline: still say where this is and what covers it, so a town is called a town.
         const pc = await api(`/api/lands/${r.land.id}/place`).catch(() => null);
@@ -1437,8 +1478,13 @@
   }
   $('#pickAgain').addEventListener('click', () => stepTo(1));
   $('#tryDemo').addEventListener('click', () => {
-    stepTo(1);
-    $('#presets [data-pre]')?.click();
+    // v0.14.0: demo places live in the demo farm; inside it (admin) pick one, otherwise go and watch it.
+    if (S.view === 'demo') {
+      stepTo(1);
+      return $('#presets [data-pre]')?.click();
+    }
+    $('#addSheet').hidden = true;
+    enterView('demo');
   });
   function showResults() {
     stepTo(3);
@@ -1492,13 +1538,24 @@
   async function boot() {
     applyLang();
     icons();
-    if (!sess) return showPass();
+    if (!sess) return showLanding();
+    const me = await api('/api/auth/me').catch(() => null);
+    if (!me?.ok) return showPass();
+    S.admin = Boolean(me.admin);
+    if (afterLogin === 'demo') S.view = 'demo';
+    afterLogin = null;
     try {
       await Promise.all([loadLands(), loadSheds()]);
     } catch {
       return;
     }
+    $('#landing').hidden = true;
+    delete document.body.dataset.page;
     document.body.dataset.auth = 'in';
+    document.body.dataset.admin = S.admin ? '1' : '';
+    $$('[data-tab="settings"]').forEach((b) => (b.hidden = !S.admin));
+    $('#meSettings').hidden = !S.admin;
+    renderViewBar();
     $('#meBtn').hidden = false;
     $('#meBtn').textContent = (sess.email || '?').slice(0, 1).toUpperCase();
     $('#meEmail').textContent = sess.email || '';
@@ -1513,23 +1570,60 @@
     welcome();
   }
   // First sign-in on this browser: the demo places, ready to try, and adding one's own field.
+  // First sign-in on this browser, with an empty farm: add a field or a shed, or watch the demo farm.
   function welcome() {
+    if (S.view || S.lands.length || S.sheds.length) return;
     const key = `ks_welcomed_${sess?.email || ''}`;
     if (store.get(key)) return;
     store.set(key, '1');
-    const demos = S.lands.filter((l) => l.location_source === 'demo');
-    const sheds = S.sheds.filter((s) => s.demo || s.builtIn);
-    $('#welcomeList').innerHTML =
-      demos.map((l) => `<button class="fitem" data-wl="${l.id}"><span class="th">${I.sprout}</span><span class="m"><b>${esc(landTitle(l))}</b><div>${esc([l.crop ? cropName(l.crop) : t('emptyQ'), t('demoTag')].join(' · '))}</div></span></button>`).join('') +
-      sheds.map((s) => `<button class="fitem shed" data-ws="${s.id}"><span class="th">${I.egg}</span><span class="m"><b>${esc(shedName(s))}</b><div>${esc(t('welcomeShed'))} · ${esc(t('demoTag'))}</div></span></button>`).join('');
     $('#welcomeSheet').hidden = false;
   }
-  $('#welcomeSheet').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-wl],[data-ws]');
-    if (!b) return;
+  $('#welcomeShedAdd').addEventListener('click', () => {
     $('#welcomeSheet').hidden = true;
-    if (b.dataset.ws) openShed(b.dataset.ws);
-    else openLand(b.dataset.wl).then(() => show('home'));
+    window.KSShed?.openAddShed();
+  });
+  $('#welcomeDemo').addEventListener('click', () => {
+    $('#welcomeSheet').hidden = true;
+    enterView('demo');
+  });
+
+  // ---------- the demo farm, and an admin viewing someone's farm (v0.14.0) ----------
+  function renderViewBar() {
+    const v = S.view;
+    $('#viewBar').hidden = !v;
+    $('#demoBar').hidden = Boolean(v);
+    if (!v) return void delete document.body.dataset.view;
+    $('#viewText').textContent = v === 'demo' ? t(S.admin ? 'viewDemoAdmin' : 'viewDemo') : fmt('viewFarm', { email: v.email || '' });
+    document.body.dataset.view = v === 'demo' ? 'demo' : 'farm';
+  }
+  async function enterView(v) {
+    S.view = v;
+    Object.assign(S, { lands: [], sheds: [], cur: null, shed: null, plan: null, field: null, deals: [], alerts: [], chat: [] });
+    store.set('ks_land', '');
+    store.set('ks_shed', '');
+    renderViewBar();
+    await Promise.all([loadLands(), loadSheds()]).catch(() => null);
+    S.shed = S.sheds[0] || null;
+    S.mode = 'field';
+    if (S.lands[0]) await openLand(S.lands[0].id).catch((e) => toast(e.message));
+    else if (S.shed) openShed(S.shed.id);
+    else renderAll();
+    show('home');
+    loadSide();
+  }
+  $('#viewBack').addEventListener('click', () => enterView(null));
+  $('#meDemo').addEventListener('click', () => {
+    $('#meMenu').hidden = true;
+    enterView('demo');
+  });
+  $('#farmDemo').addEventListener('click', () => {
+    $('#farmSheet').hidden = true;
+    enterView(S.view === 'demo' ? null : 'demo');
+  });
+  $('#meSettings').addEventListener('click', () => {
+    $('#meMenu').hidden = true;
+    if (S.view) enterView(null).then(() => show('settings'));
+    else show('settings');
   });
   $('#welcomeClose').addEventListener('click', () => ($('#welcomeSheet').hidden = true));
   $('#welcomeAdd').addEventListener('click', () => {
@@ -1539,7 +1633,7 @@
 
   // Shared with ks-shed.js (poultry, egg sale, buying for a field, demo calls).
   window.KS = {
-    S, $, $$, I, t, fmt, num, esc, fd, loc, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea,
+    S, $, $$, I, t, fmt, num, esc, fd, loc, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store,
     lang: () => lang, show, ask, speak, toWav, renderAll, renderHeader, loadSide, loadSheds, openShed, openFarm, bubble, count, mini, lineChart,
     playUrl: (url) =>
       new Promise((done) => {

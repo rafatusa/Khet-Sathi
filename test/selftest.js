@@ -2,7 +2,7 @@
 // Run: npm test
 import assert from 'node:assert/strict';
 import { collectSegments } from '../lib/segment.js';
-import { transcriptText, messageText } from '../lib/meta.js';
+import { transcriptText, messageText, toResponsesInput, toResponsesTools, fromResponses } from '../lib/meta.js';
 import { bboxFor, minHalfSide, zoomCenter } from '../lib/tile.js';
 import { cleanForSpeech, extractAudio, ensureWav } from '../lib/tts.js';
 import { acresFromPx, pickPlot, inSouthAsia, dropBlobs } from '../lib/plot.js';
@@ -28,7 +28,7 @@ import { DEFAULT_RULE, TRAY, cleanRule, sellDue, planDeal, voiceDeal, parseLines
 import { autoSigns, vetMessage, vetScript, withNames, cleanCall, parseDeaths, parseSince, SIGN_CODES } from '../lib/vetcall.js';
 import { createEngine } from '../lib/engine.js';
 import * as memStore from '../lib/store.js';
-import { runAs, devId, currentOwner, sendCode, verifyCode, refreshSession, userFromToken, useLimit, LIMITS, cleanEmail, friendly } from '../lib/auth.js';
+import { scopeFor, runAs, devId, currentOwner, sendCode, verifyCode, refreshSession, userFromToken, useLimit, LIMITS, cleanEmail, friendly } from '../lib/auth.js';
 import { buyerQuery } from '../lib/place.js';
 import { CAPABILITIES } from '../lib/agent.js';
 import { shedSystem } from '../lib/shedchat.js';
@@ -250,7 +250,11 @@ await checkAsync('Scan: SAM errors are reported, not hidden', async () => {
       throw new Error('model_not_found: sam-3.1\r');
     },
   });
-  assert.equal(r.objects.length, 0);
+  // v0.14.0: SAM down: one labelled 1-acre estimate stands in, and the error is still reported.
+  assert.equal(r.objects.length, 1);
+  assert.equal(r.objects[0].approx, true);
+  assert.ok(Math.abs(r.plot.acres - 1) < 0.1, `about 1 acre (${r.plot.acres})`);
+  assert.equal(r.sam.approx, true);
   assert.equal(r.image.groundMeters, 600);
   assert.match(r.sam.error, /zoom: model_not_found/);
 });
@@ -973,7 +977,7 @@ await checkAsync('harvest: amount in the local unit, sample price, demo bargaini
   const rule = cleanCropRule({ floor_price: '1250', qty: 60.04, when: 'hold30', ask_first: false });
   assert.deepEqual([rule.floor_price, rule.qty, rule.when, rule.ask_first], [1250, 60, 'hold30', false]);
 });
-
+
 await checkAsync('shed notes: written in all three languages, filtered, original kept on failure', async () => {
   const obs = { note: 'Many chicks are crowded at the feeder.', vetSummary: 'Chicks crowded at the trough. No audio was received.' };
   const reply = JSON.stringify({ note: { bn: 'অনেক বাচ্চা খাবারের পাত্রে ভিড় করেছে।', hi: 'यह बीमारी जैसा दिखता है।', en: 'x' }, vet: { bn: 'বাচ্চারা ভিড় করেছে।', hi: 'चूज़े भीड़ में हैं।', en: 'y' } });
@@ -1022,6 +1026,57 @@ await checkAsync('Sathi: what she can do, with the three tools named as coming s
   assert.match(CAPABILITIES, /demo/);
   assert.ok(shedSystem('hi').includes('Zavora 360'), 'the shed Sathi knows it too');
   assert.match(shedSystem('hi'), /feminine/);
+});
+
+await checkAsync('Meta /v1/responses: chat messages and tools in, chat-completions shape out', async () => {
+  const { instructions, items } = toResponsesInput([
+    { role: 'system', content: 'Be brief.' },
+    { role: 'user', content: [{ type: 'text', text: 'look' }, { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AA' } }] },
+    { role: 'assistant', content: '', tool_calls: [{ id: 'c1', type: 'function', function: { name: 'get_plot_profile', arguments: '{"lat":1}' } }] },
+    { role: 'tool', tool_call_id: 'c1', content: '{"soil":"loam"}' },
+  ]);
+  assert.equal(instructions, 'Be brief.');
+  assert.deepEqual(items[0].content[1], { type: 'input_image', image_url: 'data:image/jpeg;base64,AA' });
+  assert.equal(items[1].type, 'function_call');
+  assert.equal(items[2].type, 'function_call_output');
+  assert.equal(toResponsesTools([{ type: 'function', function: { name: 'x', description: 'd', parameters: {} } }])[0].name, 'x');
+  const r = fromResponses({ output: [{ type: 'function_call', call_id: 'c2', name: 'draft_order', arguments: '{}' }, { type: 'message', content: [{ type: 'output_text', text: 'OK' }] }] });
+  assert.equal(messageText(r).text, 'OK');
+  assert.equal(r.choices[0].message.tool_calls[0].function.name, 'draft_order');
+  assert.equal(r.choices[0].finish_reason, 'tool_calls');
+});
+
+await checkAsync('scopes: own farm, demo farm read only, admin view of a farm, admin edits the demo farm', async () => {
+  process.env.ADMIN_EMAILS = 'boss@farm.com';
+  const P = { id: devId('p@farm.com'), email: 'p@farm.com' };
+  const B = { id: devId('boss@farm.com'), email: 'boss@farm.com' };
+  assert.equal(scopeFor(P).mode, 'own');
+  assert.equal(scopeFor(B).mode, 'admin');
+  assert.equal(scopeFor(P, 'demo').readOnly, true);
+  assert.equal(scopeFor(B, 'demo').readOnly, false, 'an admin edits the demo farm');
+  assert.equal(scopeFor(P, `farm:${B.id}`).mode, 'own', 'only admins can view another farm');
+  const v = scopeFor(B, `farm:${P.id}`);
+  assert.deepEqual([v.mode, v.owner, v.readOnly], ['view', P.id, true]);
+  // The admin adds a demo place inside the demo farm: it has no owner.
+  const demo = await runAs(B, () => memStore.createLand({ kind: 'empty', lat: 2, lon: 2, objects: [], location_source: 'demo', place: 'bogura' }), scopeFor(B, 'demo'));
+  assert.equal(demo.owner_id, null);
+  const mine = await runAs(P, () => memStore.createLand({ kind: 'empty', lat: 3, lon: 3, objects: [], location_source: 'gps' }));
+  // A person's own farm never lists demo places; the demo farm lists only demo places.
+  assert.ok(!(await runAs(P, () => memStore.listLands())).some((l) => l.id === demo.id));
+  const inDemo = await runAs(P, () => memStore.listLands(), scopeFor(P, 'demo'));
+  assert.ok(inDemo.some((l) => l.id === demo.id) && !inDemo.some((l) => l.id === mine.id));
+  // Read only: writes in the demo farm are not saved.
+  await runAs(P, () => memStore.updateLand(demo.id, { crop: 'wheat' }), scopeFor(P, 'demo'));
+  assert.notEqual((await runAs(B, () => memStore.getLand(demo.id), scopeFor(B, 'demo'))).crop, 'wheat');
+  assert.equal(await runAs(P, () => memStore.deleteLand(demo.id), scopeFor(P, 'demo')), false);
+  // The admin viewing P's farm sees P's land and cannot change it.
+  assert.equal((await runAs(B, () => memStore.getLand(mine.id), v)).id, mine.id);
+  await runAs(B, () => memStore.updateLand(mine.id, { crop: 'rice' }), v);
+  assert.notEqual((await runAs(P, () => memStore.getLand(mine.id))).crop, 'rice');
+  // A demo-farm deal is not saved and never lands in anyone's money.
+  await runAs(P, () => memStore.insertDeal({ direction: 'sell', items: [], total_inr: 5 }), scopeFor(P, 'demo'));
+  assert.equal((await runAs(P, () => memStore.listDeals())).filter((d) => d.total_inr === 5).length, 0);
+  delete process.env.ADMIN_EMAILS;
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

@@ -7,8 +7,79 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Da+2:wght@600;700;800&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hind+Siliguri:wght@400;500;600;700&family=Hind:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="/next/ks.css">
 <link rel="stylesheet" href="/next/ks-real.css">
+<link rel="stylesheet" href="/next/landing.css">
 </head>
 <body>
+<!-- LANDING (v0.14.0): the first page before sign-in -->
+<div class="lp" id="landing" hidden>
+  <nav class="lp-nav">
+    <div class="lp-logo"><span class="lp-dot"><i></i></span>Khet <span>Sathi</span></div>
+    <a href="#lp-how" data-t="lpNavHow"></a><a href="#lp-calls" data-t="lpNavCalls"></a><a href="#lp-built" data-t="lpNavBuilt"></a>
+    <span class="lp-sp"></span>
+    <div class="lang" role="group" aria-label="Language"><button data-lang="bn" aria-pressed="true">বাং</button><button data-lang="hi" aria-pressed="false">हिं</button><button data-lang="en" aria-pressed="false">EN</button></div>
+    <button class="lp-btn dark" type="button" data-lp="signin" data-t="signIn"></button>
+  </nav>
+  <section class="lp-hero">
+    <div>
+      <div class="lp-kick"><i></i><span data-t="lpKick"></span></div>
+      <h1 class="lp-h1"><span data-t="lpH1a"></span> <em data-t="lpH1b"></em></h1>
+      <p class="lp-lead" data-t="lpLead"></p>
+      <div class="lp-ctas"><button class="lp-btn dark" type="button" data-lp="signin" data-t="lpStart"></button><button class="lp-btn line" type="button" data-lp="demo" data-t="watchDemo"></button></div>
+      <p class="lp-small" data-t="lpDemoNote"></p>
+      <div class="lp-trust"><b>MUSE SPARK OPEN</b><b>MUSE SPARK</b><b>SAM 3.1</b><b>MUSE VOICE</b><span data-t="lpBuiltOn"></span></div>
+    </div>
+    <div class="lp-visual" aria-hidden="true">
+      <div class="lp-sat"><svg viewBox="0 0 600 480" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="lpg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6f8a4c"/><stop offset="1" stop-color="#3f5a2e"/></linearGradient></defs><rect width="600" height="480" fill="url(#lpg)"/><g opacity=".9"><path d="M0 60 L210 30 L230 170 L10 200Z" fill="#7d9852"/><path d="M230 26 L420 0 L440 150 L248 170Z" fill="#a4a95c"/><path d="M440 0 L600 0 L600 140 L458 150Z" fill="#5f7d3c"/><path d="M10 210 L232 182 L250 330 L30 360Z" fill="#c2b36a"/><path d="M250 178 L446 160 L468 320 L268 336Z" fill="#4f7a34"/><path d="M462 158 L600 150 L600 312 L480 318Z" fill="#8fa25a"/><path d="M30 372 L254 344 L270 480 L40 480Z" fill="#6a8a43"/><path d="M272 346 L470 330 L486 480 L286 480Z" fill="#b9a95f"/><path d="M484 326 L600 322 L600 480 L500 480Z" fill="#577838"/></g><path class="lp-outline" d="M250 178 L446 160 L468 320 L268 336Z" fill="rgba(159,209,138,.25)" stroke="#f3e7b5" stroke-width="4" stroke-dasharray="10 6"/><circle cx="358" cy="248" r="9" fill="#f3e7b5"/><circle class="lp-ping" cx="358" cy="248" r="22" fill="none" stroke="#f3e7b5" stroke-width="2"/></svg></div>
+      <div class="lp-chip a"><small data-t="lpChipSam"></small><b>0.31 ac</b></div>
+      <div class="lp-chip b"><small data-t="lpChipNdvi"></small><b>NDVI 0.77</b></div>
+      <div class="lp-phone"><div class="pl" data-t="lpPhoneH"></div><div class="ps" data-t="lpPhoneS"></div><div class="lp-ring"><div>75%</div></div><div class="prow"><span data-t="harvesterL"></span><em data-t="book"></em></div><div class="prow"><span data-t="lpPhoneSell"></span><em data-t="lpSet"></em></div><div class="prow"><span data-t="lpPhoneMill"></span><span class="ps">Google Maps</span></div></div>
+    </div>
+  </section>
+  <div class="lp-band"><b data-t="lpReal"></b><span>OpenStreetMap</span><span>ESA WorldCover</span><span>Copernicus Sentinel-2</span><span>MIRCA-OS</span><span>FAOSTAT</span><span>SoilGrids · Open-Meteo</span></div>
+  <section class="lp-sec" id="lp-how">
+    <div class="lp-kick"><i></i><span data-t="lpHowK"></span></div>
+    <h2 class="lp-h2" data-t="lpHowH"></h2>
+    <p class="lp-sub" data-t="lpHowS"></p>
+    <div class="lp-steps">
+      <div class="lp-step"><span class="n">01</span><h3 data-t="lpS1H"></h3><p data-t="lpS1T"></p><div class="mini"><svg viewBox="0 0 240 100"><path d="M30 20 L150 10 L170 80 L40 90Z" fill="#e3efd9" stroke="#2f7a2a" stroke-width="3" stroke-dasharray="7 4"/><circle cx="100" cy="50" r="6" fill="#9a6f09"/></svg></div></div>
+      <div class="lp-step"><span class="n">02</span><h3 data-t="lpS2H"></h3><p data-t="lpS2T"></p><div class="mini"><svg viewBox="0 0 240 100"><g fill="#2f7a2a"><rect x="20" y="60" width="26" height="30" rx="4"/><rect x="58" y="40" width="26" height="50" rx="4"/><rect x="96" y="25" width="26" height="65" rx="4"/><rect x="134" y="48" width="26" height="42" rx="4" fill="#9a6f09"/></g></svg></div></div>
+      <div class="lp-step"><span class="n">03</span><h3 data-t="lpS3H"></h3><p data-t="lpS3T"></p><div class="mini"><svg viewBox="0 0 240 100"><circle cx="60" cy="50" r="32" fill="none" stroke="#e5e2d3" stroke-width="12"/><circle cx="60" cy="50" r="32" fill="none" stroke="#2f7a2a" stroke-width="12" stroke-dasharray="150 201" transform="rotate(-90 60 50)"/><rect x="118" y="34" width="100" height="12" rx="6" fill="#123320"/><rect x="118" y="56" width="70" height="12" rx="6" fill="#9a6f09"/></svg></div></div>
+      <div class="lp-step"><span class="n">04</span><h3 data-t="lpS4H"></h3><p data-t="lpS4T"></p><div class="mini"><svg viewBox="0 0 240 100"><rect x="14" y="14" width="212" height="72" rx="10" fill="#cfc7ad"/><g fill="#fffdf6"><ellipse cx="60" cy="56" rx="14" ry="10"/><ellipse cx="104" cy="50" rx="14" ry="10"/><ellipse cx="150" cy="60" rx="14" ry="10"/></g><circle cx="150" cy="60" r="20" fill="none" stroke="#9a6f09" stroke-width="3"/></svg></div></div>
+    </div>
+  </section>
+  <section class="lp-sec lp-call" id="lp-calls">
+    <div>
+      <div class="lp-kick"><i></i><span data-t="lpCallK"></span></div>
+      <h2 class="lp-h2" data-t="lpCallH"></h2>
+      <p class="lp-sub" data-t="lpCallS"></p>
+      <ol class="lp-chain"><li data-t="lpChain1"></li><li data-t="lpChain2"></li><li data-t="lpChain3"></li><li data-t="lpChain4"></li></ol>
+      <div class="lp-next"><div><b>Zavora 360</b><span data-t="lpZavora"></span></div><div><b>MailPulse</b><span data-t="lpMail"></span></div><div><b>Prochar AI</b><span data-t="lpProchar"></span></div></div>
+      <p class="lp-small" data-t="lpNextNote"></p>
+    </div>
+    <div class="lp-bubbles">
+      <div class="bub me" data-t="lpB1"></div><div class="bub them" data-t="lpB2"></div><div class="bub me" data-t="lpB3"></div><div class="bub them" data-t="lpB4"></div>
+      <span class="lp-tag" data-t="lpDemoCall"></span>
+    </div>
+  </section>
+  <section class="lp-sec">
+    <div class="lp-kick"><i></i><span data-t="lpLangK"></span></div>
+    <h2 class="lp-h2" data-t="lpLangH"></h2>
+    <div class="lp-langs"><div><div class="big" lang="bn">বাংলা</div><p lang="bn">"আমার ধান কবে কাটব?"</p></div><div><div class="big" lang="hi">हिंदी</div><p lang="hi">"मेरी फ़सल कब तैयार होगी?"</p></div><div><div class="big" lang="en">English</div><p lang="en">"When is my rice ready?"</p></div></div>
+    <div class="lp-honest"><div class="r"><b data-t="lpRealH"></b><p data-t="lpRealT"></p></div><div class="d"><b data-t="lpFakeH"></b><p data-t="lpFakeT"></p></div></div>
+  </section>
+  <section class="lp-sec lp-built" id="lp-built">
+    <div class="lp-kick"><i></i><span data-t="lpBuiltK"></span></div>
+    <h2 class="lp-h2" data-t="lpBuiltH"></h2>
+    <div class="lp-buildgrid">
+      <div><h3 data-t="lpBuiltNew"></h3><ul><li data-t="lpN1"></li><li data-t="lpN2"></li><li data-t="lpN3"></li><li data-t="lpN4"></li><li data-t="lpN5"></li><li data-t="lpN6"></li></ul></div>
+      <div><h3 data-t="lpBuiltModels"></h3><ul><li data-t="lpM1"></li><li data-t="lpM2"></li><li data-t="lpM3"></li><li data-t="lpM4"></li><li data-t="lpM5"></li></ul></div>
+      <div><h3 data-t="lpBuiltNot"></h3><p data-t="lpNotT"></p></div>
+    </div>
+  </section>
+  <div class="lp-final"><h2 data-t="lpFinalH"></h2><button class="lp-btn gold" type="button" data-lp="signin" data-t="lpStart"></button><div class="rows" aria-hidden="true"></div></div>
+  <footer class="lp-foot"><span data-t="lpFoot"></span><span>Map data © OpenStreetMap contributors · Sentinel-2 © Copernicus · Imagery Esri, Maxar, Earthstar Geographics</span></footer>
+</div>
+
 <header>
   <div class="wrap top">
     <div class="orbit" aria-hidden="true"><div class="earth"></div><div class="sat"><span data-icon="sat"></span></div></div>
@@ -22,11 +93,12 @@
       <div class="lang" role="group" aria-label="Language"><button data-lang="bn" aria-pressed="true">বাং</button><button data-lang="hi" aria-pressed="false">हिं</button><button data-lang="en" aria-pressed="false">EN</button></div>
       <button class="avatar-btn" id="meBtn" type="button" data-tl="account" hidden></button>
     </div>
-    <div class="memenu" id="meMenu" hidden><div class="em mono" id="meEmail"></div><div class="lang menu-lang" role="group" aria-label="Language"><button data-lang="bn" aria-pressed="true">বাং</button><button data-lang="hi" aria-pressed="false">हिं</button><button data-lang="en" aria-pressed="false">EN</button></div><button type="button" id="meFarm" data-t="myFarm"></button><button type="button" id="meOut" data-t="signOut"></button></div>
+    <div class="memenu" id="meMenu" hidden><div class="em mono" id="meEmail"></div><button type="button" id="meSettings" data-t="nSettings" hidden></button><button type="button" id="meDemo" data-t="watchDemo"></button><div class="lang menu-lang" role="group" aria-label="Language"><button data-lang="bn" aria-pressed="true">বাং</button><button data-lang="hi" aria-pressed="false">हिं</button><button data-lang="en" aria-pressed="false">EN</button></div><button type="button" id="meFarm" data-t="myFarm"></button><button type="button" id="meOut" data-t="signOut"></button></div>
   </div>
 </header>
 
 <main class="wrap">
+  <div class="viewbar" id="viewBar" hidden><span id="viewText"></span><button type="button" id="viewBack" data-t="backMyFarm"></button></div>
   <div class="demo" id="demoBar"></div>
 
   <!-- SIGN IN (v0.13.0): email, then the 6-digit code from the email -->
@@ -45,6 +117,7 @@
           <label class="field"><span data-t="emailL"></span><input id="emailIn" type="email" inputmode="email" autocomplete="email" required maxlength="200" placeholder="farmer@example.com"></label>
           <button class="cta wide" type="submit" id="sendBtn"><span data-t="sendCode"></span></button>
           <p class="muted small" data-t="loginNote"></p>
+          <p class="muted small" data-t="privacyNote"></p>
         </form>
         <form id="loginCode" hidden>
           <h2 data-t="codeH"></h2>
@@ -220,6 +293,20 @@
       <div class="panel"><div class="lab"><span data-icon="rupee"></span><span data-t="salesH"></span></div><div class="entries" id="mkDeals"></div></div>
     </div>
   </section>
+  <!-- SETTINGS (v0.14.0, admins only) -->
+  <section id="settings" role="tabpanel" hidden>
+    <div class="grid2">
+      <div>
+        <div class="panel"><div class="lab"><span data-icon="check"></span><span data-t="adChecks"></span><button class="btn ghost small-btn" type="button" id="adRun" data-t="adRunAll"></button></div><p class="muted small" id="adChecksAt"></p><div id="adChecks"></div></div>
+        <div class="panel"><div class="lab"><span data-icon="sprout"></span><span data-t="adDemo"></span></div><p class="muted small" data-t="adDemoNote"></p><div id="adDemoList"></div><div class="btns"><button class="btn" type="button" id="adMakeDemo" data-t="adMakeDemo"></button><button class="btn ghost" type="button" id="adOpenDemo" data-t="adOpenDemo"></button></div></div>
+      </div>
+      <div>
+        <div class="panel"><div class="lab"><span data-icon="eye"></span><span data-t="adFarms"></span><span class="muted small" id="adFarmsN" style="margin-left:auto"></span></div><div id="adFarms"></div></div>
+        <div class="panel"><div class="lab"><span data-icon="clock"></span><span data-t="adUsage"></span></div><p class="muted small" data-t="adUsageNote"></p><div id="adUsage"></div></div>
+      </div>
+    </div>
+  </section>
+
   <section id="money" role="tabpanel" hidden>
     <div class="panel">
       <div class="bars"><div class="b in"><div class="amt" id="mIn">₹0</div><div class="col" id="cIn"></div></div><div class="b out"><div class="amt" id="mOut">₹0</div><div class="col" id="cOut"></div></div></div>
@@ -276,8 +363,8 @@
     <div class="shtop"><button class="iconbtn" id="welcomeClose" data-tl="close">×</button></div>
     <h2 data-t="welcomeH"></h2>
     <button class="cta wide" type="button" id="welcomeAdd"><span data-icon="plus"></span><span data-t="welcomeAdd"></span></button>
-    <div class="lab" style="margin-top:14px"><span data-t="welcomeDemos"></span></div>
-    <div class="farmlist" id="welcomeList"></div>
+    <button class="btn ghost wide" type="button" id="welcomeShedAdd" style="margin-top:10px"><span data-t="welcomeShedAdd"></span></button>
+    <button class="demopick" type="button" id="welcomeDemo"><span data-icon="sprout"></span><span><b data-t="watchDemo"></b><small data-t="watchDemoS"></small></span><span class="tag" data-t="demoTag"></span></button>
     <p class="muted small" data-t="welcomeNote"></p>
   </div>
 </div>
@@ -301,6 +388,7 @@
     <div class="secl" data-t="shedsH"></div>
     <div class="farmlist" id="shedList"></div>
     <div class="two"><button class="cta wide" id="addFromList"><span data-icon="plus"></span><span data-t="addField"></span></button><button class="cta wide turm" id="addShedBtn"><span data-icon="plus"></span><span data-t="addShed"></span></button></div>
+    <button class="demopick" type="button" id="farmDemo"><span data-icon="sprout"></span><span><b data-t="watchDemo"></b><small data-t="watchDemoS"></small></span><span class="tag" data-t="demoTag"></span></button>
   </div>
 </div>
 
@@ -381,6 +469,7 @@
   <button role="tab" data-tab="saathi" aria-selected="false"><span data-icon="chat"></span><span data-t="nSaathi"></span><span class="badge" id="badge" hidden>0</span></button>
   <button role="tab" data-tab="market" aria-selected="false"><span data-icon="cart"></span><span data-t="nMarket"></span></button>
   <button role="tab" data-tab="money" aria-selected="false"><span data-icon="rupee"></span><span data-t="nMoney"></span></button>
+  <button role="tab" data-tab="settings" aria-selected="false" hidden><span data-icon="eye"></span><span data-t="nSettings"></span></button>
 </div></nav>
 <div class="toast" id="toast" hidden></div>
 <script src="/i18n.js"></script>
@@ -389,5 +478,6 @@
 <script src="/next/ks.js"></script>
 <script src="/next/ks-shed.js"></script>
 <script src="/next/ks-harvest.js"></script>
+<script src="/next/ks-admin.js"></script>
 </body>
 </html>
