@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptText, segmentStream, uploadFile, deleteFile, respond, responseText } from './lib/meta.js';
 import { analyseFrames, framesFromSegments, observePrompt, parseObservation, MAX_FRAMES, SAFE_VET_LINE } from './lib/poultry.js';
 import { autoSigns, vetMessage, vetScript, withNames, cleanCall, parseDeaths, parseSince, SIGN_CODES } from './lib/vetcall.js';
+import { DEFAULT_RULE, TRAY, cleanRule, sellDue, planDeal, shopPrompt, voiceDeal, parseLines, rankOffers } from './lib/sell.js';
+import { withNames as namesOf } from './lib/names.js';
 import { readIndex, createClip, putClipVideo, getClip, clipFrames, clipVideo, saveResult, deleteClip, setToday, todayCamera, MAX_CLIPS } from './lib/clips.js';
 import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage, zoomCenter } from './lib/tile.js';
@@ -19,13 +21,13 @@ import { TTS, hasTtsKey, synthesize } from './lib/tts.js';
 import { DEMO_PLACES } from './lib/plot.js';
 import {
   dbConfigured, isId, newId, createLand, listLands, getLand, updateLand, deleteLand, putFile, getFile, deleteFiles, listAlerts, pingDb,
-  recentAlerts, insertAlerts, markAlertRead, insertReadings, latestReadings, listContacts, CLIP_BUCKET,
+  recentAlerts, insertAlerts, markAlertRead, insertReadings, latestReadings, listContacts, CLIP_BUCKET, getSellRule, saveSellRule, insertDeal,
 } from './lib/store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.7.5';
+const VERSION = '0.8.0';
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -328,6 +330,7 @@ const engine = createEngine({
   store: { listLands, getLand, latestReadings, insertReadings, recentAlerts, insertAlerts },
   planForLand,
   camera: todayCamera,
+  market: marketTick,
   log: (m) => console.log(m),
 });
 const ENGINE_EVERY_MS = 10 * 60 * 1000;
@@ -550,7 +553,7 @@ app.get(
     const latest = latestByDevice(await latestReadings([SHED_DEVICE], 30));
     const shed = latest[SHED_DEVICE] ? Object.fromEntries(SHED_METRICS.filter((m) => latest[SHED_DEVICE][m]).map((m) => [m, latest[SHED_DEVICE][m]])) : null;
     const vets = await listContacts('vet').catch(() => []);
-    return { shed, simulated: true, last: lastShed, vet: withNames(vets[0]), eggTarget: 300 };
+    return { shed, simulated: true, last: lastShed, vet: withNames(vets[0]), eggTarget: (await loadRule()).min_count || 300 };
   })
 );
 
@@ -592,6 +595,124 @@ app.post(
     const calledAt = new Date().toISOString();
     lastShed = { ...(lastShed || {}), vetCall: { ...call, calledAt } };
     return { message, ...script, vet: withNames(vets[0]), simulated: true, calledAt };
+  })
+);
+
+// ---------- egg sale (v0.8.0): the farmer's rule, simulated shop calls, one-tap deal ----------
+async function loadRule() {
+  const row = await getSellRule('eggs').catch(() => null);
+  return { ...DEFAULT_RULE, ...(row || {}) };
+}
+async function eggStock() {
+  const latest = latestByDevice(await latestReadings([SHED_DEVICE], 30).catch(() => []))[SHED_DEVICE];
+  return Math.round(latest?.egg_stock?.value ?? latest?.eggs_today?.value ?? 0);
+}
+async function eggShops(rule) {
+  const all = (await listContacts('shop').catch(() => [])).filter((c) => (c.details?.buys || ['eggs']).includes('eggs'));
+  const picked = rule.shop_ids?.length ? all.filter((c) => rule.shop_ids.includes(c.id)) : all;
+  return (picked.length ? picked : all).slice(0, 5);
+}
+
+// One round of calls: every price from lib/sell.js; Muse Spark voices the shopkeepers in parallel.
+async function runSale(lang) {
+  const rule = await loadRule();
+  const stock = await eggStock();
+  const trays = Math.floor(stock / TRAY);
+  if (trays < 1) throw new Error('Not enough eggs for one tray yet');
+  const shops = await eggShops(rule);
+  if (!shops.length) throw new Error('No egg shops saved');
+  const day = localToday('Asia/Dhaka');
+  const calls = await Promise.all(
+    shops.map(async (shop, i) => {
+      const plan = planDeal({ shop, floor: Number(rule.floor_price), trays, lang, day, slot: i });
+      let lines = null;
+      try {
+        const resp = await chat({ messages: [{ role: 'user', content: shopPrompt({ shop, lang, plan }) }], maxTokens: 3000, effort: 'low' });
+        lines = parseLines(messageText(resp).text);
+      } catch (err) {
+        console.log('shop voice fallback:', err.message);
+      }
+      const { turns, spark } = voiceDeal(plan, lang, lines);
+      const named = namesOf(shop);
+      return { contact_id: shop.id, name: shop.name, names: named.names, villages: named.villages, village: shop.village, turns, price: plan.price, best: plan.best, pickup: plan.pickup, spark };
+    })
+  );
+  // shops: in the order they were called; ranked: best offer first (for the offers screen).
+  const run = { id: newId(), at: new Date().toISOString(), lang, trays, eggs: trays * TRAY, stock, floor: Number(rule.floor_price), status: 'open', shops: calls, ranked: rankOffers(calls).map((s) => s.contact_id) };
+  await saveSellRule({ ...rule, last_run: run });
+  return run;
+}
+
+// Engine hook: when the rule says it is time, ask the farmer (or call the shops on its own).
+async function marketTick({ shed }) {
+  const rule = await loadRule();
+  const { due, trays } = sellDue(rule, shed.egg_stock);
+  if (!due) return [];
+  const open = rule.last_run?.status === 'open' && Date.now() - new Date(rule.last_run.at).getTime() < 12 * 3600 * 1000;
+  if (open) return [];
+  if (rule.ask_first) return [{ land_id: null, area: 'market', severity: 'info', title: 'sell_due', source: 'sensor', body: { value: trays } }];
+  const run = await runSale(rule.last_run?.lang || 'bn');
+  const best = run.shops.find((s) => s.contact_id === run.ranked[0] && s.price);
+  return [{ land_id: null, area: 'market', severity: 'info', title: best ? 'sell_offers' : 'sell_low', source: 'sensor', body: { value: best ? best.price : run.trays } }];
+}
+
+app.get(
+  '/api/sell',
+  guard,
+  timed(async () => {
+    const rule = await loadRule();
+    const stock = await eggStock();
+    const shops = (await listContacts('shop').catch(() => [])).filter((c) => (c.details?.buys || ['eggs']).includes('eggs')).map(namesOf);
+    return { rule, stock, trays: Math.floor(stock / TRAY), tray: TRAY, due: sellDue(rule, stock), shops, simulated: true };
+  })
+);
+
+app.post(
+  '/api/sell/rule',
+  guard,
+  timed(async (req) => {
+    const rule = await saveSellRule(cleanRule(req.body || {}, await loadRule()));
+    engine.run().catch(() => null);
+    return { rule };
+  })
+);
+
+app.post('/api/sell/run', guard, timed(async (req) => ({ run: await runSale(pickLang(req.body?.lang || req.query.lang)) })));
+
+// The farmer's one tap: the deal is saved (simulated money) and the sold eggs leave the stock.
+app.post(
+  '/api/sell/confirm',
+  guard,
+  timed(async (req) => {
+    const rule = await loadRule();
+    const run = rule.last_run;
+    if (!run || run.id !== req.body?.runId) throw new Error('These offers are no longer open; call the shops again');
+    if (run.status !== 'open') throw new Error('This sale is already closed');
+    const shop = run.shops.find((s) => s.contact_id === req.body?.contactId);
+    if (!shop?.price) throw new Error('This shop did not reach your lowest price');
+    const total = shop.price * run.trays;
+    const deal = await insertDeal({
+      contact_id: /^[0-9a-f-]{36}$/i.test(shop.contact_id) ? shop.contact_id : null,
+      direction: 'sell',
+      items: [{ item: 'eggs', trays: run.trays, eggs: run.eggs, price_inr_per_tray: shop.price, pickup: shop.pickup, shop: shop.name, simulated: true }],
+      total_inr: total,
+      status: 'confirmed',
+    });
+    const now = new Date().toISOString();
+    await saveSellRule({ ...rule, last_sold_at: now, last_run: { ...run, status: 'sold', soldTo: shop.contact_id, soldAt: now } });
+    const left = Math.max(0, (await eggStock()) - run.eggs);
+    await insertReadings([{ device: SHED_DEVICE, area: 'shed', metric: 'egg_stock', value: left }]).catch(() => 0);
+    return { deal, total, left, simulated: true };
+  })
+);
+
+app.post(
+  '/api/sell/skip',
+  guard,
+  timed(async (req) => {
+    const rule = await loadRule();
+    if (rule.last_run?.id === req.body?.runId && rule.last_run.status === 'open') await saveSellRule({ ...rule, last_run: { ...rule.last_run, status: 'skipped' } });
+    return { skipped: true };
   })
 );
 
@@ -724,7 +845,7 @@ app.post(
     const text = String(req.body?.text || '');
     if (!text.trim()) throw new Error('text is required');
     // voice 'vet': the simulated vet in the demo call speaks with a second voice.
-    const opts = req.body?.voice === 'vet' ? { voice: TTS.vetVoice, style: 'calm, kind and professional, an animal doctor on a phone call' } : {};
+    const opts = req.body?.voice === 'vet' ? { voice: TTS.vetVoice, style: 'calm, kind and professional, an animal doctor on a phone call' } : req.body?.voice === 'shop' ? { voice: TTS.shopVoice, style: 'friendly, quick village shopkeeper on a phone call' } : {};
     const { wav, chars } = await synthesize(text, opts);
     return {
       audioDataUrl: `data:audio/wav;base64,${wav.toString('base64')}`,

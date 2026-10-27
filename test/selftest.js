@@ -20,6 +20,7 @@ import { analyseFrames, safeText, parseObservation } from '../lib/poultry.js';
 import { responseText } from '../lib/meta.js';
 import { fieldAlerts, shedAlerts, cameraAlerts, dedupe } from '../lib/alerts.js';
 import * as clipsLib from '../lib/clips.js';
+import { DEFAULT_RULE, TRAY, cleanRule, sellDue, planDeal, voiceDeal, parseLines, rankOffers, shopPrompt } from '../lib/sell.js';
 import { autoSigns, vetMessage, vetScript, withNames, cleanCall, parseDeaths, parseSince, SIGN_CODES } from '../lib/vetcall.js';
 import { createEngine } from '../lib/engine.js';
 import * as memStore from '../lib/store.js';
@@ -467,7 +468,7 @@ check('Shed alerts: cold, humidity, light at the wrong time, heat and cold forec
   assert.deepEqual(t({ light: 1 }, { hour: 19 }), [], 'evening light is wanted');
   const weather = { days: [{ date: '2026-10-27', tMax: 33, tMin: 24 }, { date: '2026-10-28', tMax: 37, tMin: 11 }] };
   assert.deepEqual(t({}, { weather, today: '2026-10-27' }), ['heat_coming', 'cold_night']);
-  assert.deepEqual(t({ eggs_today: 310 }), ['eggs_ready']);
+  assert.deepEqual(t({ eggs_today: 310 }), [], "egg sales follow the sell rule since v0.8.0");
 });
 
 // ---------- v0.7.1: saved shed clips (simulated camera) ----------
@@ -582,6 +583,83 @@ check('Demo call: vet asks by the signs, Saathi answers only from app data', () 
   for (const lang of ['bn', 'hi', 'en']) {
     for (const turn of vetScript({ lang, signs: SIGN_CODES, deaths: 3 }, { birds: 99, shed }).turns) assert.equal(safeText(turn.text), turn.text, `${lang}: "${turn.text}" passes the filter`);
   }
+});
+
+// ---------- v0.8.0: egg sale ----------
+check('Sell rule: farmer sets count and/or days; cleaned; at least one trigger', () => {
+  const r = cleanRule({ min_count: 310, every_days: null, floor_price: 175, ask_first: false, shop_ids: ['a', 3] });
+  assert.equal(r.min_count, 300, 'rounded to whole trays');
+  assert.equal(r.every_days, null);
+  assert.equal(r.ask_first, false);
+  assert.deepEqual(r.shop_ids, ['a']);
+  assert.ok(r.started_at);
+  assert.throws(() => cleanRule({ min_count: null, every_days: null }), /at least one/);
+  const now = Date.parse('2026-10-31T10:00:00Z');
+  assert.deepEqual(sellDue({ ...DEFAULT_RULE, min_count: 300, every_days: null }, 299, now).due, false);
+  assert.equal(sellDue({ ...DEFAULT_RULE, min_count: 300 }, 305, now).reason, 'count');
+  const byDays = { ...DEFAULT_RULE, min_count: 600, every_days: 3, last_sold_at: '2026-10-28T09:00:00Z' };
+  assert.equal(sellDue(byDays, 90, now).reason, 'days', 'every 3 days, whatever the count');
+  assert.equal(sellDue(byDays, 20, now).due, false, 'not even one tray');
+  assert.equal(sellDue({ ...byDays, enabled: false }, 900, now).due, false);
+});
+
+check('Bargaining: never below the lowest price, prices only from rules', () => {
+  const shops = [180, 176, 188, 150, 230].map((p, i) => ({ id: `s${i}`, name: `shop${i}`, details: { last_price_inr_per_tray: p } }));
+  for (const floor of [150, 175, 185, 200])
+    for (const shop of shops)
+      for (const day of ['2026-10-28', '2026-10-29', '2026-10-30', '2026-11-01']) {
+        const d = planDeal({ shop, floor, trays: 10, lang: 'bn', day });
+        if (d.price !== null) assert.ok(d.price >= floor, `deal ${d.price} below floor ${floor}`);
+        const saathiPrices = d.turns.filter((t) => t.who === 'saathi' && t.price && t.key !== 'decline').map((t) => t.price);
+        assert.ok(saathiPrices.every((p) => p >= floor), 'Saathi never asks below the floor');
+        const shopPrices = d.turns.filter((t) => t.price && t.who === 'shop').map((t) => t.price);
+        assert.deepEqual(shopPrices, [...shopPrices].sort((a, b) => a - b), 'shop offers only go up');
+        if (d.price === null) assert.equal(d.turns.at(-1).key, 'decline');
+      }
+  const ranked = rankOffers([{ price: null, best: 199 }, { price: 180, best: 180 }, { price: 185, best: 185 }]);
+  assert.deepEqual(ranked.map((s) => s.price), [185, 180, null]);
+});
+
+check('Shopkeeper voice: Spark words used only when safe; prices always from the plan', () => {
+  const shop = { id: 's', name: 'রহমান স্টোর', details: { last_price_inr_per_tray: 180 } };
+  const plan = planDeal({ shop, floor: 175, trays: 10, lang: 'bn', day: '2026-10-28' });
+  const n = plan.turns.filter((t) => t.who === 'shop').length;
+  assert.match(shopPrompt({ shop, lang: 'bn', plan }), /\{price\}/);
+  const good = Array.from({ length: n }, (_, i) => (plan.turns.filter((t) => t.who === 'shop')[i].price ? 'ঠিক আছে ভাই, {price} দিতে পারি।' : 'আচ্ছা, {pickup} লোক পাঠাব।'));
+  const v = voiceDeal(plan, 'bn', good);
+  assert.equal(v.spark, n);
+  const firstShop = v.turns.find((t) => t.who === 'shop');
+  assert.match(firstShop.text, /[০-৯]+ টাকা/, 'price written in Bangla digits by code');
+  const bad = voiceDeal(plan, 'bn', ['আমি ১৫০ দেব {price}', ...good.slice(1)]);
+  assert.equal(bad.turns.find((t) => t.who === 'shop').by, 'script', 'a model line with its own number is replaced');
+  assert.equal(voiceDeal(plan, 'en', null).spark, 0, 'no model: scripted lines');
+  assert.deepEqual(parseLines('x {"lines":["a","b"]} y'), ['a', 'b']);
+  for (const t of voiceDeal(plan, 'en', null).turns) assert.doesNotMatch(t.text, /\{price\}|\{pickup\}|undefined/);
+});
+
+check('Egg stock grows with collection, keeps across days', () => {
+  const prev = { shed_temp: 30, shed_humidity: 70, ammonia_ppm: 10, light: 1, water_pct: 80, feed_pct: 70, eggs_today: 100, egg_stock: 250 };
+  const a = stepShed(prev, { rand: () => 0.5, hour: 10 });
+  assert.equal(a.egg_stock - prev.egg_stock, a.eggs_today - prev.eggs_today);
+  const b = stepShed(a, { rand: () => 0.5, hour: 10, newDay: true });
+  assert.equal(b.eggs_today, 0);
+  assert.equal(b.egg_stock, a.egg_stock, 'new day: today resets, stock stays');
+});
+
+await checkAsync('Sell rule and deal stored (memory store); engine passes market alerts through', async () => {
+  const saved = await memStore.saveSellRule({ ...DEFAULT_RULE, floor_price: 180 });
+  assert.equal((await memStore.getSellRule('eggs')).floor_price, 180);
+  assert.ok(saved.updated_at);
+  const deal = await memStore.insertDeal({ direction: 'sell', items: [{ item: 'eggs', trays: 10 }], total_inr: 1850, status: 'confirmed' });
+  assert.ok(deal.id);
+  assert.equal((await memStore.listContacts('shop')).length, 3);
+  const engine = createEngine({
+    store: { listLands: async () => [], getLand: async () => null, latestReadings: async () => [], insertReadings: async (r) => r.length, recentAlerts: async () => [], insertAlerts: async (rows) => rows },
+    planForLand: async () => null,
+    market: async ({ shed }) => (shed.egg_stock >= 0 ? [{ land_id: null, area: 'market', severity: 'info', title: 'sell_due', source: 'sensor', body: { value: 10 } }] : []),
+  });
+  const s = await engine.run();
+  assert.ok(s.alerts.includes('sell_due'));
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

@@ -350,3 +350,38 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .vet-said ol { margin: 6px 0 0; padding-left: 22px; }
 .btn.end-call { background: #B42318; border-color: #B42318; color: #fff; }
 @media (prefers-reduced-motion: reduce) { .call-state.live::before { animation: none; } }
+
+/* ---------- egg sale (v0.8.0) ---------- */
+.egg-stock { font-weight: 700; font-size: 15px; }
+.egg-stock:empty { display: none; }
+#eggCard .two-btn { margin-top: 4px; }
+.rule-opt { border: 2px solid var(--line); border-radius: 16px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; background: #fff; }
+.rule-opt.on { border-color: var(--green); background: var(--green-soft); }
+.rule-row { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; justify-content: space-between; }
+.rule-row > span:not(.step-num) { flex: 1; }
+.rule-row input[type="checkbox"]:not(.switch) { width: 24px; height: 24px; accent-color: var(--green); margin: 0; flex-shrink: 0; }
+.rule-row .step-num b { min-width: 72px; font-size: 18px; }
+.rule-shops { display: flex; flex-direction: column; gap: 4px; }
+.rule-shops label { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 16px; font-weight: 600; cursor: pointer; }
+.rule-shops input { width: 24px; height: 24px; accent-color: var(--green); margin: 0; }
+.rule-shops small { color: var(--muted); font-weight: 400; }
+.vav.shop { background: var(--orange); }
+.call-line.shop .who { background: var(--orange); }
+.call-line.shop .b { background: #FBE7DC; }
+.call-line.shop.now .b { box-shadow: 0 0 0 2px var(--orange); }
+.sell-prog { display: flex; gap: 6px; }
+.sell-prog span { flex: 1; height: 6px; border-radius: 3px; background: var(--line); }
+.sell-prog span.done { background: var(--green); }
+.sell-prog span.now { background: var(--orange); }
+.offers { display: flex; flex-direction: column; gap: 8px; }
+.offer { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 2px solid var(--line); border-radius: 14px; padding: 10px 12px; background: #fff; font: inherit; color: inherit; text-align: left; min-height: 56px; cursor: pointer; }
+.offer[aria-checked="true"] { border-color: var(--green); background: var(--green-soft); box-shadow: inset 0 0 0 1px var(--green); }
+.offer:disabled { cursor: default; opacity: 1; }
+.offer b { font-size: 18px; white-space: nowrap; }
+.offer .best { font-size: 12px; font-weight: 700; color: #1F4D22; background: #CFE8CC; border-radius: 6px; padding: 1px 6px; margin-left: 6px; }
+.offer .low { color: #9A3412; font-weight: 700; font-size: 14px; white-space: nowrap; }
+.offer:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.sell-total { display: flex; justify-content: space-between; align-items: baseline; border: 2px solid var(--line); border-radius: 14px; padding: 10px 12px; background: #fff; font-size: 16px; }
+.sell-total:empty { display: none; }
+.sell-total b { font-family: var(--display); font-size: 26px; }
+.rule-opt.rule-row { flex-direction: row; }

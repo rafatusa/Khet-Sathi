@@ -559,7 +559,7 @@
       chance: num(v.chance ?? 0, 0),
       mm: num(v.mm ?? 0, 0),
       humidity: num(v.humidity ?? 0, 0),
-      value: num(v.value ?? 0, a.title === 'soil_dry' ? 0 : 1),
+      value: num(v.value ?? 0, a.title === 'soil_dry' || a.title.startsWith('sell_') ? 0 : 1),
       days: num(v.days ?? 0, 0),
       crop: v.crop ? t(`crop_${v.crop}`) : '',
       date: v.date ? longDate(v.date) : '',
@@ -595,6 +595,13 @@
           <button data-say aria-label="${esc(t('listen'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></button>
           <button data-read aria-label="${esc(t('gotIt'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></button>
         </div>`;
+      if (['sell_due', 'sell_offers', 'sell_low'].includes(a.title)) {
+        const go = document.createElement('button');
+        go.setAttribute('aria-label', t('openSale'));
+        go.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+        go.addEventListener('click', () => openSale(a.title === 'sell_due' ? 'call' : 'offers'));
+        el.querySelector('.a-btns').prepend(go);
+      }
       el.querySelector('[data-say]').addEventListener('click', () => speak(`${title}. ${body}`));
       el.querySelector('[data-read]').addEventListener('click', async () => {
         el.remove();
@@ -796,6 +803,7 @@
       $('eggFill').style.width = `${Math.min(100, (n / target) * 100)}%`;
       $('eggText').textContent = fmt('eggText', { n: num(n, 0), target: num(target, 0) });
     }
+    loadSellInfo();
   }
 
   // Up to 8 frames, spread over the clip, as JPEG data URLs no wider than 1024 px.
@@ -1437,6 +1445,260 @@
     if (parts.length) speak(parts.join('. '));
   });
 
+  // ---------- egg sale (v0.8.0): shops, calls and money are SIMULATED ----------
+  // The farmer sets when to sell and the lowest price; Saathi calls the shops (Muse Spark voices the
+  // shopkeepers, every price comes from fixed rules) and nothing is sold without the farmer's tap.
+  const sale = { info: null, rule: null, run: null, pick: null, id: 0, timer: null, start: 0, audio: new Map() };
+  const shopName = (s) => s?.names?.[lang] || s?.name || '';
+  const shopPlace = (s) => s?.villages?.[lang] || s?.village || '';
+  const rupees = (n) => {
+    const s = Math.round(Number(n) || 0).toLocaleString('en-IN');
+    const d = digits[lang];
+    return `₹${d ? s.replace(/[0-9]/g, (c) => d[c]) : s}`;
+  };
+
+  async function loadSellInfo() {
+    try {
+      const r = await api('/api/sell');
+      if (!r.ok) return;
+      sale.info = r;
+      $('eggStock').textContent = fmt('eggStockText', { n: num(r.stock, 0), trays: num(r.trays, 0) });
+    } catch {}
+  }
+
+  function sellView(name) {
+    $('sellRuleView').hidden = name !== 'rule';
+    $('sellCallView').hidden = name !== 'call';
+    $('sellOffersView').hidden = name !== 'offers';
+    $('sellTitle').textContent = name === 'rule' ? t('ruleTitle') : name === 'offers' ? t('offersTitle') : '';
+  }
+
+  async function openSale(view) {
+    await loadSellInfo();
+    if (!sale.info) return toast(t('error'));
+    $('sellSheet').hidden = false;
+    if (view === 'rule') return showRule();
+    const run = sale.info.rule?.last_run;
+    if (view === 'offers' && run?.status === 'open') {
+      sale.run = run;
+      return showOffers();
+    }
+    startCalls();
+  }
+
+  // ---- rule ----
+  function showRule() {
+    const r = { ...sale.info.rule };
+    sale.rule = { min: r.min_count || 300, minOn: Boolean(r.min_count), days: r.every_days || 3, daysOn: Boolean(r.every_days), floor: Number(r.floor_price) || 175, ask: r.ask_first !== false, shops: new Set(r.shop_ids?.length ? r.shop_ids : sale.info.shops.map((s) => s.id)) };
+    const box = $('ruleShops');
+    box.replaceChildren();
+    for (const s of sale.info.shops) {
+      const l = document.createElement('label');
+      l.innerHTML = `<input type="checkbox" ${sale.rule.shops.has(s.id) ? 'checked' : ''}/><span>${esc(shopName(s))} <small>· ${esc(shopPlace(s))}</small></span>`;
+      l.querySelector('input').addEventListener('change', (e) => (e.target.checked ? sale.rule.shops.add(s.id) : sale.rule.shops.delete(s.id)));
+      box.append(l);
+    }
+    const prices = sale.info.shops.map((s) => s.details?.last_price_inr_per_tray).filter(Boolean);
+    $('ruleFloorHint').textContent = prices.length ? fmt('ruleFloorHint', { lo: rupees(Math.min(...prices)), hi: rupees(Math.max(...prices)) }) : '';
+    $('ruleAsk').checked = sale.rule.ask;
+    renderRule();
+    sellView('rule');
+    $('ruleSave').focus();
+  }
+  function renderRule() {
+    const r = sale.rule;
+    $('ruleCount').textContent = fmt('eggsN', { n: num(r.min, 0) });
+    $('ruleCountTrays').textContent = fmt('traysEq', { n: num(r.min / 30, 0) });
+    $('ruleDays').textContent = fmt('daysN', { n: num(r.days, 0) });
+    $('ruleFloor').textContent = rupees(r.floor);
+    $('ruleCountOn').checked = r.minOn;
+    $('ruleDaysOn').checked = r.daysOn;
+    $('ruleCountBox').classList.toggle('on', r.minOn);
+    $('ruleDaysBox').classList.toggle('on', r.daysOn);
+  }
+  const ruleStep = (key, d, lo, hi) => () => {
+    sale.rule[key] = Math.max(lo, Math.min(hi, sale.rule[key] + d));
+    renderRule();
+  };
+  $('ruleCountMinus').addEventListener('click', ruleStep('min', -30, 30, 3000));
+  $('ruleCountPlus').addEventListener('click', ruleStep('min', 30, 30, 3000));
+  $('ruleDaysMinus').addEventListener('click', ruleStep('days', -1, 1, 30));
+  $('ruleDaysPlus').addEventListener('click', ruleStep('days', 1, 1, 30));
+  $('ruleFloorMinus').addEventListener('click', ruleStep('floor', -5, 5, 5000));
+  $('ruleFloorPlus').addEventListener('click', ruleStep('floor', 5, 5, 5000));
+  $('ruleCountOn').addEventListener('change', (e) => ((sale.rule.minOn = e.target.checked), renderRule()));
+  $('ruleDaysOn').addEventListener('change', (e) => ((sale.rule.daysOn = e.target.checked), renderRule()));
+  $('ruleAsk').addEventListener('change', (e) => (sale.rule.ask = e.target.checked));
+  $('ruleSave').addEventListener('click', async () => {
+    const r = sale.rule;
+    if (!r.minOn && !r.daysOn) return toast(t('ruleNeedOne'));
+    if (!r.shops.size) return toast(t('ruleNeedShop'));
+    $('ruleSave').disabled = true;
+    try {
+      const res = await postJson('/api/sell/rule', { min_count: r.minOn ? r.min : null, every_days: r.daysOn ? r.days : null, floor_price: r.floor, ask_first: r.ask, shop_ids: [...r.shops] });
+      if (!res.ok) throw new Error(res.error);
+      toast(t('ruleSaved'));
+      closeSale();
+      loadSellInfo();
+    } catch (err) {
+      toast(`${t('error')}: ${err.message}`);
+    } finally {
+      $('ruleSave').disabled = false;
+    }
+  });
+
+  // ---- calls ----
+  const shopAudio = (turn) => {
+    const key = `${turn.who}|${turn.text}`;
+    if (!sale.audio.has(key)) sale.audio.set(key, postJson('/api/speak', { text: turn.text, voice: turn.who === 'shop' ? 'shop' : undefined }).then((r) => (r.ok ? r.audioDataUrl : null)).catch(() => null));
+    return sale.audio.get(key);
+  };
+  function playSale(url, id) {
+    return new Promise((done) => {
+      if (!url || id !== sale.id) return done();
+      if (player) player.pause();
+      player = new Audio(url);
+      player.onended = done;
+      player.onerror = done;
+      player.play().catch(done);
+    });
+  }
+  function saleClock(live) {
+    const s = Math.max(0, Math.round((Date.now() - sale.start) / 1000));
+    const tt = `${num(Math.floor(s / 60), 0)}:${num(s % 60, 0).padStart(2, num(0, 0))}`;
+    $('sellCallState').classList.toggle('live', live);
+    $('sellCallState').textContent = fmt(live ? 'callLiveT' : 'callEndedT', { t: tt });
+  }
+  async function startCalls() {
+    if ((sale.info?.trays ?? 0) < 1) {
+      closeSale();
+      return toast(t('noTrays'));
+    }
+    sellView('call');
+    $('sellLines').replaceChildren();
+    $('sellShopName').textContent = t('callingShops');
+    $('sellProg').replaceChildren();
+    $('sellCallInfo').textContent = '';
+    $('sellCallState').classList.add('live');
+    $('sellCallState').textContent = t('callConnecting');
+    try {
+      const r = await postJson('/api/sell/run', { lang });
+      if (!r.ok) throw new Error(r.error);
+      sale.run = r.run;
+      playCalls();
+    } catch (err) {
+      toast(`${t('error')}: ${err.message}`);
+      closeSale();
+    }
+  }
+  async function playCalls() {
+    const id = ++sale.id;
+    const run = sale.run;
+    const order = run.shops; // in the order the calls were made; the best offer shows at the end
+    run.shops.flatMap((s) => s.turns).forEach(shopAudio); // all voices load together
+    sellView('call');
+    $('sellProg').replaceChildren(...order.map(() => document.createElement('span')));
+    sale.start = Date.now();
+    clearInterval(sale.timer);
+    sale.timer = setInterval(() => saleClock(true), 1000);
+    for (let i = 0; i < order.length && id === sale.id; i++) {
+      const s = order[i];
+      [...$('sellProg').children].forEach((el, k) => (el.className = k < i ? 'done' : k === i ? 'now' : ''));
+      $('sellShopName').textContent = shopName(s);
+      $('sellCallInfo').textContent = fmt('sellCallInfo', { i: num(i + 1, 0), n: num(order.length, 0), trays: num(run.trays, 0), floor: rupees(run.floor) });
+      $('sellLines').replaceChildren();
+      for (const turn of s.turns) {
+        if (id !== sale.id) return;
+        const el = document.createElement('div');
+        el.className = `call-line ${turn.who === 'shop' ? 'shop' : 'saathi'} now`;
+        const src = turn.who === 'shop' && turn.by === 'spark' ? `<span class="src">${esc(t('shopBySpark'))}</span>` : '';
+        el.innerHTML = `<div class="who" aria-hidden="true">${esc(t(turn.who === 'shop' ? 'shopInitial' : 'saathiInitial'))}</div><div class="b">${esc(turn.text)}${src}</div>`;
+        $('sellLines').append(el);
+        el.scrollIntoView({ block: 'nearest' });
+        saleClock(true);
+        await playSale(await shopAudio(turn), id);
+        el.classList.remove('now');
+      }
+    }
+    if (id === sale.id) finishCalls();
+  }
+  function finishCalls() {
+    sale.id++;
+    clearInterval(sale.timer);
+    if (player) player.pause();
+    showOffers();
+  }
+  $('sellStop').addEventListener('click', finishCalls);
+
+  // ---- offers ----
+  function showOffers() {
+    const run = sale.run;
+    const ranked = (run.ranked || run.shops.map((s) => s.contact_id)).map((id) => run.shops.find((s) => s.contact_id === id)).filter(Boolean);
+    sale.ranked = ranked;
+    const deals = ranked.filter((s) => s.price);
+    sale.pick = deals[0]?.contact_id || null;
+    const box = $('sellOffers');
+    box.replaceChildren();
+    ranked.forEach((s, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'offer';
+      b.setAttribute('role', 'radio');
+      b.disabled = !s.price;
+      b.innerHTML = `<div><div><b class="nm">${esc(shopName(s))}</b>${s.price && i === 0 ? `<span class="best">${esc(t('bestTag'))}</span>` : ''}</div><div class="muted small">${esc(s.price ? fmt('pickupAt', { when: s.pickup }) : fmt('lastOffer', { p: rupees(s.best) }))}</div></div>` +
+        (s.price ? `<b>${esc(fmt('perTray', { p: rupees(s.price) }))}</b>` : `<span class="low">${esc(t('priceLow'))}</span>`);
+      b.querySelector('.nm').style.fontSize = '16px';
+      if (s.price) b.addEventListener('click', () => ((sale.pick = s.contact_id), renderPick()));
+      box.append(b);
+    });
+    renderPick();
+    sellView('offers');
+    $('sellReplay').hidden = !run.shops.length;
+    $('sellConfirm').hidden = !deals.length;
+    if (!deals.length) $('sellTotal').textContent = t('noDeal');
+  }
+  function renderPick() {
+    const run = sale.run;
+    [...$('sellOffers').children].forEach((el, i) => el.setAttribute('aria-checked', String(sale.ranked[i].contact_id === sale.pick)));
+    const s = run.shops.find((x) => x.contact_id === sale.pick);
+    if (!s) return;
+    $('sellTotal').innerHTML = `<span>${esc(fmt('totalLine', { trays: num(run.trays, 0), p: rupees(s.price) }))}</span><b>${esc(rupees(s.price * run.trays))}</b>`;
+  }
+  $('sellReplay').addEventListener('click', playCalls);
+  $('sellConfirm').addEventListener('click', async () => {
+    if (!sale.pick) return;
+    $('sellConfirm').disabled = true;
+    try {
+      const r = await postJson('/api/sell/confirm', { runId: sale.run.id, contactId: sale.pick });
+      if (!r.ok) throw new Error(r.error);
+      const s = sale.run.shops.find((x) => x.contact_id === sale.pick);
+      toast(fmt('dealDone', { shop: shopName(s), total: rupees(r.total) }));
+      speak(fmt('dealDone', { shop: shopName(s), total: rupees(r.total) }));
+      closeSale();
+      loadSellInfo();
+      loadShed();
+    } catch (err) {
+      toast(`${t('error')}: ${err.message}`);
+    } finally {
+      $('sellConfirm').disabled = false;
+    }
+  });
+  $('sellSkip').addEventListener('click', async () => {
+    if (sale.run) postJson('/api/sell/skip', { runId: sale.run.id }).catch(() => null);
+    closeSale();
+  });
+
+  function closeSale() {
+    sale.id++;
+    clearInterval(sale.timer);
+    if (player) player.pause();
+    $('sellSheet').hidden = true;
+  }
+  $('sellClose').addEventListener('click', closeSale);
+  $('sellSheet').addEventListener('click', (e) => e.target === $('sellSheet') && closeSale());
+  $('sellNowBtn').addEventListener('click', () => openSale('call'));
+  $('sellRuleBtn').addEventListener('click', () => openSale('rule'));
+
   // ---------- delete a land ----------
   function openDeleteSheet() {
     if (!current) return;
@@ -1457,6 +1719,7 @@
     if (e.key === 'Escape' && !$('deleteSheet').hidden) closeDeleteSheet();
     if (e.key === 'Escape' && !$('vetSheet').hidden) closeVet();
     if (e.key === 'Escape' && !$('clipDelSheet').hidden) $('clipDelSheet').hidden = true;
+    if (e.key === 'Escape' && !$('sellSheet').hidden) closeSale();
   });
   $('deleteYes').addEventListener('click', async () => {
     if (!current) return;

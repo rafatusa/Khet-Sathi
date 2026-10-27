@@ -321,6 +321,11 @@
       <div class="kit-top"><span data-t="eggsToday"></span><span class="sample" data-t="simulated"></span></div>
       <div class="egg-bar"><div id="eggFill"></div></div>
       <div class="muted small" id="eggText"></div>
+      <div class="egg-stock" id="eggStock"></div>
+      <div class="two-btn">
+        <button class="btn primary" id="sellNowBtn" data-t="sellNow"></button>
+        <button class="btn" id="sellRuleBtn" data-t="sellRule"></button>
+      </div>
     </div>
     <div id="shedAnswer" class="answer" hidden></div>
     <div class="spacer"></div>
@@ -388,6 +393,58 @@
         <button class="btn primary wide" id="vetReplay" data-t="playAgain" hidden></button>
         <button class="btn wide" id="vetDone" data-t="close" hidden></button>
         <div class="muted small" data-t="callNote"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Egg sale (v0.8.0): rule, calls, offers. Shops, calls and money are SIMULATED. -->
+  <div class="sheet-wrap" id="sellSheet" hidden>
+    <div class="sheet vet-sheet" role="dialog" aria-modal="true" aria-labelledby="sellTitle">
+      <div class="vet-head">
+        <h3 id="sellTitle"></h3>
+        <button class="round-btn" id="sellClose" data-tl="close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="vet-step" id="sellRuleView">
+        <div class="muted small" data-t="ruleHint"></div>
+        <div class="rule-opt" id="ruleCountBox">
+          <label class="rule-row"><input type="checkbox" id="ruleCountOn" /><span data-t="ruleCount"></span>
+            <span class="step-num"><button type="button" id="ruleCountMinus" data-tl="less">−</button><b id="ruleCount"></b><button type="button" id="ruleCountPlus" data-tl="more">+</button></span></label>
+          <div class="muted small" id="ruleCountTrays"></div>
+        </div>
+        <div class="rule-opt" id="ruleDaysBox">
+          <label class="rule-row"><input type="checkbox" id="ruleDaysOn" /><span data-t="ruleEvery"></span>
+            <span class="step-num"><button type="button" id="ruleDaysMinus" data-tl="less">−</button><b id="ruleDays"></b><button type="button" id="ruleDaysPlus" data-tl="more">+</button></span></label>
+          <div class="muted small" data-t="ruleDaysHint"></div>
+        </div>
+        <div class="rule-opt">
+          <div class="rule-row"><span data-t="ruleFloor"></span>
+            <span class="step-num"><button type="button" id="ruleFloorMinus" data-tl="less">−</button><b id="ruleFloor"></b><button type="button" id="ruleFloorPlus" data-tl="more">+</button></span></div>
+          <div class="muted small" id="ruleFloorHint"></div>
+        </div>
+        <b data-t="ruleShops"></b>
+        <div class="rule-shops" id="ruleShops"></div>
+        <label class="rule-opt rule-row"><span data-t="ruleAsk"></span><input type="checkbox" id="ruleAsk" class="switch" /></label>
+        <button class="btn primary wide" id="ruleSave" data-t="ruleSave"></button>
+        <div class="muted small" data-t="sellDemoNote"></div>
+      </div>
+      <div class="vet-step" id="sellCallView" hidden>
+        <div class="call-head">
+          <div class="vav shop" aria-hidden="true" data-t="shopInitial"></div>
+          <div><b id="sellShopName"></b><span class="call-state" id="sellCallState" aria-live="polite"></span> <span class="demo-tag" data-t="demoTag"></span></div>
+        </div>
+        <div class="sell-prog" id="sellProg" aria-hidden="true"></div>
+        <div class="muted small" id="sellCallInfo"></div>
+        <div class="call-lines" id="sellLines" aria-live="polite"></div>
+        <button class="btn wide end-call" id="sellStop" data-t="stopCalls"></button>
+        <div class="muted small" data-t="sellCallNote"></div>
+      </div>
+      <div class="vet-step" id="sellOffersView" hidden>
+        <div class="offers" id="sellOffers" role="radiogroup"></div>
+        <div class="sell-total" id="sellTotal"></div>
+        <button class="btn primary wide xl-btn" id="sellConfirm" data-t="sellConfirm"></button>
+        <button class="btn wide" id="sellReplay" data-t="hearCalls"></button>
+        <button class="btn wide" id="sellSkip" data-t="notNow2"></button>
+        <div class="muted small" data-t="sellDemoNote2"></div>
       </div>
     </div>
   </div>

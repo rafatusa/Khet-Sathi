@@ -466,6 +466,8 @@
   $('forceDry').addEventListener('click', busy($('forceDry'), () => force('field', 'soil_moisture', 12)));
   $('forceHot').addEventListener('click', busy($('forceHot'), () => force('shed', 'shed_temp', 35)));
   $('forceLight').addEventListener('click', busy($('forceLight'), () => force('shed', 'light', 1)));
+  // Puts 300 eggs (10 trays) in stock so the farmer's sell rule triggers on camera (v0.8.0).
+  $('forceEggs').addEventListener('click', busy($('forceEggs'), () => force('shed', 'egg_stock', 300)));
   $('runAgent').addEventListener('click', busy($('runAgent'), () => runAgent()));
   $('runAll').addEventListener(
     'click',

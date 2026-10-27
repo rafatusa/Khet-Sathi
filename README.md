@@ -33,6 +33,7 @@ in each version and when.
 | Poultry shed: the farmer films the shed; SAM 3.1 counts birds frame by frame and rings birds that hardly move (not at night, when hens rest); Muse Spark 1.2 watches the clip with its sound for behaviour and unusual sounds. Warning signs only ever say "keep these birds apart and call the vet": the app never names a disease or a medicine | Live (needs the farmer's own video) |
 | Saved shed clips: up to 5 of the farmer's own shed videos, each checked once and kept with its result; one can be set as "today's camera" so its warnings reach Home by themselves | Live (**simulated camera**: a saved clip stands in for a CCTV feed) |
 | Symptoms to the vet: Saathi ticks the signs the video showed (from a fixed list), the farmer unticks or adds, answers "since when?" and "any deaths today?" by voice or buttons, reads the exact words and agrees; a demo call then plays them. Fixed sentence templates, no disease or medicine names | Live (**simulated vet and call**: no real call is made) |
+| Egg sale: the farmer decides when to sell (egg count and/or every few days) and the lowest price per tray; Saathi calls the saved egg shops, bargains by fixed rules and never goes below that price; Muse Spark plays the shopkeepers; the farmer confirms the best offer with one tap | Live (**simulated shops, calls and money**; the deal is saved) |
 | Shed care alerts: too hot or cold, humidity, ammonia, water and feed, light left on at night or in daylight, light off in the evening, heat or cold coming, egg count | Live (shed sensors and egg counter **simulated**) |
 | Auto-sell: when eggs or harvest are ready, the agent phones shop owners and negotiates | Planned |
 
@@ -90,6 +91,7 @@ Local: `npm install`, then `npm start` (Node 20+). Offline tests: `npm test`.
 
 | Version | Date | What was built |
 |---|---|---|
+| v0.8.0 | Oct 28 | Egg sale: the farmer's sell rule (eggs reach N and/or every N days, lowest price per tray, shops, ask first), a simulated egg stock, Saathi calls the shops and bargains by fixed rules (never below the lowest price) while Muse Spark voices the shopkeepers, offers side by side, one tap saves the deal; `sql/004_sell_rules_v0.8.0.sql` |
 | v0.7.5 | Oct 28 | Simulated vet name and village in the farmer's language; Saathi tells the vet "about N chickens in the shed" (source shown below the line); English text says chickens instead of birds |
 | v0.7.4 | Oct 28 | Two-way demo vet call: after consent, Saathi and a simulated vet (second voice) take turns; the vet asks up to two scripted questions picked by the signs, Saathi answers only from the SAM count and the simulated shed kit (or says it does not know), the vet closes with a fixed safe line and a short summary |
 | v0.7.3 | Oct 27 | Fix: the clip list is kept in server memory and saved with no-cache, because storage served a stale copy for about 20 s and a second clip upload failed with "Clip not found"; saves run one at a time; the "Tell the vet" icon is sized like the others |
