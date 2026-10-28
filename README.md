@@ -1,4 +1,4 @@
-# Khet Sathi (খেত সাথী · खेत साथी)
+# Khet Sathi (খেত সাথী · खेत साथी) 
 
 **One voice, every farm decision.** A voice-first AI farm agent for smallholder farmers, built first for India and Bangladesh and working anywhere on Earth.
 The farmer talks in Bangla or Hindi; the agent watches their land from space, listens to their shed, plans the
