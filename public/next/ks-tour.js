@@ -126,6 +126,7 @@
     removeEventListener('scroll', place, true);
     document.removeEventListener('keydown', onKey);
     ui = null;
+    goBack().catch(() => null);
   }
   function onKey(e) {
     if (e.key === 'Escape') close();
@@ -158,10 +159,23 @@
     showStop(0);
   }
 
-  // First visit to the demo farm: start by itself once its places have loaded.
-  function maybeStart() {
-    if (seen() || ui || S.view !== 'demo' || !S.lands.length) return;
+  // First visit to the demo farm: start by itself once its places have loaded. v0.19.1: a visitor who picked
+  // one demo place (target) is brought back to it when the tour ends.
+  let returnTo = null;
+  function maybeStart(target = null) {
+    if (seen() || ui || S.view !== 'demo' || !(S.lands.length || S.sheds.length || S.yards?.length)) return;
+    returnTo = target;
     setTimeout(() => S.view === 'demo' && !seen() && start(), 900);
+  }
+  async function goBack() {
+    const r = returnTo;
+    returnTo = null;
+    if (!r || S.view !== 'demo') return;
+    if (r.kind === 'shed' && S.sheds.some((x) => x.id === r.id)) K.openShed(r.id);
+    else if (r.kind === 'yard' && S.yards?.some((x) => x.id === r.id)) await window.KSYard?.open(r.id);
+    else if (r.kind === 'field' && S.lands.some((x) => x.id === r.id)) await K.openLand(r.id);
+    else return;
+    K.show('home');
   }
 
   window.KSTour = { start, maybeStart, close, isOpen: () => Boolean(ui) };

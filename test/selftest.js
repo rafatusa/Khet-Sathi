@@ -345,7 +345,17 @@ const fakeFetch = (fail = []) => async (url) => {
 };
 
 await checkAsync('Plan: Bogura demo land end to end (soil, weather, zone, 3 crops)', async () => {
-  const p = await buildPlan({ place: 'bogura', lat: 24.88, lon: 89.33 }, { fetchImpl: fakeFetch(['fao']), today: TODAY, placeDeps: fakePlace('BD', 'Bangladesh'), think: noThink });
+  // v0.19.1: soil moisture is read at the current hour of the recorded forecast, so the clock is pinned to
+  // noon on TODAY in Dhaka (the test failed from the evening of Oct 28 once the recorded soil got wetter).
+  const realNow = Date.now;
+  Date.now = () => Date.parse(`${TODAY}T06:00:00Z`);
+  let p;
+  try {
+    (await import('../lib/weather.js'))._resetWeatherCache();
+    p = await buildPlan({ place: 'bogura', lat: 24.88, lon: 89.33 }, { fetchImpl: fakeFetch(['fao']), today: TODAY, placeDeps: fakePlace('BD', 'Bangladesh'), think: noThink });
+  } finally {
+    Date.now = realNow;
+  }
   assert.equal(p.soil.texture, 'silty_clay_loam');
   assert.equal(p.weather.soilMoistureLevel, 'dry');
   assert.equal(p.rain.rainDate, '2026-10-29');

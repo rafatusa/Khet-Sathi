@@ -578,6 +578,39 @@
   let heroGo = null;
   $('#heroCta').addEventListener('click', () => heroGo && heroGo());
 
+  // v0.19.1: the empty Home offers each demo place on its own (field, poultry shed, yard). The demo farm's
+  // places are read once with X-View: demo; one it does not have gets no button.
+  let demoPlaces = null;
+  async function renderDemoPicks() {
+    const row = $('#ehDemoRow');
+    if (!demoPlaces) {
+      row.innerHTML = skelBox(28);
+      const h = { headers: { 'X-View': 'demo' } };
+      const [l, s, y] = await Promise.all([api('/api/lands', h).catch(() => null), api('/api/sheds', h).catch(() => null), api('/api/yards', h).catch(() => null)]);
+      demoPlaces = {
+        field: (l?.lands || []).find((x) => x.location_source === 'demo' && x.crop) || (l?.lands || [])[0] || null,
+        shed: (s?.sheds || [])[0] || null,
+        yard: (y?.yards || [])[0] || null,
+      };
+    }
+    if (S.view || S.cur) return;
+    const d = demoPlaces;
+    const btn = (kind, icon, title, sub) => `<button class="dmx-b" type="button" data-demo="${kind}"><span>${I[icon] || ''}</span><span><b>${esc(t(title))}</b><small>${esc(sub)}</small></span></button>`;
+    const out = [];
+    if (d.field) out.push(btn('field', 'sat', 'dmxField', [landTitle(d.field), d.field.acres ? `${num(d.field.acres, 2)} ${t('acShort')}${d.field.crop ? ` ${cropName(d.field.crop)}` : ''}` : '', t('dmxFieldS')].filter(Boolean).join(' · ')));
+    if (d.shed) out.push(btn('shed', 'egg', 'dmxShed', [d.shed.chickens ? fmt('aboutChickens', { n: num(d.shed.chickens) }) : '', t('dmxShedS')].filter(Boolean).join(' · ')));
+    if (d.yard) out.push(btn('yard', 'home', 'dmxYard', [window.KSYard?.yardTitle(d.yard), d.yard.size_m2 ? `${num(Math.round(d.yard.size_m2))} ${t('m2Word')}` : '', t('dmxYardS')].filter(Boolean).join(' · ')));
+    row.innerHTML = out.join('') || `<button class="dmx-b" type="button" data-demo="any"><span>${I.sprout}</span><span><b>${esc(t('watchDemo'))}</b></span></button>`;
+    row.style.gridTemplateColumns = innerWidth > 640 ? `repeat(${Math.max(1, out.length)},1fr)` : '';
+  }
+  $('#ehDemoRow').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-demo]');
+    if (!b) return;
+    const kind = b.dataset.demo;
+    const place = kind === 'any' ? null : demoPlaces?.[kind];
+    enterView('demo', place ? { kind, id: place.id } : null);
+  });
+
   function renderHome() {
     // v0.18.0: a farm with no place yet gets one clear start screen instead of empty cards.
     const empty = S.mode === 'field' && !S.cur;
@@ -587,6 +620,7 @@
     if (empty) {
       ['#dash', '#dashCrop'].forEach((s) => ($(s).hidden = true));
       $('#ehDemo').hidden = Boolean(S.view);
+      if (!S.view) renderDemoPicks();
       return;
     }
     const h = hero();
@@ -2010,8 +2044,7 @@
   $('#ehField').addEventListener('click', openAdd);
   $('#ehShed').addEventListener('click', () => window.KSShed?.openAddShed());
   $('#ehYard').addEventListener('click', () => window.KSYard?.openAdd());
-  $('#ehDemo').addEventListener('click', () => enterView('demo'));
-  $('#welcomeYardAdd').addEventListener('click', () => {
+    $('#welcomeYardAdd').addEventListener('click', () => {
     $('#welcomeSheet').hidden = true;
     window.KSYard?.openAdd();
   });
@@ -2029,7 +2062,8 @@
     $('#viewText').textContent = v === 'demo' ? t(S.admin ? 'viewDemoAdmin' : 'viewDemo') : fmt('viewFarm', { email: v.email || '' });
     document.body.dataset.view = v === 'demo' ? 'demo' : 'farm';
   }
-  async function enterView(v) {
+  // v0.19.1: target { kind: 'field'|'shed'|'yard', id } opens the demo farm at that place.
+  async function enterView(v, target = null) {
     S.view = v;
     Object.assign(S, { lands: [], sheds: [], yards: [], yard: null, cur: null, shed: null, plan: null, field: null, deals: [], alerts: [], chat: [] });
     store.set('ks_land', '');
@@ -2039,13 +2073,17 @@
     await Promise.all([loadLands(), loadSheds(), window.KSYard?.loadYards()]).catch(() => null);
     S.shed = S.sheds[0] || null;
     S.mode = 'field';
-    if (S.lands[0]) await openLand(S.lands[0].id).catch((e) => toast(e.message));
+    const pick = (kind, list) => target?.kind === kind && list.find((x) => x.id === target.id);
+    if (pick('shed', S.sheds)) openShed(target.id);
+    else if (pick('yard', S.yards)) await window.KSYard.open(target.id);
+    else if (pick('field', S.lands)) await openLand(target.id).catch((e) => toast(e.message));
+    else if (S.lands[0]) await openLand(S.lands[0].id).catch((e) => toast(e.message));
     else if (S.shed) openShed(S.shed.id);
     else if (S.yards[0]) await window.KSYard.open(S.yards[0].id);
     else renderAll();
     show('home');
     loadSide();
-    if (v === 'demo') window.KSTour?.maybeStart();
+    if (v === 'demo') window.KSTour?.maybeStart(target);
   }
   $('#viewBack').addEventListener('click', () => enterView(null));
   $('#meDemo').addEventListener('click', () => {
