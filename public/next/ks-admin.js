@@ -52,9 +52,11 @@
       const what = x.path === '/v1/models' ? `GET /v1/models: ${x.status}${/empty/.test(r.note) ? ', empty list' : ''}` : `${model} ${x.path}: ${x.status}${/model_not_found/.test(r.note) ? ' model_not_found' : ''}`;
       return `${what} · request ID ${x.id} · ${utcTime(x.at)} UTC${r.tries > 1 ? ` (${r.tries} tries)` : ''}`;
     };
+    const route = c.rows.find((r) => r.key === 'route' && r.status === 'ok')?.note;
     return [
       'Meta Model API: model_not_found and empty /v1/models',
       `Checked ${day}, ${utcTime(when.toISOString()).slice(0, 5)} UTC, from the app's server. No key included.`,
+      route ? `Route: ${route}.` : '',
       ...fails.map(line),
       ok.length ? `Working right now: ${ok.join(', ')}.` : '',
     ].filter(Boolean).join('\n');

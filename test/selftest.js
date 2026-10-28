@@ -1,5 +1,6 @@
 // Offline self-test: no API key or network needed.
 // Run: npm test
+process.env.META_LOG = 'off'; // v0.20.0: Meta log lines are for Railway, not for the test output
 import assert from 'node:assert/strict';
 import { collectSegments } from '../lib/segment.js';
 import { transcriptText, messageText, toResponsesInput, toResponsesTools, fromResponses } from '../lib/meta.js';
@@ -1387,6 +1388,51 @@ await checkAsync('Demo leaf: saved without a measurement while SAM is down, meas
   assert.equal(calls, n, 'a measured leaf is never sent to SAM again');
   assert.equal(after3.measure.share, 22);
   assert.equal((await dl.loadLeaf({ getFile })).measure.share, 22, 'kept in storage');
+});
+
+await checkAsync('Meta relay: with the two Railway variables set, calls go to the relay with the key in X-Meta-Key and the secret; without them, direct', async () => {
+  const meta = await import('../lib/meta.js');
+  const keep = { u: process.env.META_RELAY_URL, s: process.env.META_RELAY_SECRET };
+  try {
+    delete process.env.META_RELAY_URL;
+    delete process.env.META_RELAY_SECRET;
+    const [direct] = meta.viaRelay('https://api.meta.ai/v1/models', { headers: { Authorization: 'Bearer k1' } });
+    assert.equal(direct, 'https://api.meta.ai/v1/models');
+    assert.equal(meta.relayInfo(), null);
+    process.env.META_RELAY_URL = 'https://abc.supabase.co/functions/v1/meta-relay/';
+    process.env.META_RELAY_SECRET = 's3cret';
+    const [to, opts] = meta.viaRelay('https://api.meta.ai/v1/responses', { method: 'POST', headers: { Authorization: 'Bearer k1', 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(to, 'https://abc.supabase.co/functions/v1/meta-relay/responses');
+    assert.equal(opts.headers['X-Meta-Key'], 'k1');
+    assert.equal(opts.headers['X-Relay-Secret'], 's3cret');
+    assert.ok(!('Authorization' in opts.headers), 'no Authorization header goes to Supabase');
+    assert.equal(opts.headers['Content-Type'], 'application/json');
+    assert.equal(meta.relayInfo().host, 'abc.supabase.co');
+    // Only Meta's own address is rerouted.
+    const [other] = meta.viaRelay('https://example.com/x', {});
+    assert.equal(other, 'https://example.com/x');
+  } finally {
+    if (keep.u === undefined) delete process.env.META_RELAY_URL; else process.env.META_RELAY_URL = keep.u;
+    if (keep.s === undefined) delete process.env.META_RELAY_SECRET; else process.env.META_RELAY_SECRET = keep.s;
+  }
+});
+
+await checkAsync('Storage file types: JSON records go to shed-clips, as land-images only accepts images (the demo leaf save failed live on Oct 29)', async () => {
+  const st = await import('../lib/store.js');
+  const keep = process.env.STORE_ENFORCE_MIME;
+  process.env.STORE_ENFORCE_MIME = '1';
+  try {
+    await assert.rejects(st.putFile('demo/leaf.json', Buffer.from('{}'), 'application/json'), /not supported/);
+    await st.putFile('demo/leaf.json', Buffer.from('{}'), 'application/json', st.CLIP_BUCKET);
+    const k = await import('../lib/keep.js');
+    k._resetKeep();
+    k.remember('mime|test', { ok: 1 }, { persist: true });
+    await new Promise((r) => setTimeout(r, 30));
+    k._resetKeep();
+    assert.deepEqual((await k.recall('mime|test', { persist: true }))?.value, { ok: 1 }, 'kept copies survive a restart');
+  } finally {
+    if (keep === undefined) delete process.env.STORE_ENFORCE_MIME; else process.env.STORE_ENFORCE_MIME = keep;
+  }
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

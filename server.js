@@ -40,6 +40,7 @@ import { measureProblem } from './lib/problem.js';
 import { loadLeaf, saveLeaf, leafPhoto, retryLeaf } from './lib/demoleaf.js';
 import { fetchWeather } from './lib/weather.js';
 import { withKeep, recall, remember } from './lib/keep.js';
+import { relayInfo } from './lib/meta.js';
 import { checkNumbers, factsFrom } from './lib/numcheck.js';
 import { reverseGeocode } from './lib/place.js';
 import { runAs, currentOwner, currentScope, scopeFor, isAdmin, userFromToken, sendCode, verifyCode, refreshSession, signOut, useLimit, LIMITS, usageToday, listUsers, seenUsers } from './lib/auth.js';
@@ -48,7 +49,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.19.3';
+const VERSION = '0.20.0';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -120,6 +121,8 @@ function timed(handler) {
       const data = await runAs(req.user || null, () => handler(req), req.scope || null);
       res.json({ ok: true, ms: Date.now() - t0, ...data });
     } catch (err) {
+      // v0.20.0: failed requests are logged in Railway too (method, path, time, error; never the farm's email).
+      if (!err?.limit) console.log(`api FAIL ${req.method} ${req.path} ${((Date.now() - t0) / 1000).toFixed(1)} s: ${String(err?.message || err).slice(0, 300)}`);
       res.status(200).json({ ok: false, ms: Date.now() - t0, error: err.message || String(err) });
     }
   };
@@ -875,12 +878,17 @@ async function retryYardOutline(id) {
   if (!f?.buffer) return y;
   const { image } = await imageFor(Buffer.from(f.buffer));
   const sam = await outlineYard(image);
-  if (!sam.outline) return y;
+  if (!sam.outline) {
+    console.log(`demo yard ${id}: still no outline (${String(sam.error || 'no open ground found').slice(0, 120)})`);
+    return y;
+  }
   const done = await updateYard(id, { outline: { ...sam.outline, width: sam.width, height: sam.height }, sam: { prompt: sam.prompt, error: null, model: MODELS.sam, later: new Date().toISOString() } });
   console.log(`demo yard ${id}: outline saved`);
   return done;
 }
-const leafDeps = () => ({ getFile, putFile, measure: measureProblem });
+// The demo leaf lives in the shed-clips bucket: land-images only accepts images, so its JSON record was
+// refused there (found live on Oct 29); shed-clips accepts JPEG and JSON.
+const leafDeps = () => ({ getFile: (p) => getFile(p, CLIP_BUCKET), putFile: (p, b, t, _bucket, cc) => putFile(p, b, t, CLIP_BUCKET, cc), measure: measureProblem });
 app.get(
   '/api/problem/demo-leaf',
   guard,
@@ -1029,6 +1037,7 @@ async function askCore(body, onStep = null) {
     if (!text || err.limit) throw err;
     const kept = await recall(key, { persist: true, maxAgeMs: 14 * 864e5 });
     if (!kept) throw err;
+    console.log(`kept copy served: Sathi answer from ${new Date(kept.at).toISOString().slice(0, 16)} UTC (${String(err.message).slice(0, 120)})`);
     return { ...kept.value, staleAt: new Date(kept.at).toISOString(), staleReason: err.message };
   }
 }
@@ -1869,7 +1878,7 @@ app.post(
 );
 
 app.listen(PORT, () => {
-  console.log(`Khet Sathi v${VERSION} on :${PORT} (meta key: ${hasKey()}, db: ${dbConfigured() ? 'supabase' : 'memory'})`);
+  console.log(`Khet Sathi v${VERSION} on :${PORT} (meta key: ${hasKey()}, db: ${dbConfigured() ? 'supabase' : 'memory'}, meta route: ${relayInfo() ? `relay ${relayInfo().host}` : 'direct'})`);
   // v0.19.0: shortly after start and every 3 hours, read the demo farm's weather and satellite once, so a
   // kept copy is ready before anyone opens it (judges see earlier data, marked, if a source is down).
   if (process.env.NODE_ENV !== 'test') {
