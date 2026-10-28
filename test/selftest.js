@@ -1079,6 +1079,54 @@ await checkAsync('scopes: own farm, demo farm read only, admin view of a farm, a
   delete process.env.ADMIN_EMAILS;
 });
 
+// ---------- v0.14.1: Meta "model_not_found" retries ----------
+await checkAsync('Meta retries: model_not_found is retried up to 10 times, other errors are not, empty model lists are asked again', async () => {
+  const meta = await import('../lib/meta.js');
+  const realFetch = globalThis.fetch;
+  const saved = { m: process.env.MODEL_API_KEY, p: meta.RETRY.pauseMs };
+  const nf = () => new Response('{"error":{"code":"model_not_found","message":"The requested model was not found.","type":"invalid_request_error"}}', { status: 404 });
+  const okChat = () => new Response(JSON.stringify({ output: [{ type: 'message', content: [{ type: 'output_text', text: 'OK' }] }] }), { status: 200 });
+  let calls = 0;
+  let failFirst = 0;
+  let other = null;
+  globalThis.fetch = async (url) => {
+    calls++;
+    if (other) return other();
+    if (url.endsWith('/models')) return calls <= failFirst ? new Response('{"data":[]}', { status: 200 }) : new Response('{"data":[{"id":"muse-spark-1.3"}]}', { status: 200 });
+    return calls <= failFirst ? nf() : okChat();
+  };
+  try {
+    process.env.MODEL_API_KEY = 'test';
+    meta.RETRY.pauseMs = 1;
+    assert.equal(meta.RETRY.tries, 10, 'ten tries by default');
+    failFirst = 2;
+    const r = await meta.countTries(() => meta.chat({ messages: [{ role: 'user', content: 'hi' }] }));
+    assert.equal(meta.messageText(r.value).text, 'OK');
+    assert.equal(r.tries, 3, 'worked on try 3');
+    calls = 0; failFirst = 99;
+    const e = await meta.countTries(() => meta.chat({ messages: [{ role: 'user', content: 'hi' }] })).catch((x) => x);
+    assert.match(e.message, /model_not_found/);
+    assert.equal(calls, 12, '10 tries on /responses, then 2 on the old path');
+    calls = 0; other = () => new Response('{"error":{"code":"invalid_api_key","message":"bad key"}}', { status: 401 });
+    await meta.chat({ messages: [{ role: 'user', content: 'hi' }] }).catch(() => null);
+    assert.equal(calls, 2, 'a bad key is not retried (one call per path)');
+    other = null; calls = 0; failFirst = 3;
+    const ids = await meta.countTries(() => meta.listModels());
+    assert.deepEqual([ids.value, ids.tries], [['muse-spark-1.3'], 4], 'an empty model list is asked again');
+  } finally {
+    globalThis.fetch = realFetch;
+    meta.RETRY.pauseMs = saved.p;
+    if (saved.m === undefined) delete process.env.MODEL_API_KEY; else process.env.MODEL_API_KEY = saved.m;
+  }
+});
+await checkAsync('Scan: when SAM says model_not_found on every try, the second pass is skipped and the estimate is used', async () => {
+  let n = 0;
+  const img = { dataUrl: 'data:image/jpeg;base64,AA', width: 1024, height: 1024, groundMeters: 600 };
+  const r = await scanLand({ lat: 24, lon: 89, fetchImage: async () => img, zoom: async () => img, segment: async () => { n++; throw new Error('model_not_found: The requested model was not found.'); } });
+  assert.equal(n, 1);
+  assert.equal(r.sam.approx, true);
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);
