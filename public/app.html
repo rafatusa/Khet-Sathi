@@ -4,6 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Khet Sathi</title>
+<meta name="description" content="Khet Sathi: one voice for every farm decision. A farm helper in Bangla, Hindi and English on Meta's Muse models.">
+<meta name="theme-color" content="#2f7a2a">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta property="og:title" content="Khet Sathi">
+<meta property="og:description" content="One voice for every farm decision: Bangla, Hindi and English, on Meta's Muse models.">
+<meta property="og:image" content="https://khetsathi.royalbengal.ai/icons/og.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Da+2:wght@600;700;800&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hind+Siliguri:wght@400;500;600;700&family=Hind:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="/next/ks.css">
 <link rel="stylesheet" href="/next/ks-real.css">
@@ -13,15 +24,17 @@
 <!-- LANDING (v0.14.0): the first page before sign-in -->
 <div class="lp" id="landing" hidden>
   <nav class="lp-nav">
-    <div class="lp-logo"><span class="lp-dot"><i></i></span>Khet <span>Sathi</span></div>
+    <div class="lp-logo"><img class="lp-mark" src="/icons/icon.svg" alt="" width="34" height="34">Khet <span>Sathi</span></div>
     <a href="#lp-how" data-t="lpNavHow"></a><a href="#lp-calls" data-t="lpNavCalls"></a><a href="#lp-built" data-t="lpNavBuilt"></a>
     <span class="lp-sp"></span>
     <div class="lang" role="group" aria-label="Language"><button data-lang="bn" aria-pressed="true">বাং</button><button data-lang="hi" aria-pressed="false">हिं</button><button data-lang="en" aria-pressed="false">EN</button></div>
     <button class="lp-btn dark" type="button" data-lp="signin" data-t="signIn"></button>
+    <button class="lp-av" type="button" data-lp="app" id="lpAv" data-tl="lpGoFarm" hidden></button>
   </nav>
   <section class="lp-hero">
     <div>
       <div class="lp-kick"><i></i><span data-t="lpKick"></span></div>
+      <p class="lp-welcome" id="lpWelcome" hidden></p>
       <h1 class="lp-h1"><span data-t="lpH1a"></span> <em data-t="lpH1b"></em></h1>
       <p class="lp-lead" data-t="lpLead"></p>
       <div class="lp-ctas"><button class="lp-btn dark" type="button" data-lp="signin" data-t="lpStart"></button><button class="lp-btn line" type="button" data-lp="demo" data-t="watchDemo"></button></div>
@@ -82,7 +95,7 @@
 
 <header>
   <div class="wrap top">
-    <div class="orbit" aria-hidden="true"><div class="earth"></div><div class="sat"><span data-icon="sat"></span></div></div>
+    <a class="logo-btn" href="/" id="logoBtn" data-tl="lpHomeL"><img src="/icons/icon.svg" alt="" width="44" height="44"></a>
     <div>
       <div class="brand">Khet <span>Sathi</span></div>
       <button class="farmbtn" id="farmBtn" data-tl="switchLand"><span class="mchip" id="modeChip"></span><span class="t" id="farmLine"></span><span data-icon="chev"></span></button>
@@ -266,7 +279,7 @@
     <div class="grid2">
       <div class="panel">
         <div class="chathead">
-          <div class="avatar"><span data-icon="leaf"></span></div>
+          <div class="avatar" id="sathiAv"><span data-icon="leaf"></span><span class="avwave" aria-hidden="true"><i></i><i></i><i></i><i></i></span></div>
           <div><b>Sathi</b><div class="who" id="brainLine" data-t="online"></div></div>
         </div>
         <div class="thread" id="thread" aria-live="polite"></div>
@@ -536,6 +549,13 @@
   </div>
 </div>
 
+<!-- v0.17.0: keep Khet Sathi on the phone (shown once per phone, never on a computer) -->
+<div class="installcard" id="installCard" hidden>
+  <img src="/icons/icon.svg" alt="" width="52" height="52">
+  <div><b data-t="instH"></b><div class="muted small" id="installT"></div></div>
+  <div class="btns"><button class="btn ghost" type="button" id="installLater" data-t="instLater"></button><button class="btn" type="button" id="installGo" data-t="instGo"></button></div>
+</div>
+
 <nav class="bottom"><div class="row" role="tablist" id="tabs">
   <button role="tab" data-tab="home" aria-selected="true"><span data-icon="home"></span><span data-t="nHome"></span></button>
   <button role="tab" data-tab="field" aria-selected="false"><span data-icon="sat"></span><span data-t="nField"></span></button>
@@ -555,5 +575,6 @@
 <script src="/next/ks-admin.js"></script>
 <script src="/next/ks-yard.js"></script>
 <script src="/next/ks-problem.js"></script>
+<script src="/next/ks-install.js"></script>
 </body>
 </html>

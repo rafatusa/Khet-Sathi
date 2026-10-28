@@ -45,7 +45,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.16.0';
+const VERSION = '0.17.0';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -53,6 +53,10 @@ const PUB = path.join(__dirname, 'public');
 app.get(['/', '/index.html'], (req, res) => res.sendFile(path.join(PUB, 'app.html')));
 // v0.15.1: each tab has its own address; they all open the same app, which shows that tab.
 app.get(['/home', '/sathi', '/field', '/shed', '/market', '/money', '/settings'], (req, res) => res.sendFile(path.join(PUB, 'app.html')));
+// v0.17.0: browsers ask for /favicon.ico on their own; the app's icon answers.
+app.get('/favicon.ico', (req, res) => res.type('image/png').sendFile(path.join(PUB, 'icons', 'favicon-32.png')));
+// The service worker must come from the site root to look after the whole app, and must never be cached stale.
+app.get('/sw.js', (req, res) => res.set('Cache-Control', 'no-cache').type('application/javascript').sendFile(path.join(PUB, 'sw.js')));
 app.get(['/next', '/next/', '/next/index.html'], (req, res) => res.redirect(302, '/'));
 // Express matches /classic and /classic/ alike, so one route tells them apart (relative links need the slash).
 // v0.14.0: the model bench page is retired; the checks live in the admin Settings tab.
@@ -80,7 +84,7 @@ async function guard(req, res, next) {
   return runAs(user, next, scope);
 }
 // Read-only visitors may still talk to Sathi and, in the demo farm, play the demo calls (nothing is saved).
-const RO_TALK = /^\/api\/(ask|speak|transcribe|vet\/message|problem\/measure)$/;
+const RO_TALK = /^\/api\/(ask|ask\/stream|speak|transcribe|vet\/message|problem\/measure)$/;
 const RO_DEMO_CALLS = /^\/api\/(vet\/call|sell\/run|lands\/[^/]+\/(order|harvest\/run|harvest\/book))$/;
 function readOnlyAllowed(req, scope) {
   const p = req.path;
@@ -907,70 +911,100 @@ app.get('/api/lands/:id/image/:which', guard, async (req, res) => {
 });
 
 // ---------- farmer app: ask the agent (text from voice or a chip) ----------
-app.post(
-  '/api/ask',
-  guard,
-  timed(async (req) => {
-    const { text, landId, shedId, yardId, lang } = req.body || {};
-    if (!text) throw new Error('text is required');
-    useLimit('ask');
-    // v0.11.3: a shed is picked, so Sathi answers about the shed (kit, eggs, sell rule, last camera check).
-    if (shedId) return askShed(String(text), String(shedId), lang);
-    // v0.15.0: a home yard: its size, sun and picks; crop problems go to the nearest agriculture office.
-    if (yardId) {
-      const yard = await getYard(String(yardId));
-      if (!yard) throw new Error('Yard not found');
-      const d = yard.size_m2 ? await yardDetails(yard) : null;
-      const context = [
-        'this is a HOME YARD (the open space in front of the house), not a farm field',
-        yard.size_m2 ? `about ${yard.size_m2} square metres${yard.size?.estimate ? ' (a rough estimate, the farmer did not give the size)' : ''}` : 'size not given yet',
-        yard.sun ? `sun: ${yard.sun === 'full' ? 'all day' : yard.sun === 'half' ? 'half the day' : 'mostly shade'}` : '',
-        d?.picks?.length ? `suggested now: ${d.picks.map((p) => `${p.key.replace(/_/g, ' ')} (${p.count ? `${p.count} plants` : `${p.bedM2} m2 bed`}, first harvest in ${p.days[0]} to ${p.days[1]} days)`).join(', ')}` : '',
-        d?.weather?.rainDate ? `rain expected ${d.weather.rainDate}, so skip watering that day` : '',
-        d?.weather?.hot ? 'very hot today: water in the evening and shade young plants' : '',
-      ].filter(Boolean).join('; ');
-      return runAgent({ userText: String(text).slice(0, 2000), lat: yard.lat, lon: yard.lon, context, cc: yard.place_info?.cc || null, lang: pickLang(lang) });
-    }
-    // No land picked yet: answer for the Bogura demo plot (the Scenario 1 plot with full data).
-    let lat = DEMO_PLACES.bogura.lat;
-    let lon = DEMO_PLACES.bogura.lon;
-    let context = 'no plot added yet';
-    let noField = false;
-    let plan = null;
-    if (landId) {
-      const land = await getLand(landId);
-      if (land && !(land.objects || []).length) {
-        // No field outline at this spot (a town, a river, or a failed scan): no soil or crop advice.
-        lat = land.lat;
-        lon = land.lon;
-        noField = true;
-        context = 'NO FARM FIELD WAS FOUND in the satellite image at this spot, so its soil and size are unknown';
-      } else if (land) {
-        lat = land.lat;
-        lon = land.lon;
-        plan = await planForLand(land).catch(() => null);
-        if (plan) plan.demoLand = land.location_source === 'demo';
-        context = [
-          land.kind === 'empty' ? 'the land is empty, nothing planted yet' : `there is a standing crop${land.crop ? ` (${land.crop})` : ''}`,
-          land.acres ? `plot size about ${land.acres} acres (measured from satellite)` : 'plot size unknown',
-        ].join('; ');
-        // v0.12.0: a standing crop: its sowing date, harvest window and expected amount.
-        if (land.kind === 'crop' && land.crop) {
-          const s = await harvestState(land).catch(() => null);
-          if (s?.ready) context += `; sown ${s.sownOn}${s.estimated ? ' (estimated from satellite greenness)' : ''}; harvest window ${s.ready.harvestStart} to ${s.ready.harvestEnd}; stage ${s.ready.stage}, ${s.ready.pct}% of the way to harvest`;
-          if (s?.amount) context += `; expected harvest about ${s.amount.units} ${s.unit.key === 'mon' ? 'maund (40 kg)' : s.unit.key === 'quintal' ? 'quintal' : 'x 100 kg'} (country average yield, FAOSTAT)`;
-          context += plan?.demoLand ? '; the harvest booking and buyer calls in the Market tab are a demo' : '; no live crop prices yet, and calling buyers is coming soon';
-        }
+// v0.17.0: one function answers Sathi questions; onStep reports each step as it happens (the live
+// "Sathi at work" list). /api/ask answers at the end as before; /api/ask/stream sends the steps as they come.
+async function askCore(body, onStep = null) {
+  const step = (s) => {
+    try {
+      onStep?.({ ...s, at: Date.now() });
+    } catch {}
+  };
+  const { text, landId, shedId, yardId, lang } = body || {};
+  if (!text) throw new Error('text is required');
+  useLimit('ask');
+  // v0.11.3: a shed is picked, so Sathi answers about the shed (kit, eggs, sell rule, last camera check).
+  if (shedId) return askShed(String(text), String(shedId), lang, onStep);
+  // v0.15.0: a home yard: its size, sun and picks; crop problems go to the nearest agriculture office.
+  if (yardId) {
+    const yard = await getYard(String(yardId));
+    if (!yard) throw new Error('Yard not found');
+    step({ type: 'context', kind: 'yard', phase: 'start' });
+    const d = yard.size_m2 ? await yardDetails(yard) : null;
+    step({ type: 'context', kind: 'yard', phase: 'done' });
+    const context = [
+      'this is a HOME YARD (the open space in front of the house), not a farm field',
+      yard.size_m2 ? `about ${yard.size_m2} square metres${yard.size?.estimate ? ' (a rough estimate, the farmer did not give the size)' : ''}` : 'size not given yet',
+      yard.sun ? `sun: ${yard.sun === 'full' ? 'all day' : yard.sun === 'half' ? 'half the day' : 'mostly shade'}` : '',
+      d?.picks?.length ? `suggested now: ${d.picks.map((p) => `${p.key.replace(/_/g, ' ')} (${p.count ? `${p.count} plants` : `${p.bedM2} m2 bed`}, first harvest in ${p.days[0]} to ${p.days[1]} days)`).join(', ')}` : '',
+      d?.weather?.rainDate ? `rain expected ${d.weather.rainDate}, so skip watering that day` : '',
+      d?.weather?.hot ? 'very hot today: water in the evening and shade young plants' : '',
+    ].filter(Boolean).join('; ');
+    return runAgent({ userText: String(text).slice(0, 2000), lat: yard.lat, lon: yard.lon, context, cc: yard.place_info?.cc || null, lang: pickLang(lang), onStep });
+  }
+  // No land picked yet: answer for the Bogura demo plot (the Scenario 1 plot with full data).
+  let lat = DEMO_PLACES.bogura.lat;
+  let lon = DEMO_PLACES.bogura.lon;
+  let context = 'no plot added yet';
+  let noField = false;
+  let plan = null;
+  if (landId) {
+    const land = await getLand(landId);
+    if (land && !(land.objects || []).length) {
+      // No field outline at this spot (a town, a river, or a failed scan): no soil or crop advice.
+      lat = land.lat;
+      lon = land.lon;
+      noField = true;
+      context = 'NO FARM FIELD WAS FOUND in the satellite image at this spot, so its soil and size are unknown';
+    } else if (land) {
+      lat = land.lat;
+      lon = land.lon;
+      step({ type: 'context', kind: 'field', phase: 'start' });
+      plan = await planForLand(land).catch(() => null);
+      if (plan) plan.demoLand = land.location_source === 'demo';
+      context = [
+        land.kind === 'empty' ? 'the land is empty, nothing planted yet' : `there is a standing crop${land.crop ? ` (${land.crop})` : ''}`,
+        land.acres ? `plot size about ${land.acres} acres (measured from satellite)` : 'plot size unknown',
+      ].join('; ');
+      // v0.12.0: a standing crop: its sowing date, harvest window and expected amount.
+      if (land.kind === 'crop' && land.crop) {
+        const s = await harvestState(land).catch(() => null);
+        if (s?.ready) context += `; sown ${s.sownOn}${s.estimated ? ' (estimated from satellite greenness)' : ''}; harvest window ${s.ready.harvestStart} to ${s.ready.harvestEnd}; stage ${s.ready.stage}, ${s.ready.pct}% of the way to harvest`;
+        if (s?.amount) context += `; expected harvest about ${s.amount.units} ${s.unit.key === 'mon' ? 'maund (40 kg)' : s.unit.key === 'quintal' ? 'quintal' : 'x 100 kg'} (country average yield, FAOSTAT)`;
+        context += plan?.demoLand ? '; the harvest booking and buyer calls in the Market tab are a demo' : '; no live crop prices yet, and calling buyers is coming soon';
       }
+      step({ type: 'context', kind: 'field', phase: 'done' });
     }
-    if (!landId) plan = await buildPlan({ lat, lon, place: 'bogura' }).catch(() => null);
-    if (!landId && plan) plan.demoLand = true;
-    const landCc = landId ? (await getLand(landId).catch(() => null))?.place_info?.cc : null;
-    return runAgent({ userText: String(text).slice(0, 2000), lat, lon, context, noField, plan, cc: landCc || plan?.place?.cc || (landId ? null : 'BD'), lang: pickLang(lang) });
-  })
-);
+  }
+  if (!landId) {
+    step({ type: 'context', kind: 'field', phase: 'start' });
+    plan = await buildPlan({ lat, lon, place: 'bogura' }).catch(() => null);
+    step({ type: 'context', kind: 'field', phase: 'done' });
+  }
+  if (!landId && plan) plan.demoLand = true;
+  const landCc = landId ? (await getLand(landId).catch(() => null))?.place_info?.cc : null;
+  return runAgent({ userText: String(text).slice(0, 2000), lat, lon, context, noField, plan, cc: landCc || plan?.place?.cc || (landId ? null : 'BD'), lang: pickLang(lang), onStep });
+}
+app.post('/api/ask', guard, timed(async (req) => askCore(req.body)));
+app.post('/api/ask/stream', guard, async (req, res) => {
+  res.set({ 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache, no-transform', 'X-Accel-Buffering': 'no', Connection: 'keep-alive' });
+  res.flushHeaders?.();
+  const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  const t0 = Date.now();
+  // A comment line every 10 s keeps proxies from closing a long answer.
+  const ping = setInterval(() => res.write(': ping\n\n'), 10000);
+  try {
+    const out = await runAs(req.user, () => askCore(req.body, (s) => send('step', s)), req.scope);
+    send('answer', { ok: true, ms: Date.now() - t0, ...out });
+  } catch (err) {
+    send('answer', { ok: false, ms: Date.now() - t0, error: err.message || String(err) });
+  } finally {
+    clearInterval(ping);
+    res.end();
+  }
+});
 
-async function askShed(text, shedId, lang) {
+async function askShed(text, shedId, lang, onStep = null) {
+  onStep?.({ type: 'context', kind: 'shed', phase: 'start', at: Date.now() });
   const sheds = await listSheds();
   const shed = sheds.find((s) => String(s.id) === shedId) || sheds[0];
   const demo = Boolean(shed?.demo || shed?.builtIn);
@@ -980,7 +1014,10 @@ async function askShed(text, shedId, lang) {
   const last = mine.sort((a, b) => String(b.result.checkedAt).localeCompare(String(a.result.checkedAt)))[0]?.result;
   const check = last ? { when: last.checkedAt, count: last.count.count, still: last.count.still?.length || 0, resting: Boolean(last.count.resting), unusualSound: Boolean(last.observation?.unusualSound) } : null;
   const facts = shedFacts({ shed, kit: latest, stock: await eggStock().catch(() => null), tray: TRAY, rule: await loadRule().catch(() => null), check, night: isNight(shedHour()) });
+  onStep?.({ type: 'context', kind: 'shed', phase: 'done', at: Date.now() });
+  onStep?.({ type: 'think', phase: 'start', step: 1, at: Date.now() });
   const out = await shedAnswer({ text, lang: pickLang(lang), facts });
+  onStep?.({ type: 'think', phase: 'done', step: 1, tools: 0, label: out.brain?.label || null, at: Date.now() });
   return { ...out, trace: [], mode: 'shed' };
 }
 

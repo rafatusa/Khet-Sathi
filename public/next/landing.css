@@ -69,3 +69,8 @@
   .lp-band{gap:14px 22px}
 }
 @media (prefers-reduced-motion:reduce){.lp-outline,.lp-ping{animation:none}.lp-step,.lp-btn{transition:none}}
+/* v0.17.0: the logo mark, and the landing page while signed in */
+.lp-mark{width:34px;height:34px;display:block;flex:none}
+.lp-av{width:44px;height:44px;border-radius:50%;background:var(--lp-gold-soft);border:2px solid #e0a21f;font:800 1rem var(--f-display);color:#1d2419;cursor:pointer;flex:none}
+.lp-welcome{display:inline-block;background:#e2efda;color:#276a23;font-weight:600;border-radius:12px;padding:6px 12px;margin:0 0 12px}
+@media (max-width:640px){.lp-mark{width:30px;height:30px}}

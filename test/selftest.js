@@ -1247,6 +1247,23 @@ await checkAsync('Problem photo: share of the leaf covered by patches (outside t
   assert.ok(!('raw' in clean.leaf), 'masks are not sent to the browser');
 });
 
+// ---------- v0.17.0: Sathi at work (each step reported as it happens) ----------
+await checkAsync('Sathi at work: model turns and tools are reported in order, with times and the model name', async () => {
+  const steps = [
+    { choices: [{ message: { role: 'assistant', content: '', tool_calls: [{ id: 't1', type: 'function', function: { name: 'find_agri_office', arguments: '{}' } }] } }] },
+    { choices: [{ message: { role: 'assistant', content: 'The office can look at it.' }, finish_reason: 'stop' }] },
+  ];
+  let i = 0;
+  const seen = [];
+  const r = await runAgent({ userText: 'leaves curling', lat: 24, lon: 89, cc: 'BD', think: async () => ({ resp: steps[i++], provider: 'baseten', model: 'x', label: 'Muse Spark Open · Baseten' }), offices: async () => ({ offices: [], hotline: null }), onStep: (s) => seen.push(`${s.type}:${s.phase}${s.name ? `:${s.name}` : ''}`) });
+  assert.equal(r.answer, 'The office can look at it.');
+  assert.deepEqual(seen, ['think:start', 'think:done', 'tool:start:find_agri_office', 'tool:done:find_agri_office', 'think:start', 'think:done']);
+  // A step reporter that throws never breaks the answer.
+  i = 0;
+  const r2 = await runAgent({ userText: 'x', lat: 1, lon: 1, think: async () => ({ resp: steps[1], provider: 'baseten', model: 'x', label: 'L' }), onStep: () => { throw new Error('boom'); } });
+  assert.equal(r2.answer, 'The office can look at it.');
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);

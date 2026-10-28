@@ -123,6 +123,7 @@
     $$('[data-tp]').forEach((el) => el.setAttribute('placeholder', t(el.dataset.tp)));
     $$('.lang [data-lang]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lang === lang)));
     applyMode();
+    if (!$('#landing').hidden) relabelLanding();
   }
   $$('.lang [data-lang]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -140,7 +141,13 @@
   const tabFromPath = (p = location.pathname) => Object.keys(TAB_PATH).find((k) => TAB_PATH[k] === p.replace(/\/+$/, '')) || null;
   window.addEventListener('popstate', () => {
     if (document.body.dataset.auth !== 'in') return;
-    show(tabFromPath() || 'home', { route: 'none' });
+    // v0.17.0: "/" is the landing page; any tab address goes back into the app.
+    if (!tabFromPath()) return showLandingIn(false);
+    if (!$('#landing').hidden) {
+      $('#landing').hidden = true;
+      delete document.body.dataset.page;
+    }
+    show(tabFromPath(), { route: 'none' });
   });
   let routeQuiet = false; // while the app starts up, tab changes do not add history entries
   function show(tab, { route = 'push' } = {}) {
@@ -223,9 +230,47 @@
   $('#landing').addEventListener('click', (e) => {
     const b = e.target.closest('[data-lp]');
     if (!b) return;
+    // v0.17.0: signed in, the landing page's buttons go back into the app (or into the demo farm).
+    if (document.body.dataset.auth === 'in') {
+      leaveLanding();
+      if (b.dataset.lp === 'demo') enterView('demo');
+      return;
+    }
     afterLogin = b.dataset.lp === 'demo' ? 'demo' : null;
     showSignIn();
   });
+  // v0.17.0: the logo opens the landing page; signed in, it shows the person's avatar and "Go to my farm".
+  function relabelLanding() {
+    const inn = document.body.dataset.auth === 'in';
+    $$('#landing [data-lp="signin"]').forEach((b) => (b.textContent = inn ? t(b.closest('.lp-nav') ? 'lpGoFarm' : 'lpOpenFarm') : t(b.dataset.t)));
+    $('#lpAv').hidden = !inn;
+    $('#lpAv').textContent = (sess?.email || '?').slice(0, 1).toUpperCase();
+    $('#lpWelcome').hidden = !inn;
+    $('#landing [data-t="lpDemoNote"]').hidden = inn; // "sign in to watch the demo" is not needed once signed in
+    $('#lpWelcome').textContent = inn ? fmt('lpWelcomeBack', { email: sess?.email || '' }) : '';
+  }
+  function showLandingIn(push = true) {
+    stopVoice();
+    $$('.sheet').forEach((s) => (s.hidden = true));
+    $('#meMenu').hidden = true;
+    document.body.dataset.page = 'landing';
+    $('#landing').hidden = false;
+    relabelLanding();
+    if (push && location.pathname !== '/') history.pushState({ landing: true }, '', '/');
+    window.scrollTo({ top: 0 });
+  }
+  function leaveLanding() {
+    $('#landing').hidden = true;
+    delete document.body.dataset.page;
+    show(S.tab && S.tab !== 'pass' ? S.tab : 'home');
+  }
+  ['#logoBtn', '.brand'].forEach((s) =>
+    $(s).addEventListener('click', (e) => {
+      e.preventDefault();
+      if (document.body.dataset.auth === 'in') showLandingIn();
+      else showLanding();
+    })
+  );
   function showPass() {
     if (sess) return showSignIn();
     showLanding();
@@ -1116,6 +1161,120 @@
     $('#askInput').value = '';
     ask(v);
   });
+  // v0.17.0: "Sathi at work": each step appears as it happens, with the Meta model or source it used and its time.
+  // The steps come from /api/ask/stream; if streaming is not possible (an old proxy, a dropped connection),
+  // the app asks /api/ask as before and only the answer appears.
+  const WK_SRC = { get_plot_profile: 'ISRIC SoilGrids · Open-Meteo', get_crop_windows: 'FAO crop calendar', get_sowing_calendar: 'FAO crop calendar', find_agri_office: 'Google Maps' };
+  const CTX_SRC = { field: 'SAM 3.1 · ISRIC SoilGrids · Open-Meteo · FAO', yard: 'Open-Meteo', shed: '' };
+  const secs = (ms) => `${num(Math.max(0.1, (ms || 0) / 1000), 1)} ${t('secShort')}`;
+  function workCard() {
+    const box = document.createElement('div');
+    box.className = 'msg bot work';
+    box.innerHTML = `<button class="wh" type="button" aria-expanded="true"><span class="sp"></span><b>${esc(t('wkH'))}</b></button><div class="wl"></div>`;
+    $('#thread').appendChild(box);
+    $('#thread').scrollTop = 1e9;
+    const rows = new Map();
+    const t0 = Date.now();
+    let thinks = 0;
+    let label = null;
+    const row = (key, text, src) => {
+      let r = rows.get(key);
+      if (!r) {
+        r = document.createElement('div');
+        r.className = 'wrow';
+        r.innerHTML = `<span class="st"><span class="sp"></span></span><div><span class="tx"></span><small></small></div><span class="tm mono"></span>`;
+        box.querySelector('.wl').appendChild(r);
+        rows.set(key, r);
+        $('#thread').scrollTop = 1e9;
+      }
+      if (text != null) r.querySelector('.tx').textContent = text;
+      if (src != null) r.querySelector('small').textContent = src;
+      return r;
+    };
+    const done = (r, ms, ok = true) => {
+      r.querySelector('.st').innerHTML = ok ? '<span class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg></span>' : '<span class="bad">!</span>';
+      r.querySelector('.tm').textContent = secs(ms);
+    };
+    const starts = new Map();
+    function step(s) {
+      if (s.type === 'context') {
+        const key = `ctx-${s.kind}`;
+        if (s.phase === 'start') {
+          starts.set(key, s.at);
+          row(key, t(`wkCtx_${s.kind}`), s.kind === 'shed' ? t('wkShedSrc') : CTX_SRC[s.kind] || '');
+        } else done(row(key), s.at - (starts.get(key) || s.at));
+      } else if (s.type === 'think') {
+        const key = `think-${s.step}`;
+        if (s.phase === 'start') {
+          thinks++;
+          row(key, t(thinks === 1 ? 'wkThink' : 'wkThinkMore'), label || '');
+        } else {
+          label = s.label || label;
+          done(row(key, t(s.tools ? (thinks === 1 ? 'wkPlanned' : 'wkNext') : 'wkWrote'), label || ''), s.ms);
+        }
+      } else if (s.type === 'tool') {
+        const key = `tool-${s.name}-${s.step}`;
+        if (s.phase === 'start') row(key, t(`wk_${s.name}`) || s.name, WK_SRC[s.name] || (['check_input_prices', 'draft_order'].includes(s.name) ? t('wkSample') : ''));
+        else done(row(key), s.ms, s.ok !== false);
+      }
+    }
+    function finish(r) {
+      const n = rows.size;
+      if (!n) return box.remove();
+      box.classList.add('folded');
+      const wh = box.querySelector('.wh');
+      wh.setAttribute('aria-expanded', 'false');
+      wh.innerHTML = `${I.check}<b>${esc(fmt('wkDone', { n: num(n), s: secs(Date.now() - t0), m: r?.brain?.label || label || '' }))}</b>${I.chev}`;
+      wh.addEventListener('click', () => {
+        const open = box.classList.toggle('folded') === false;
+        wh.setAttribute('aria-expanded', String(open));
+      });
+    }
+    function fail() {
+      if (!rows.size) return box.remove();
+      rows.forEach((r) => r.querySelector('.st .sp') && done(r, 0, false));
+      finish(null);
+    }
+    return { step, finish, fail };
+  }
+  // Reads the step-by-step answer; throws 'nostream' when it has to fall back to the plain answer.
+  async function askStream(body, onStep) {
+    if (sess && sess.expires_at - Date.now() < 60000) await refreshSess();
+    const res = await fetch('/api/ask/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(sess ? { Authorization: `Bearer ${sess.access_token}` } : {}), ...(viewParam() ? { 'X-View': viewParam() } : {}) },
+      body: JSON.stringify(body),
+    }).catch(() => null);
+    if (!res || !res.ok || !res.body || !(res.headers.get('content-type') || '').includes('event-stream')) throw new Error('nostream');
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    let answer = null;
+    for (;;) {
+      const { done, value } = await reader.read().catch(() => ({ done: true }));
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const chunk = buf.slice(0, i);
+        buf = buf.slice(i + 2);
+        const ev = /^event: (.+)$/m.exec(chunk)?.[1];
+        const data = /^data: (.+)$/m.exec(chunk)?.[1];
+        if (!data) continue;
+        let j = null;
+        try {
+          j = JSON.parse(data);
+        } catch {
+          continue;
+        }
+        if (ev === 'step') onStep(j);
+        else if (ev === 'answer') answer = j;
+      }
+    }
+    if (!answer) throw new Error('nostream');
+    return answer;
+  }
+
   let busy = false;
   async function ask(text) {
     if (S.tab !== 'saathi') show('saathi');
@@ -1123,13 +1282,24 @@
     stopVoice();
     busy = true;
     bubble(text, 'me');
-    const tp = typing();
+    const work = workCard();
+    const body = S.mode === 'shed' ? { text, shedId: S.shed?.id || null, lang } : S.mode === 'yard' ? { text, yardId: S.yard?.id || null, lang } : { text, landId: S.cur?.id || null, lang };
     try {
-      const r = await postJson('/api/ask', S.mode === 'shed' ? { text, shedId: S.shed?.id || null, lang } : S.mode === 'yard' ? { text, yardId: S.yard?.id || null, lang } : { text, landId: S.cur?.id || null, lang });
-      tp.remove();
+      let r;
+      try {
+        r = await askStream(body, work.step);
+      } catch (err) {
+        if (err.message !== 'nostream') throw err;
+        r = await postJson('/api/ask', body);
+      }
       if (!r.ok) throw new Error(r.error);
+      work.finish(r);
       const tools = (r.trace || []).filter((s) => s.type === 'tool').map((s) => s.name.replace(/_/g, ' '));
-      const m = bubble(r.answer || t('noAnswer'), 'bot', [r.brain?.label ? fmt('answeredBy', { model: r.brain.label }) : '', tools.length ? `✓ ${tools.join(' · ')}` : ''].filter(Boolean).join('  '));
+      // The answer is written sentence by sentence as Sathi speaks it (v0.17.0).
+      const m = bubble('', 'bot', [r.brain?.label ? fmt('answeredBy', { model: r.brain.label }) : '', tools.length ? `✓ ${tools.join(' · ')}` : ''].filter(Boolean).join('  '));
+      const said = document.createElement('span');
+      said.className = 'said';
+      m.prepend(said);
       $('#brainLine').textContent = r.brain?.label ? `${t('online')} · ${r.brain.label}` : t('online');
       // v0.15.0: the agriculture offices Sathi found, with Call (the farmer's own phone) and Directions.
       const help = (r.trace || []).find((s) => s.type === 'tool' && s.name === 'find_agri_office')?.output;
@@ -1140,9 +1310,10 @@
         $('#thread').appendChild(box);
         $('#thread').scrollTop = 1e9;
       }
-      if (r.answer) speak(r.answer, m);
+      if (r.answer) speak(r.answer, m, { reveal: said });
+      else said.textContent = t('noAnswer');
     } catch (err) {
-      tp.remove();
+      work.fail();
       bubble(`${t('error')}: ${err.message}`);
     } finally {
       busy = false;
@@ -1163,7 +1334,14 @@
       player = null;
     }
     $$('.msg.speaking').forEach((m) => m.classList.remove('speaking'));
+    $('#sathiAv')?.classList.remove('talking');
+    // Any answer still being written out is shown in full.
+    if (revealing) {
+      revealing.el.textContent = revealing.text;
+      revealing = null;
+    }
   }
+  let revealing = null;
   // Short sentences are joined (one request per piece); very long ones are split at a comma.
   function speechParts(text) {
     const raw = String(text || '')
@@ -1198,11 +1376,24 @@
       player.play().catch(() => done(false));
     });
   }
-  async function speak(text, el) {
+  // reveal (v0.17.0): an element that shows each sentence as its voice starts. If the voice is slow (4 s),
+  // fails, is blocked by the browser or is stopped, the whole answer is shown at once: text is never held back.
+  async function speak(text, el, { reveal = null } = {}) {
     stopVoice();
     const gen = voiceGen;
     const parts = speechParts(text);
-    if (!parts.length) return;
+    if (reveal) {
+      reveal.textContent = '';
+      revealing = { el: reveal, text };
+    }
+    const showAll = () => {
+      if (revealing?.el === reveal && reveal) {
+        reveal.textContent = text;
+        revealing = null;
+      }
+    };
+    if (!parts.length) return showAll();
+    const slow = reveal ? setTimeout(showAll, 4000) : null;
     el?.classList.add('speaking');
     try {
       // The first two pieces are asked for at once; after that, always one piece ahead of the voice.
@@ -1213,13 +1404,20 @@
         if (gen !== voiceGen) return;
         if (parts[i + 1]) voiceFor(parts[i + 1]);
         if (parts[i + 2]) voiceFor(parts[i + 2]);
+        if (revealing?.el === reveal && reveal) reveal.textContent = parts.slice(0, i + 1).join(' ');
+        $('#sathiAv')?.classList.add('talking');
         const ok = await playOne(url, gen);
         if (!ok) return;
       }
     } catch {
       // No voice (no key, or the voice service failed): the written answer stays on screen.
     } finally {
-      if (gen === voiceGen) el?.classList.remove('speaking');
+      clearTimeout(slow);
+      if (gen === voiceGen) {
+        el?.classList.remove('speaking');
+        $('#sathiAv')?.classList.remove('talking');
+        showAll();
+      }
     }
   }
 

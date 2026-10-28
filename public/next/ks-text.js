@@ -1,6 +1,16 @@
 // Text for the new app shell (v0.10.0). Keys not found here fall back to /i18n.js (crop, soil and alert names).
 window.KS_TEXT = {
   bn: {
+    // v0.17.0
+    wkH: "সাথী কাজ করছে", secShort: "সে", wkCtx_field: "আপনার জমির মাপ, মাটি, আবহাওয়া আর ক্যালেন্ডার নিচ্ছে", wkCtx_yard: "উঠোনের মাপ আর আবহাওয়া দেখছে",
+    wkCtx_shed: "শেডের কিট আর ক্যামেরার শেষ দেখা পড়ছে", wkShedSrc: "শেডের কিট (ডেমো) · ক্যামেরা", wkThink: "প্রশ্নটা বুঝে পরিকল্পনা করছে",
+    wkThinkMore: "পরের ধাপ ভাবছে", wkPlanned: "প্রশ্ন বুঝে পরিকল্পনা করল", wkNext: "পরের ধাপ ঠিক করল", wkWrote: "উত্তর লিখল",
+    wk_get_plot_profile: "জমির মাটি আর আবহাওয়া দেখছে", wk_get_crop_windows: "এখন কোন ফসল বোনার সময়",
+    wk_get_sowing_calendar: "বোনা আর কাটার ক্যালেন্ডার দেখছে", wk_check_input_prices: "বীজ আর সারের দাম দেখছে", wk_draft_order: "অর্ডারের খসড়া করছে",
+    wk_find_agri_office: "কাছের কৃষি অফিস খুঁজছে", wkSample: "নমুনা দাম (ডেমো)", wkDone: "{n}টি ধাপ · {s} · {m}", lpHomeL: "Khet Sathi হোম পেজ",
+    lpGoFarm: "আমার খামারে যান", lpOpenFarm: "আমার খামার খুলুন", lpWelcomeBack: "আবার স্বাগতম, {email}", instH: "Khet Sathi ফোনে রাখুন",
+    instT: "নিজের আইকন, পুরো স্ক্রিন, ব্রাউজারের বার ছাড়া। দ্রুত খোলে।", instIos: "আইফোনে: নিচের শেয়ার বোতাম চাপুন, তারপর \"হোম স্ক্রিনে যোগ করুন\"।",
+    instLater: "পরে", instGo: "ফোনে রাখুন",
     // v0.16.0
     demoFarmH: "ডেমো খামার", viewFarmH: "অন্যের খামার (শুধু দেখা)", farmBackT: "আমার খামারে ফিরুন",
     pbTitle: "ফসলের সমস্যা", pbTake: "সমস্যার ছবি তুলুন", pbJustOffice: "শুধু কৃষি অফিস খুঁজুন",
@@ -475,6 +485,17 @@ window.KS_TEXT = {
     useAnyway: 'তবুও যোগ করুন', zone: 'অংশ', zonesH: 'জমির অংশ', zoomIn: 'বড় করুন', zoomOut: 'ছোট করুন',
   },
   hi: {
+    // v0.17.0
+    wkH: "साथी काम कर रही है", secShort: "से", wkCtx_field: "आपके खेत का नाप, मिट्टी, मौसम और कैलेंडर ले रही है",
+    wkCtx_yard: "आँगन का नाप और मौसम देख रही है", wkCtx_shed: "शेड की किट और कैमरे की आख़िरी जाँच पढ़ रही है", wkShedSrc: "शेड की किट (डेमो) · कैमरा",
+    wkThink: "सवाल समझकर योजना बना रही है", wkThinkMore: "अगला कदम सोच रही है", wkPlanned: "सवाल समझकर योजना बनाई", wkNext: "अगला कदम तय किया",
+    wkWrote: "जवाब लिखा", wk_get_plot_profile: "खेत की मिट्टी और मौसम देख रही है", wk_get_crop_windows: "अभी कौन सी फ़सल बोने का समय है",
+    wk_get_sowing_calendar: "बुवाई और कटाई का कैलेंडर देख रही है", wk_check_input_prices: "बीज और खाद के दाम देख रही है",
+    wk_draft_order: "ऑर्डर का मसौदा बना रही है", wk_find_agri_office: "पास का कृषि कार्यालय ढूँढ रही है", wkSample: "नमूना दाम (डेमो)",
+    wkDone: "{n} कदम · {s} · {m}", lpHomeL: "Khet Sathi होम पेज", lpGoFarm: "मेरे खेत पर जाएँ", lpOpenFarm: "मेरा खेत खोलें",
+    lpWelcomeBack: "फिर से स्वागत है, {email}", instH: "Khet Sathi फ़ोन पर रखें",
+    instT: "अपना आइकन, पूरी स्क्रीन, ब्राउज़र की पट्टी के बिना। जल्दी खुलता है।",
+    instIos: "आईफ़ोन पर: नीचे शेयर बटन दबाएँ, फिर \"होम स्क्रीन में जोड़ें\"।", instLater: "बाद में", instGo: "फ़ोन पर रखें",
     // v0.16.0
     demoFarmH: "डेमो खेत", viewFarmH: "किसी और का खेत (सिर्फ़ देखना)", farmBackT: "मेरे खेत पर लौटें",
     pbTitle: "फ़सल की समस्या", pbTake: "समस्या की फ़ोटो लें", pbJustOffice: "सिर्फ़ कृषि कार्यालय ढूँढें",
@@ -949,6 +970,17 @@ window.KS_TEXT = {
     useAnyway: 'फिर भी जोड़ें', zone: 'हिस्सा', zonesH: 'खेत के हिस्से', zoomIn: 'बड़ा करें', zoomOut: 'छोटा करें',
   },
   en: {
+    // v0.17.0
+    wkH: "Sathi is working", secShort: "s", wkCtx_field: "Getting your field size, soil, weather and calendar",
+    wkCtx_yard: "Checking the yard size and weather", wkCtx_shed: "Reading the shed kit and the last camera check", wkShedSrc: "shed kit (demo) · camera",
+    wkThink: "Understanding the question and planning", wkThinkMore: "Thinking about the next step", wkPlanned: "Understood the question and planned",
+    wkNext: "Chose the next step", wkWrote: "Wrote the answer", wk_get_plot_profile: "Checking the soil and weather of your field",
+    wk_get_crop_windows: "Which crop it is time to sow", wk_get_sowing_calendar: "Checking the sowing and harvest calendar",
+    wk_check_input_prices: "Checking seed and fertilizer prices", wk_draft_order: "Drafting the order",
+    wk_find_agri_office: "Finding the nearest agriculture office", wkSample: "sample prices (demo)", wkDone: "{n} steps · {s} · {m}",
+    lpHomeL: "Khet Sathi home page", lpGoFarm: "Go to my farm", lpOpenFarm: "Open my farm", lpWelcomeBack: "Welcome back, {email}",
+    instH: "Keep Khet Sathi on your phone", instT: "Its own icon, full screen, no browser bar. Opens fast.",
+    instIos: "On iPhone: tap the Share button below, then \"Add to Home Screen\".", instLater: "Later", instGo: "Add to phone",
     // v0.16.0
     demoFarmH: "Demo farm", viewFarmH: "Someone's farm (view only)", farmBackT: "Back to my farm",
     pbTitle: "A crop problem", pbTake: "Take a photo of the problem", pbJustOffice: "Just find the agriculture office",
