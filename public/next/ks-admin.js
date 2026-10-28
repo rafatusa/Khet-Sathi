@@ -33,9 +33,42 @@
     if (c.error) return ($('#adChecks').innerHTML = emptyBox(`${t('error')}: ${c.error}`));
     $('#adChecksAt').textContent = fmt('adChecksAt', { t: ago(new Date(c.at).toISOString()) });
     $('#adChecks').innerHTML = `<table class="adt"><tbody>${c.rows
-      .map((r) => `<tr><td>${esc(r.label)}</td><td><span class="st ${r.status}">${esc(t(`st_${r.status}`))}</span>${r.status === 'off' ? '' : `<div class="muted small">${esc(r.note || '')}</div>`}</td><td class="mono">${esc(secs(r.ms))}</td></tr>`)
+      .map((r) => `<tr><td>${esc(r.label)}</td><td><span class="st ${r.status}">${esc(t(`st_${r.status}`))}</span>${r.status === 'off' ? '' : `<div class="muted small">${esc(r.note || '')}</div>`}${r.status === 'fail' && r.call?.id ? `<div class="reqid">${esc(fmt('adReqId', { id: r.call.id, t: utcTime(r.call.at) }))}</div>` : ''}</td><td class="mono">${esc(secs(r.ms))}</td></tr>`)
       .join('')}</tbody></table>`;
+    $('#adCopyMeta').hidden = !c.rows.some((r) => r.status === 'fail' && r.call?.id);
   }
+  // v0.19.2: the failing Meta calls with Meta's request IDs and UTC times, ready to paste into the Meta
+  // support ticket and the Discord thread. Always in English (Meta support reads it). Never the key.
+  const utcTime = (iso) => String(iso || '').slice(11, 19);
+  function metaReport(c) {
+    const fails = c.rows.filter((r) => r.status === 'fail' && r.call?.id);
+    // Only Meta models matter to Meta support (not soil, weather or the database).
+    const ok = c.rows.filter((r) => r.status === 'ok' && /muse|sam/i.test(r.label) && !/key/i.test(r.label)).map((r) => r.label);
+    const when = new Date(c.at);
+    const day = when.toUTCString().slice(0, 16);
+    const line = (r) => {
+      const x = r.call;
+      const model = x.model || /\(([^)]+)\)\s*$/.exec(r.label)?.[1] || r.label;
+      const what = x.path === '/v1/models' ? `GET /v1/models: ${x.status}${/empty/.test(r.note) ? ', empty list' : ''}` : `${model} ${x.path}: ${x.status}${/model_not_found/.test(r.note) ? ' model_not_found' : ''}`;
+      return `${what} · request ID ${x.id} · ${utcTime(x.at)} UTC${r.tries > 1 ? ` (${r.tries} tries)` : ''}`;
+    };
+    return [
+      'Meta Model API: model_not_found and empty /v1/models',
+      `Checked ${day}, ${utcTime(when.toISOString()).slice(0, 5)} UTC, from the app's server. No key included.`,
+      ...fails.map(line),
+      ok.length ? `Working right now: ${ok.join(', ')}.` : '',
+    ].filter(Boolean).join('\n');
+  }
+  $('#adCopyMeta').addEventListener('click', async () => {
+    if (!A.checks?.rows) return;
+    const text = metaReport(A.checks);
+    try {
+      await navigator.clipboard.writeText(text);
+      K.toast(t('adCopied'));
+    } catch {
+      window.prompt(t('adCopyMeta'), text);
+    }
+  });
 
   async function loadOverview() {
     $('#adFarms').innerHTML = K.skelBox();

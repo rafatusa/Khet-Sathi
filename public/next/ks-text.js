@@ -1,6 +1,8 @@
 // Text for the new app shell (v0.10.0). Keys not found here fall back to /i18n.js (crop, soil and alert names).
 window.KS_TEXT = {
   bn: {
+    // v0.19.2
+    adReqId: "Request ID {id} · {t} UTC", adCopyMeta: "Meta সাপোর্টের জন্য কপি", adCopied: "কপি হয়েছে: Discord আর Meta টিকিটে পেস্ট করুন",
     // v0.19.1
     dmxS: "সব কিছু নমুনা, শুধু দেখা যাবে। যেকোনো একটা দিয়ে শুরু করুন।", dmxField: "ডেমো জমি", dmxFieldS: "স্যাটেলাইট আর ফসল কাটা", dmxShed: "ডেমো মুরগির শেড", dmxShedS: "ক্যামেরা আর ডিম বিক্রি", dmxYard: "ডেমো উঠান", dmxYardS: "কী লাগাবেন", m2Word: "বর্গমিটার",
     // v0.19.0
@@ -504,6 +506,8 @@ window.KS_TEXT = {
     useAnyway: 'তবুও যোগ করুন', zone: 'অংশ', zonesH: 'জমির অংশ', zoomIn: 'বড় করুন', zoomOut: 'ছোট করুন',
   },
   hi: {
+    // v0.19.2
+    adReqId: "Request ID {id} · {t} UTC", adCopyMeta: "Meta सपोर्ट के लिए कॉपी", adCopied: "कॉपी हो गया: Discord और Meta टिकट में पेस्ट करें",
     // v0.19.1
     dmxS: "सब कुछ नमूना है, सिर्फ़ देखने के लिए। किसी एक से शुरू करें।", dmxField: "डेमो खेत", dmxFieldS: "उपग्रह और फसल कटाई", dmxShed: "डेमो मुर्गी शेड", dmxShedS: "कैमरा और अंडों की बिक्री", dmxYard: "डेमो आँगन", dmxYardS: "क्या लगाएँ", m2Word: "वर्ग मीटर",
     // v0.19.0
@@ -1008,6 +1012,8 @@ window.KS_TEXT = {
     useAnyway: 'फिर भी जोड़ें', zone: 'हिस्सा', zonesH: 'खेत के हिस्से', zoomIn: 'बड़ा करें', zoomOut: 'छोटा करें',
   },
   en: {
+    // v0.19.2
+    adReqId: "Request ID {id} · {t} UTC", adCopyMeta: "Copy for Meta support", adCopied: "Copied: paste it into Discord and the Meta ticket",
     // v0.19.1
     dmxS: "Everything in it is a sample, view only. Start with any one.", dmxField: "Demo field", dmxFieldS: "satellite and harvest", dmxShed: "Demo poultry shed", dmxShedS: "camera and egg sales", dmxYard: "Demo yard", dmxYardS: "what to plant", m2Word: "m²",
     // v0.19.0

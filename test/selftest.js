@@ -1327,6 +1327,39 @@ await checkAsync('Earlier weather: when Open-Meteo fails, the plan keeps the las
   assert.ok(other.weatherError);
 });
 
+await checkAsync('Meta request IDs: each Meta response is recorded with its x-request-id, path, model and time; failures carry them', async () => {
+  const meta = await import('../lib/meta.js');
+  const realFetch = globalThis.fetch;
+  const realKey = process.env.MODEL_API_KEY;
+  process.env.MODEL_API_KEY = 'test-key';
+  let n = 0;
+  globalThis.fetch = async (url) => {
+    n++;
+    const body = String(url).endsWith('/models') ? { data: [] } : { error: { code: 'model_not_found', message: 'The requested model was not found.' } };
+    return new Response(JSON.stringify(body), { status: String(url).endsWith('/models') ? 200 : 404, headers: { 'content-type': 'application/json', 'x-request-id': `req-${n}` } });
+  };
+  const tries = meta.RETRY.tries;
+  meta.RETRY.tries = 2;
+  try {
+    const r = await meta.countTries(() => meta.listModels());
+    assert.deepEqual(r.value, []);
+    assert.deepEqual(r.calls.map((c) => [c.id, c.status, c.path]), [['req-1', 200, '/v1/models'], ['req-2', 200, '/v1/models']]);
+    assert.ok(!Number.isNaN(Date.parse(r.calls[0].at)));
+    const err = await meta.countTries(() => meta.chat({ messages: [{ role: 'user', content: 'ok' }], model: 'muse-spark-1.3' })).catch((e) => e);
+    assert.ok(err instanceof Error);
+    const last = err.calls.at(-1);
+    assert.equal(last.status, 404);
+    assert.equal(last.model, 'muse-spark-1.3');
+    assert.match(last.id, /^req-/);
+    assert.ok(!JSON.stringify(err.calls).includes('test-key'), 'the key is never recorded');
+  } finally {
+    globalThis.fetch = realFetch;
+    meta.RETRY.tries = tries;
+    if (realKey === undefined) delete process.env.MODEL_API_KEY;
+    else process.env.MODEL_API_KEY = realKey;
+  }
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);

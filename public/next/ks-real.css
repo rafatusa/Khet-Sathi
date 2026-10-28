@@ -418,3 +418,7 @@ body[data-page="landing"]>header,body[data-page="landing"]>main,body[data-page="
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dmx-h small,:root:not([data-theme="light"]) .dmx-h .tag{color:#f6dfa6}:root:not([data-theme="light"]) .dmx-b{border-color:#5a4a1f}}
 :root[data-theme="dark"] .dmx-h small,:root[data-theme="dark"] .dmx-h .tag{color:#f6dfa6}
 :root[data-theme="dark"] .dmx-b{border-color:#5a4a1f}
+
+/* v0.19.2: Meta request IDs on failing checks (contrast 8:1) */
+.reqid{margin-top:6px;font:500 12.5px var(--f-mono);color:#5f3a12;background:#fcf0d2;border-radius:8px;padding:5px 8px;display:inline-block;word-break:break-all;user-select:all}
+#adCopyMeta{margin-left:8px}
