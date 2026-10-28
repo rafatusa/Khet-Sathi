@@ -1390,6 +1390,50 @@ await checkAsync('Demo leaf: saved without a measurement while SAM is down, meas
   assert.equal((await dl.loadLeaf({ getFile })).measure.share, 22, 'kept in storage');
 });
 
+await checkAsync('v0.20.1: spots asked with three short phrases and combined; Measure again; yard says SAM answered', async () => {
+  const pb = await import('../lib/problem.js');
+  assert.deepEqual(pb.PATCH_PROMPTS, ['brown spot', 'yellow patch', 'spot']);
+  const obj = (l, t, r, b) => ({ id: 1, box: { left: l, top: t, right: r, bottom: b }, areaPx: (r - l) * (b - t), containsPoint: true, raw: { l, t, r, b }, mask: { width: 4, height: 4, bounds: { left: l, top: t, right: r, bottom: b }, svgPath: 'M0 0Z' } });
+  const asked = [];
+  const seg = async (img, prompt) => {
+    asked.push(prompt);
+    if (prompt === 'leaf') return { objects: [obj(0, 0, 100, 100)] };
+    if (prompt === 'brown spot') return { objects: [obj(10, 10, 30, 30)] };
+    if (prompt === 'yellow patch') throw new Error('timeout');
+    return { objects: [obj(11, 11, 30, 30), obj(60, 60, 80, 80)] }; // 'spot': one repeat, one new
+  };
+  const rect = (g, gw, gh, sc, raw) => { for (let yy = Math.floor(raw.t * sc); yy < Math.floor(raw.b * sc); yy++) for (let xx = Math.floor(raw.l * sc); xx < Math.floor(raw.r * sc); xx++) g[yy * gw + xx] = 1; };
+  const m = await pb.measureProblem({ dataUrl: 'x', width: 100, height: 100 }, { segment: seg, paintFn: rect });
+  assert.equal(m.error, null, 'one phrase failing does not fail the measurement');
+  assert.deepEqual(asked.slice(1).sort(), ['brown spot', 'spot', 'yellow patch']);
+  assert.equal(m.patches.length, 2, 'the same spot found by two phrases is counted once');
+  assert.equal(m.share, 8, '20x20 + 20x20 of a 100x100 leaf');
+  const allDown = await pb.measureProblem({ dataUrl: 'x', width: 100, height: 100 }, { segment: async (i, p) => { if (p === 'leaf') return { objects: [obj(0, 0, 100, 100)] }; throw new Error('model_not_found'); } });
+  assert.match(allDown.error, /model_not_found/, 'every phrase failing is an error, not 0%');
+
+  const y = await import('../lib/yard.js');
+  assert.ok(y.YARD_PROMPTS.includes('lawn'));
+  const none = await y.outlineYard({ dataUrl: 'x', width: 10, height: 10 }, { segment: async () => ({ objects: [] }) });
+  assert.equal(none.answered, true);
+  const down = await y.outlineYard({ dataUrl: 'x', width: 10, height: 10 }, { segment: async () => { throw new Error('model_not_found'); } });
+  assert.equal(down.answered, false);
+
+  const dl = await import('../lib/demoleaf.js');
+  const files = new Map();
+  const putFile = async (p, b) => files.set(p, Buffer.from(b));
+  const getFile = async (p) => (files.has(p) ? { buffer: files.get(p) } : null);
+  const shape = { svgPath: 'M0 0Z', bounds: { left: 0, top: 0, right: 10, bottom: 10 }, mw: 4, mh: 4 };
+  await dl.saveLeaf({ photo: Buffer.from('jpg'), width: 100, height: 80, measure: { width: 100, height: 80, leaf: shape, patches: [], share: 0 } }, { putFile, now: new Date('2026-10-28T21:30:00Z') });
+  const same = await dl.retryLeaf({ getFile, putFile, measure: async () => ({ leaf: shape, patches: [shape], share: 40 }) });
+  assert.equal(same.measure.share, 0, 'without force a measured leaf is left alone');
+  const kept = await dl.retryLeaf({ getFile, putFile, force: true, measure: async () => ({ error: 'model_not_found' }), now: new Date('2026-10-29T00:00:00Z') });
+  assert.equal(kept.measure.share, 0, 'SAM down: the earlier measurement stays');
+  assert.match(kept.lastError, /model_not_found/);
+  const again = await dl.retryLeaf({ getFile, putFile, force: true, measure: async () => ({ leaf: shape, patches: [shape], share: 40 }), now: new Date('2026-10-29T00:01:00Z') });
+  assert.equal(again.measure.share, 40);
+  assert.equal(again.measuredAt, '2026-10-29T00:01:00.000Z');
+});
+
 await checkAsync('Meta relay: with the two Railway variables set, calls go to the relay with the key in X-Meta-Key and the secret; without them, direct', async () => {
   const meta = await import('../lib/meta.js');
   const keep = { u: process.env.META_RELAY_URL, s: process.env.META_RELAY_SECRET };

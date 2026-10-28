@@ -71,6 +71,8 @@
     return `<div class="ydframe" style="aspect-ratio:${W}/${H}"><img src="${esc(P.photo)}" alt="${esc(t('pbPhotoAlt'))}">${svg}${m?.leaf ? `<span class="ydbadge">${esc(t('pbSamBadge'))}</span>` : ''}</div>`;
   }
   const measured = () => P.m && P.m.leaf && Number.isFinite(P.m.share);
+  // v0.20.1: a leaf where SAM found no patch says so, instead of "about 0%".
+  const noPatch = () => measured() && !(P.m.patches || []).length;
 
   // ---------- steps ----------
   function step(n) {
@@ -99,7 +101,8 @@
     if (!r?.ok || !r.leaf || S.view !== 'demo') return;
     demoLeaf = r.leaf;
     const m = demoLeaf.measure;
-    const sub = m ? fmt('pbDemoMeasured', { date: K.fd(String(demoLeaf.measuredAt).slice(0, 10)), n: num(m.share) }) : t('pbDemoNotYet');
+    const date = m ? K.fd(String(demoLeaf.measuredAt).slice(0, 10)) : '';
+    const sub = !m ? t('pbDemoNotYet') : m.patches?.length ? fmt('pbDemoMeasured', { date, n: num(m.share) }) : fmt('pbDemoNoPatch', { date });
     card.innerHTML = `<img src="${esc(K.imgUrl(demoLeaf.photoUrl))}" alt=""><span><b>${esc(t('pbDemoTry'))}</b><small>${esc(sub)}</small></span><span class="tag">${esc(t('demoTag'))}</span>`;
     card.hidden = false;
   }
@@ -132,10 +135,28 @@
     P.m = m;
     $('#pbPic').innerHTML = picHtml();
     $('#pbMeasure').innerHTML = measured()
-      ? `<div class="kpis pbstats"><div class="kpi"><div class="lab"><span>${esc(t('pbLeaf'))}</span></div><div class="kv ydkv">${esc(t('pbLeafOk'))}</div></div><div class="kpi"><div class="lab"><span>${esc(t('pbPatch'))}</span></div><div class="kv ydkv">≈ ${esc(num(P.m.share))}%</div></div></div><div class="msg bot pbsay">${esc(P.m.share ? fmt('pbSays', { n: num(P.m.share), k: num(P.m.patches.length) }) : t('pbSaysNone'))}</div>`
+      ? `<div class="kpis pbstats"><div class="kpi"><div class="lab"><span>${esc(t('pbLeaf'))}</span></div><div class="kv ydkv">${esc(t('pbLeafOk'))}</div></div><div class="kpi"><div class="lab"><span>${esc(t('pbPatch'))}</span></div><div class="kv ydkv">${esc(noPatch() ? t('pbPatchNone') : `≈ ${num(P.m.share)}%`)}</div></div></div><div class="msg bot pbsay">${esc(P.m.share ? fmt('pbSays', { n: num(P.m.share), k: num(P.m.patches.length) }) : t('pbSaysNone'))}</div>`
       : `<p class="note">${esc(t(P.demo ? 'pbDemoNotYetLong' : 'pbNoMeasure'))}</p>`;
+    // v0.20.1: the admin, inside the demo farm, can have SAM 3.1 measure the demo leaf again.
+    if (P.demo && S.view === 'demo' && S.admin) $('#pbMeasure').insertAdjacentHTML('beforeend', `<div class="dsave"><button class="btn ghost" type="button" id="pbRemeasure">${esc(t('pbRemeasure'))}</button><small>${esc(t('pbRemeasureS'))}</small></div>`);
     $('#pbNext').disabled = false;
   }
+  $('#pbMeasure').addEventListener('click', async (e) => {
+    const b = e.target.closest('#pbRemeasure');
+    if (!b) return;
+    b.disabled = true;
+    b.textContent = t('pbMeasuring');
+    const r = await postJson('/api/problem/demo-leaf/measure', {}).catch((err) => ({ ok: false, error: err.message }));
+    if (!r.ok) {
+      b.disabled = false;
+      b.textContent = t('pbRemeasure');
+      return toast(`${t('error')}: ${r.error}`);
+    }
+    demoLeaf = r.leaf;
+    toast(r.measured ? t('pbRemeasured') : `${t('pbRemeasureKept')} (${r.error || ''})`);
+    showMeasure(demoLeaf.measure || { error: 'not measured yet', width: demoLeaf.width, height: demoLeaf.height });
+    loadDemoLeaf();
+  });
   $('#probClose').addEventListener('click', () => ($('#probSheet').hidden = true));
   $('#pbJustOffice').addEventListener('click', () => {
     $('#probSheet').hidden = true;
@@ -192,7 +213,7 @@
     return [
       [t('pbRCrop'), [plant, age].filter(Boolean).join(', ')],
       [t('pbRSeen'), [seen || t('pbNotSaid'), P.many ? t(`pbMany_${P.many}`) : ''].filter(Boolean).join(' · ')],
-      [t('pbRMeas'), measured() ? fmt('pbMeasLine', { n: num(P.m.share) }) : t('pbNotMeasured')],
+      [t('pbRMeas'), !measured() ? t('pbNotMeasured') : noPatch() ? t('pbMeasNone') : fmt('pbMeasLine', { n: num(P.m.share) })],
       [t('pbRSince'), P.since ? t(`pbSince_${P.since}`) : t('pbNotSaid')],
       // v0.19.3: the place name alone ("Bolpur land"); "field" or "home yard" only when it has no name.
       [t('pbRWhere'), placeName() || kindName()],

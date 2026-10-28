@@ -49,7 +49,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.20.0';
+const VERSION = '0.20.1';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -769,7 +769,7 @@ app.post(
       place_info: { cc, country: geo?.country || null, state: geo?.state || null, district: geo?.district || null, village: geo?.village || null, currency: currencyFor(cc) },
       photo_path: `yards/${id}/photo.jpg`,
       outline: sam.outline ? { ...sam.outline, width: sam.width, height: sam.height } : null,
-      sam: { prompt: sam.prompt, error: sam.error, model: MODELS.sam },
+      sam: { prompt: sam.prompt, error: sam.error, model: MODELS.sam, answered: Boolean(sam.answered) },
     });
     return { yard: yardView(yard), samError: sam.error };
   })
@@ -880,6 +880,8 @@ async function retryYardOutline(id) {
   const sam = await outlineYard(image);
   if (!sam.outline) {
     console.log(`demo yard ${id}: still no outline (${String(sam.error || 'no open ground found').slice(0, 120)})`);
+    // v0.20.1: the screen says which it was: SAM down, or SAM answered and found no open ground.
+    if (Boolean(sam.answered) !== Boolean(y.sam?.answered)) return updateYard(id, { sam: { ...(y.sam || {}), error: sam.error, answered: Boolean(sam.answered), model: MODELS.sam } });
     return y;
   }
   const done = await updateYard(id, { outline: { ...sam.outline, width: sam.width, height: sam.height }, sam: { prompt: sam.prompt, error: null, model: MODELS.sam, later: new Date().toISOString() } });
@@ -895,7 +897,29 @@ app.get(
   timed(async () => {
     const meta = await loadLeaf(leafDeps());
     if (meta && !meta.measure) retryLater('leaf', () => retryLeaf(leafDeps()));
-    return { leaf: meta ? { savedAt: meta.savedAt, measuredAt: meta.measuredAt, measure: meta.measure, width: meta.width, height: meta.height, photoUrl: `/api/problem/demo-leaf/photo?v=${encodeURIComponent(meta.savedAt)}` } : null };
+    return { leaf: leafView(meta) };
+  })
+);
+function leafView(meta) {
+  return meta ? { savedAt: meta.savedAt, measuredAt: meta.measuredAt, measure: meta.measure, width: meta.width, height: meta.height, lastError: meta.lastError || null, photoUrl: `/api/problem/demo-leaf/photo?v=${encodeURIComponent(meta.savedAt)}` } : null;
+}
+const demoAdminOnly = () => {
+  const sc = currentScope();
+  if (sc?.mode !== 'demo' || !sc.admin || sc.readOnly) throw new Error('Only an admin can set the demo leaf, inside the demo farm');
+};
+// v0.20.1: the admin's "Measure again": SAM 3.1 measures the saved demo leaf now, with the current phrases.
+// If SAM does not answer, the earlier measurement stays.
+app.post(
+  '/api/problem/demo-leaf/measure',
+  guard,
+  timed(async () => {
+    demoAdminOnly();
+    useLimit('check');
+    const before = await loadLeaf(leafDeps());
+    if (!before) throw new Error('No demo leaf saved yet');
+    const meta = await retryLeaf({ ...leafDeps(), force: true });
+    const fresh = meta.measuredAt !== before.measuredAt;
+    return { leaf: leafView(meta), measured: fresh, error: fresh ? null : meta.lastError };
   })
 );
 app.get('/api/problem/demo-leaf/photo', guard, async (req, res) => {
@@ -911,8 +935,7 @@ app.post(
   '/api/problem/demo-leaf',
   guard,
   timed(async (req) => {
-    const sc = currentScope();
-    if (sc?.mode !== 'demo' || !sc.admin || sc.readOnly) throw new Error('Only an admin can set the demo leaf, inside the demo farm');
+    demoAdminOnly();
     const photo = dataUrlToBuffer(req.body?.photoDataUrl);
     if (!photo) throw new Error('Take or pick a photo first');
     const { data, image } = await imageFor(photo.buffer);

@@ -2,6 +2,7 @@
 window.KS_TEXT = {
   bn: {
     // v0.19.3
+    pbDemoNoPatch: "SAM 3.1 দাগ দিয়েছে {date} · কোনো দাগের অংশ পাওয়া যায়নি", pbPatchNone: "পাওয়া যায়নি", pbMeasNone: "হলুদ বা দাগের অংশ পাওয়া যায়নি (ছবি থেকে, SAM 3.1)", pbRemeasure: "SAM 3.1 দিয়ে আবার মাপুন", pbRemeasureS: "শুধু অ্যাডমিন। এই ডেমো পাতা এখনকার নিয়মে আবার মাপা হবে; SAM 3.1 উত্তর না দিলে আগের মাপ থাকবে।", pbRemeasured: "আবার মাপা হয়েছে, রাখা হয়েছে", pbRemeasureKept: "SAM 3.1 উত্তর দেয়নি, আগের মাপ রাখা হলো",
     pbDemoTry: "ডেমো পাতা দিয়ে দেখুন", pbDemoMeasured: "SAM 3.1 দাগ দিয়েছে {date} · দাগ পাতার প্রায় {n}%", pbDemoNotYet: "এখনও মাপা হয়নি: SAM 3.1 ফিরলে নিজেই মাপা হবে", pbDemoNotYetLong: "এই ডেমো পাতা এখনও মাপা হয়নি। SAM 3.1 আবার উত্তর দিলে নিজেই মাপা হবে আর রাখা থাকবে। ছবি আর আপনার উত্তর দিয়ে সারাংশ এখনই হয়।", pbSaveDemo: "ডেমো পাতা হিসেবে রাখুন", pbSaveDemoS: "শুধু অ্যাডমিন, শুধু ডেমো খামারে। ডেমো খামারে সবাই এই পাতা দিয়ে দেখতে পারবে; আবার রাখলে আগেরটা বদলে যাবে।", pbSavedDemo: "ডেমো পাতা রাখা হয়েছে, মাপসহ", pbSavedDemoLater: "ডেমো পাতা রাখা হয়েছে; SAM 3.1 ফিরলে নিজেই মাপা হবে",
     // v0.19.2
     adReqId: "Request ID {id} · {t} UTC", adCopyMeta: "Meta সাপোর্টের জন্য কপি", adCopied: "কপি হয়েছে: Discord আর Meta টিকিটে পেস্ট করুন",
@@ -65,7 +66,7 @@ window.KS_TEXT = {
     ydAddS: "বাড়ির সামনের খালি জায়গার একটি ছবি তুলুন। সাথী ছবিতে খালি মাটিটুকু দাগ দেবে, তারপর মাপ জিজ্ঞেস করবে।", ydPhoto: "উঠোনের ছবি তুলুন",
     ydNext: "ছবি দেখাও", ydBusy: "SAM 3.1 ছবিতে খালি জায়গা খুঁজছে…", ydSunQ: "দিনে কতটা রোদ পড়ে?", ydShow: "কী লাগাব দেখাও",
     ydSamBadge: "SAM 3.1: খালি জায়গা", ydSamOk: "ছবির প্রায় {n}% খালি মাটি, SAM 3.1 দাগ দিয়েছে",
-    ydSamNo: "SAM 3.1 এখন উত্তর দেয়নি, তাই দাগ নেই। আপনার দেওয়া মাপ থেকেই গাছ বাছা হবে।", ydNoSize: "মাপ দেওয়া হয়নি", ydEstimate: "আনুমানিক",
+    ydSamNone: "SAM 3.1 দেখেছে, কিন্তু এই ছবিতে খালি জায়গা পায়নি। আপনার দেওয়া মাপ থেকেই গাছ বাছা হবে।", ydSamNo: "SAM 3.1 এখন উত্তর দেয়নি, তাই দাগ নেই। আপনার দেওয়া মাপ থেকেই গাছ বাছা হবে।", ydNoSize: "মাপ দেওয়া হয়নি", ydEstimate: "আনুমানিক",
     about: "প্রায়", ydHeroAdd: "বাড়ির উঠোনে কী লাগাবেন, একটি ছবি থেকে", ydHeroSize: "উঠোনের মাপ বলুন", ydGiveSize: "মাপ দিন",
     ydNoPicks: "এই মাসে এই জায়গায় মানানসই গাছ পাওয়া গেল না", ydHero: "উঠোনে লাগান: {plants}", ydSize: "জায়গা", ydSunK: "রোদ", ydMonth: "মাস",
     ydRainTip: "{date} বৃষ্টি হতে পারে, সেদিন পানি দেবেন না।", ydHotTip: "আজ খুব গরম: বিকেলে পানি দিন, ছোট চারা ছায়ায় রাখুন।",
@@ -509,6 +510,7 @@ window.KS_TEXT = {
   },
   hi: {
     // v0.19.3
+    pbDemoNoPatch: "SAM 3.1 ने {date} को घेरा · कोई धब्बा नहीं मिला", pbPatchNone: "नहीं मिला", pbMeasNone: "पीला या धब्बेदार हिस्सा नहीं मिला (फ़ोटो से, SAM 3.1)", pbRemeasure: "SAM 3.1 से फिर नापें", pbRemeasureS: "सिर्फ़ एडमिन। यह डेमो पत्ता अभी के तरीक़े से फिर नापा जाएगा; SAM 3.1 जवाब न दे तो पुराना नाप रहेगा।", pbRemeasured: "फिर नापा गया और रखा गया", pbRemeasureKept: "SAM 3.1 ने जवाब नहीं दिया, पुराना नाप रखा गया",
     pbDemoTry: "डेमो पत्ते से आज़माएँ", pbDemoMeasured: "SAM 3.1 ने {date} को घेरा · धब्बे पत्ते का लगभग {n}%", pbDemoNotYet: "अभी नापा नहीं गया: SAM 3.1 लौटते ही अपने आप नापा जाएगा", pbDemoNotYetLong: "यह डेमो पत्ता अभी नापा नहीं गया। SAM 3.1 के फिर जवाब देते ही अपने आप नापा जाएगा और रखा रहेगा। फ़ोटो और आपके जवाबों से सारांश अभी बनता है।", pbSaveDemo: "डेमो पत्ते के रूप में रखें", pbSaveDemoS: "सिर्फ़ एडमिन, सिर्फ़ डेमो फ़ार्म में। डेमो फ़ार्म में सब इस पत्ते से आज़मा सकेंगे; फिर से रखने पर पुराना बदल जाएगा।", pbSavedDemo: "डेमो पत्ता नाप के साथ रखा गया", pbSavedDemoLater: "डेमो पत्ता रखा गया; SAM 3.1 लौटते ही अपने आप नापा जाएगा",
     // v0.19.2
     adReqId: "Request ID {id} · {t} UTC", adCopyMeta: "Meta सपोर्ट के लिए कॉपी", adCopied: "कॉपी हो गया: Discord और Meta टिकट में पेस्ट करें",
@@ -574,7 +576,7 @@ window.KS_TEXT = {
     ydAddS: "घर के सामने की खाली जगह की एक फ़ोटो लें। साथी फ़ोटो में खाली ज़मीन पर निशान लगाएगी, फिर नाप पूछेगी।", ydPhoto: "आँगन की फ़ोटो लें",
     ydNext: "फ़ोटो देखो", ydBusy: "SAM 3.1 फ़ोटो में खाली जगह ढूँढ रहा है…", ydSunQ: "दिन में कितनी धूप आती है?", ydShow: "क्या लगाऊँ, दिखाओ",
     ydSamBadge: "SAM 3.1: खाली जगह", ydSamOk: "फ़ोटो का लगभग {n}% खाली ज़मीन, SAM 3.1 ने निशान लगाया",
-    ydSamNo: "SAM 3.1 ने अभी जवाब नहीं दिया, इसलिए निशान नहीं है। आपके बताए नाप से ही पौधे चुने जाएँगे।", ydNoSize: "नाप नहीं दिया",
+    ydSamNone: "SAM 3.1 ने देखा, पर इस फ़ोटो में खाली जगह नहीं मिली। आपके बताए नाप से ही पौधे चुने जाएँगे।", ydSamNo: "SAM 3.1 ने अभी जवाब नहीं दिया, इसलिए निशान नहीं है। आपके बताए नाप से ही पौधे चुने जाएँगे।", ydNoSize: "नाप नहीं दिया",
     ydEstimate: "अनुमानित", about: "लगभग", ydHeroAdd: "घर के आँगन में क्या लगाएँ, एक फ़ोटो से", ydHeroSize: "आँगन का नाप बताइए", ydGiveSize: "नाप दें",
     ydNoPicks: "इस महीने इस जगह के लिए सही पौधा नहीं मिला", ydHero: "आँगन में लगाएँ: {plants}", ydSize: "जगह", ydSunK: "धूप", ydMonth: "महीना",
     ydRainTip: "{date} बारिश हो सकती है, उस दिन पानी न दें।", ydHotTip: "आज बहुत गर्मी है: शाम को पानी दें, छोटे पौधों को छाया दें।",
@@ -1017,6 +1019,7 @@ window.KS_TEXT = {
   },
   en: {
     // v0.19.3
+    pbDemoNoPatch: "Outlined by SAM 3.1 on {date} · no patches found", pbPatchNone: "none found", pbMeasNone: "no yellow or spotted part found (from the photo, SAM 3.1)", pbRemeasure: "Measure again with SAM 3.1", pbRemeasureS: "Admin only. SAM 3.1 measures this demo leaf again the current way; if it does not answer, the earlier measurement stays.", pbRemeasured: "Measured again and saved", pbRemeasureKept: "SAM 3.1 did not answer, the earlier measurement stays",
     pbDemoTry: "Try with the demo leaf", pbDemoMeasured: "Outlined by SAM 3.1 on {date} · patches about {n}% of the leaf", pbDemoNotYet: "Not measured yet: it will be measured by itself when SAM 3.1 is back", pbDemoNotYetLong: "This demo leaf is not measured yet. When SAM 3.1 answers again it is measured by itself and kept. The summary works now, from the photo and your answers.", pbSaveDemo: "Save as the demo leaf", pbSaveDemoS: "Admin only, demo farm only. Everyone in the demo farm can then try this leaf; saving again replaces it.", pbSavedDemo: "Saved as the demo leaf, with its measurement", pbSavedDemoLater: "Saved as the demo leaf; it will be measured by itself when SAM 3.1 is back",
     // v0.19.2
     adReqId: "Request ID {id} · {t} UTC", adCopyMeta: "Copy for Meta support", adCopied: "Copied: paste it into Discord and the Meta ticket",
@@ -1085,7 +1088,7 @@ window.KS_TEXT = {
     ydPhoto: "Take a photo of the yard", ydNext: "Look at the photo", ydBusy: "SAM 3.1 is finding the open ground in the photo…",
     ydSunQ: "How much sun does it get?", ydShow: "Show what to plant", ydSamBadge: "SAM 3.1: open ground",
     ydSamOk: "About {n}% of the photo is open ground, outlined by SAM 3.1",
-    ydSamNo: "SAM 3.1 did not answer just now, so there is no outline. The plants are picked from the size you give.", ydNoSize: "size not given",
+    ydSamNone: "SAM 3.1 looked, but found no open ground in this photo. The plants are picked from the size you give.", ydSamNo: "SAM 3.1 did not answer just now, so there is no outline. The plants are picked from the size you give.", ydNoSize: "size not given",
     ydEstimate: "about", about: "about", ydHeroAdd: "What to plant in your yard, from one photo", ydHeroSize: "Tell Sathi the size of your yard",
     ydGiveSize: "Give the size", ydNoPicks: "No plant fits this space this month", ydHero: "Plant in your yard: {plants}", ydSize: "Space", ydSunK: "Sun",
     ydMonth: "Month", ydRainTip: "Rain is likely {date}: skip watering that day.",

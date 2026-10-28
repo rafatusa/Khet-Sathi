@@ -57,7 +57,8 @@
     }
     return `<div class="ydframe" style="aspect-ratio:${W}/${H}"><img src="${esc(imgUrl(y.photoUrl))}" alt="${esc(t('ydPhotoH'))}">${svg}${o ? `<span class="ydbadge">${esc(t('ydSamBadge'))}</span>` : ''}</div>`;
   }
-  const samLine = (y) => (y?.outline ? fmt('ydSamOk', { n: num(y.outline.share || 0) }) : t('ydSamNo'));
+  // v0.20.1: no outline says which it was: SAM answered and found no open ground, or SAM did not answer.
+  const samLine = (y) => (y?.outline ? fmt('ydSamOk', { n: num(y.outline.share || 0) }) : t(y?.sam?.answered ? 'ydSamNone' : 'ydSamNo'));
 
   // ---------- size in the farmer's words ----------
   function sizeText(d, y) {
