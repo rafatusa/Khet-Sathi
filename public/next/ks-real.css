@@ -241,3 +241,37 @@ body[data-view="farm"] .viewbar{background:var(--turmeric-soft);color:#5c4400}bo
 .small-btn{min-height:36px;padding:6px 12px;font-size:.82rem;margin-left:auto}
 #settings .panel{margin-bottom:16px}#settings .lab{display:flex;align-items:center;gap:8px}
 body[data-page="landing"]>header,body[data-page="landing"]>main,body[data-page="landing"] nav.bottom{display:none!important}
+/* v0.15.0: home yard and agriculture office help */
+.ydframe{position:relative;width:100%;max-height:360px;border-radius:14px;overflow:hidden;background:var(--bg)}
+.ydframe img{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block}
+.ydframe svg{position:absolute;inset:0;width:100%;height:100%}
+.ydmask{fill:rgba(47,122,42,.32);stroke:#f3e7b5;stroke-width:3;vector-effect:non-scaling-stroke}
+.ydbadge{position:absolute;left:8px;top:8px;background:rgba(255,255,255,.94);color:#276a23;border-radius:999px;padding:2px 10px;font-weight:700;font-size:.8rem}
+#ydPic2 .ydframe{margin-bottom:6px}
+#ydStats{grid-template-columns:repeat(2,minmax(0,1fr));height:auto}
+.ydkv{font-family:var(--f-display);font-weight:800;font-size:1rem;line-height:1.25}
+.ydpicks{display:grid;gap:8px}
+.ydpick{display:grid;grid-template-columns:40px 1fr;gap:10px;align-items:start;border:1px solid var(--line);border-radius:14px;padding:10px 12px;animation:rise .4s both}
+.ydpick .ic{width:40px;height:40px;border-radius:10px;background:var(--leaf-soft);color:var(--leaf);display:grid;place-items:center}
+.ydpick .ic svg{width:24px;height:24px}
+.ydpick b{font-family:var(--f-display);font-weight:800}
+.ydlines{display:grid;gap:4px;font-size:.94rem;margin-bottom:10px}
+.ydlines>div{display:flex;justify-content:space-between;gap:10px}
+.ydlines .tot{border-top:1px solid var(--line);padding-top:6px;font-weight:700}
+.ydshops,.offices{display:grid;gap:8px}
+.ydshop,.office{border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--surface)}
+.ydshop{display:grid;grid-template-columns:1fr auto;gap:2px 10px}.ydshop .muted{grid-column:1/-1}
+.office .top2{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.km{font-family:var(--f-display);font-weight:800;color:var(--leaf);white-space:nowrap}
+.msg.offices{max-width:min(520px,94%);white-space:normal}
+.office .btns,.hot .btn{margin-top:8px}
+.office .btns a,.hot a.btn{text-decoration:none;min-height:44px;justify-content:center}
+.office .btns a svg,.hot a.btn svg{width:18px;height:18px}
+.hot{background:var(--sky);color:var(--ink);border-radius:14px;padding:10px 12px;display:grid;gap:4px}
+.hot .num{font-family:var(--f-display);font-weight:800;font-size:1.5rem;color:var(--sky-ink);line-height:1.1}
+.ydsize{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:end;margin:8px 0}
+.ydsize label{display:grid;gap:4px;font-size:.88rem;color:var(--muted)}
+.ydsize input,#ydN{font-size:16px;min-height:44px;border:2px solid var(--line);border-radius:12px;padding:8px 12px;background:var(--surface);color:var(--ink);width:100%}
+.ydsize .x{font-family:var(--f-display);font-weight:800;padding-bottom:10px}
+#ydQ{max-width:100%;margin:8px 0}
+.ydhelp .btn{margin-top:6px}

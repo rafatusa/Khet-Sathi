@@ -1127,6 +1127,103 @@ await checkAsync('Scan: when SAM says model_not_found on every try, the second p
   assert.equal(r.sam.approx, true);
 });
 
+// ---------- v0.15.0: home yard and agriculture office help ----------
+await checkAsync('Yard: sizes in each country\'s units, bigha and big spaces ask again, picks fit size, sun and month', async () => {
+  const y = await import('../lib/yard.js');
+  assert.deepEqual(y.unitsFor('BD'), ['ft', 'decimal', 'katha']);
+  assert.deepEqual(y.unitsFor('IN'), ['ft', 'decimal', 'gaj', 'bigha']);
+  assert.deepEqual(y.unitsFor('US'), ['ft', 'sqft', 'acre']);
+  assert.deepEqual(y.unitsFor('KE'), ['m', 'm2']);
+  assert.equal(y.sizeToM2({ unit: 'ft', a: 15, b: 10 }, 'BD').m2, 13.9, '15 x 10 ft');
+  assert.equal(y.sizeToM2({ unit: 'decimal', n: 1 }, 'BD').m2, 40.5, '1 shotangsho = 435.6 sq ft');
+  assert.equal(y.sizeToM2({ unit: 'katha', n: 1 }, 'BD').m2, 66.9, 'Bangladesh katha = 720 sq ft');
+  assert.equal(y.sizeToM2({ unit: 'gaj', n: 100 }, 'IN').m2, 83.6);
+  assert.equal(y.sizeToM2({ unit: 'bigha', n: 1 }, 'IN').ask, 'bigha', 'bigha is never converted');
+  assert.equal(y.sizeToM2({ unit: 'katha', n: 1 }, 'IN').error, 'unit', 'India katha is not taken');
+  assert.equal(y.sizeToM2({ unit: 'acre', n: 2 }, 'US').ask, 'field');
+  assert.equal(y.sizeToM2({ unit: 'ft', a: 'x', b: 3 }, 'BD').error, 'number');
+  assert.equal(y.sizeToM2({ unit: 'unknown' }, 'BD').estimate, true);
+  const words = y.sizeWords(242.8, 'BD');
+  assert.deepEqual([words.main.n, words.main.unit], [6, 'decimal']);
+  const tiny = y.pickPlants({ m2: 1.5, sun: 'half', month: 10, cc: 'BD' });
+  assert.equal(tiny.cls, 'tiny');
+  assert.ok(tiny.picks.every((p) => ['herb', 'leafy', 'flower', 'fruitveg'].includes(p.group)), 'no trees or vines on a step');
+  const med = y.pickPlants({ m2: 30, sun: 'full', month: 10, cc: 'BD' });
+  assert.equal(med.picks[0].key, 'bottle_gourd', 'a medium sunny yard gets a gourd on a trellis');
+  assert.ok(med.picks.length === 3 && med.picks.every((p) => (p.count || p.bedM2) >= 1));
+  assert.ok(y.pickPlants({ m2: 30, sun: 'shade', month: 10, cc: 'BD' }).picks.every((p) => y.PLANTS[p.key].sun.includes('shade')), 'shade plants only');
+  assert.ok(!y.pickPlants({ m2: 30, sun: 'full', month: 6, cc: 'BD' }).picks.some((p) => p.key === 'tomato'), 'no tomato in June');
+  const us = y.pickPlants({ m2: 13, sun: 'full', month: 10, cc: 'US', tMean: 12 });
+  assert.ok(us.picks.every((p) => y.PLANTS[p.key].season !== 'warm'), 'cool weather outside South Asia: no warm-season plants');
+  const list = y.shoppingList(med.picks, 'BD');
+  assert.equal(list.currency.code, 'BDT');
+  assert.ok(list.sample && list.total > 0 && list.lines.some((l) => l.item === 'trellis'));
+});
+await checkAsync('Yard: SAM 3.1 outline of the photo, and no outline (not an error) when SAM cannot answer', async () => {
+  const y = await import('../lib/yard.js');
+  const image = { dataUrl: 'data:image/jpeg;base64,AA', width: 400, height: 300 };
+  const ok = await y.outlineYard(image, { segment: async () => ({ objects: [{ id: 1, box: { left: 50, top: 150, right: 350, bottom: 290 }, areaPx: 30000, containsPoint: true, mask: { width: 4, height: 4, bounds: { left: 50, top: 150, right: 350, bottom: 290 }, svgPath: 'M0 0L4 0L4 4L0 4Z' } }] }) });
+  assert.equal(ok.outline.share, 25);
+  assert.equal(ok.error, null);
+  let n = 0;
+  const down = await y.outlineYard(image, { segment: async () => { n++; throw new Error('model_not_found: The requested model was not found.'); } });
+  assert.equal(down.outline, null);
+  assert.equal(n, 1, 'one prompt only once SAM failed every retry');
+});
+await checkAsync('Help: nearest agriculture office per country, phone and directions, hotline, nothing faked', async () => {
+  const o = await import('../lib/office.js');
+  assert.equal(o.officeQuery('BD'), 'Upazila Agriculture Office');
+  assert.equal(o.officeQuery('IN'), 'Krishi Vigyan Kendra');
+  assert.equal(o.officeQuery('US'), 'cooperative extension office');
+  assert.equal(o.hotlineFor('BD').number, '16123');
+  assert.equal(o.hotlineFor('IN').tel, '18001801551');
+  assert.equal(o.hotlineFor('US'), null, 'no hotline outside Bangladesh and India');
+  const at = { lat: 24.88, lon: 89.33 };
+  const list = o.officesFromPlaces({ places: [
+    { id: 'a', displayName: { text: 'Upazila Agriculture Office, Shibganj' }, location: { latitude: 24.95, longitude: 89.33 }, nationalPhoneNumber: '01700-000000', internationalPhoneNumber: '+880 1700-000000', googleMapsUri: 'https://maps.google.com/?cid=1' },
+    { id: 'b', displayName: { text: 'Far office' }, location: { latitude: 26.5, longitude: 89.33 } },
+    { id: 'c', displayName: { text: 'Mahasthan office' }, location: { latitude: 24.9, longitude: 89.34 } },
+  ] }, at, 40);
+  assert.deepEqual(list.map((x) => x.id), ['g-c', 'g-a'], 'nearest first, far ones dropped');
+  assert.equal(list[1].tel, '+8801700000000');
+  assert.equal(list[0].phone, null);
+  const help = await o.officeHelp({ ...at, cc: 'BD', lang: 'bn' }, { nearbyOffices: async () => ({ offices: list, source: 'Google Maps' }) });
+  assert.equal(help.hotline.number, '16123');
+  assert.match(help.offices[0].directions, /google\.com\/maps\/dir/);
+  assert.match(help.note, /does not call/);
+});
+await checkAsync('Sathi: a crop problem calls find_agri_office (no diagnosis), with the land\'s country', async () => {
+  let asked = null;
+  const steps = [
+    { choices: [{ message: { role: 'assistant', content: '', tool_calls: [{ id: 't1', type: 'function', function: { name: 'find_agri_office', arguments: '{}' } }] } }] },
+    { choices: [{ message: { role: 'assistant', content: 'The agriculture office 3 km away can look at it.' }, finish_reason: 'stop' }] },
+  ];
+  let i = 0;
+  const think = async (req) => {
+    if (i === 0) assert.match(req.messages[0].content, /never name a disease, pest or medicine/);
+    return { resp: steps[i++], provider: 'baseten', model: 'x', label: 'Muse Spark Open' };
+  };
+  const r = await runAgent({ userText: 'My gourd leaves are curling', lat: 24.88, lon: 89.33, cc: 'BD', lang: 'en', think, offices: async (a) => ((asked = a), { offices: [], hotline: { number: '16123' } }) });
+  assert.equal(asked.cc, 'BD');
+  assert.equal(r.trace.find((s) => s.name === 'find_agri_office').output.hotline.number, '16123');
+  assert.match(r.answer, /agriculture office/);
+});
+await checkAsync('Yards: own farm only, demo yards in the demo farm, read only writes not saved', async () => {
+  process.env.ADMIN_EMAILS = 'boss@test.com';
+  const B = { id: 'b0000000-0000-4000-8000-000000000001', email: 'boss@test.com' };
+  const P = { id: 'b0000000-0000-4000-8000-000000000002', email: 'p@test.com' };
+  const mineY = await runAs(P, () => memStore.createYard({ lat: 1, lon: 1, lang: 'bn' }));
+  const demoY = await runAs(B, () => memStore.createYard({ lat: 2, lon: 2, lang: 'bn' }), scopeFor(B, 'demo'));
+  assert.equal(demoY.demo, true);
+  assert.equal(demoY.owner_id, null);
+  assert.deepEqual((await runAs(P, () => memStore.listYards())).map((y) => y.id), [mineY.id]);
+  assert.deepEqual((await runAs(P, () => memStore.listYards(), scopeFor(P, 'demo'))).map((y) => y.id), [demoY.id]);
+  await runAs(P, () => memStore.updateYard(demoY.id, { sun: 'full' }), scopeFor(P, 'demo'));
+  assert.notEqual((await runAs(B, () => memStore.getYard(demoY.id), scopeFor(B, 'demo'))).sun, 'full');
+  assert.equal(await runAs(P, () => memStore.deleteYard(demoY.id), scopeFor(P, 'demo')), false);
+  delete process.env.ADMIN_EMAILS;
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);

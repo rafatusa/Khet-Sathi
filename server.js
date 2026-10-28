@@ -31,14 +31,20 @@ import {
   dbConfigured, isId, newId, createLand, listLands, getLand, updateLand, deleteLand, putFile, getFile, deleteFiles, listAlerts, pingDb,
   recentAlerts, insertAlerts, markAlertRead, insertReadings, latestReadings, listContacts, CLIP_BUCKET, getSellRule, saveSellRule, insertDeal, listDeals,
   listSheds, createShed, metricHistory, demoTemplates, farmCounts, moveLand,
+  listYards, getYard, createYard, updateYard, deleteYard,
 } from './lib/store.js';
+import sharp from 'sharp';
+import { unitsFor, sizeToM2, sizeWords, sizeClass, pickPlants, shoppingList, waterTip, meanTemp, outlineYard, SOUTH_ASIA } from './lib/yard.js';
+import { officeHelp } from './lib/office.js';
+import { fetchWeather } from './lib/weather.js';
+import { reverseGeocode } from './lib/place.js';
 import { runAs, currentOwner, currentScope, scopeFor, isAdmin, userFromToken, sendCode, verifyCode, refreshSession, signOut, useLimit, LIMITS, usageToday, listUsers, seenUsers } from './lib/auth.js';
 import { runChecks } from './lib/checks.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.14.1';
+const VERSION = '0.15.0';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -660,6 +666,162 @@ app.post(
   })
 );
 
+// ---------- home yards (v0.15.0) ----------
+// One photo of the open space in front of the house: SAM 3.1 outlines the open ground, the farmer gives
+// the size in their own units, and the picks follow that place's weather and month.
+function yardView(y) {
+  if (!y) return null;
+  const { photo_path, ...rest } = y;
+  return { ...rest, photoUrl: photo_path ? `/api/yards/${y.id}/photo` : null, units: unitsFor(y.place_info?.cc) };
+}
+async function yardDetails(y) {
+  const cc = y.place_info?.cc || null;
+  const wx = await fetchWeather(y.lat, y.lon).catch(() => null);
+  const today = wx?.days?.[0]?.date || new Date().toISOString().slice(0, 10);
+  const month = Number(today.slice(5, 7));
+  const tMean = meanTemp(wx);
+  const { picks, cls } = pickPlants({ m2: y.size_m2, sun: y.sun || 'half', month, cc, tMean });
+  return {
+    month,
+    today,
+    cls,
+    picks,
+    list: picks.length ? shoppingList(picks, cc) : null,
+    size: sizeWords(y.size_m2, cc),
+    weather: wx ? { ...waterTip(wx), tMean: tMean == null ? null : Math.round(tMean) } : null,
+    southAsia: SOUTH_ASIA.includes(String(cc || '').toUpperCase()),
+  };
+}
+app.get('/api/yards', guard, timed(async () => ({ yards: (await listYards()).map(yardView) })));
+app.post(
+  '/api/yards',
+  guard,
+  timed(async (req) => {
+    const { photoDataUrl, lat, lon, lang, place } = req.body || {};
+    let la = Number(lat);
+    let lo = Number(lon);
+    if (place && DEMO_PLACES[place]) {
+      if (currentScope()?.mode !== 'demo') throw new Error('Demo places are made by the admin in the demo farm. Add your own yard with your location or a photo');
+      ({ lat: la, lon: lo } = DEMO_PLACES[place]);
+    }
+    if (!Number.isFinite(la) || !Number.isFinite(lo)) throw new Error('Location is required');
+    const photo = dataUrlToBuffer(photoDataUrl);
+    if (!photo) throw new Error('Take or pick a photo of the yard first');
+    useLimit('scan');
+    // One size for SAM and for the screen: the long side at most 1024 pixels.
+    const img = sharp(photo.buffer).rotate().resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 });
+    const { data, info } = await img.toBuffer({ resolveWithObject: true });
+    const image = { dataUrl: `data:image/jpeg;base64,${data.toString('base64')}`, width: info.width, height: info.height };
+    const L = ['bn', 'hi', 'en'].includes(lang) ? lang : 'bn';
+    const [sam, geo] = await Promise.all([outlineYard(image), reverseGeocode(la, lo, L).catch(() => null)]);
+    const id = newId();
+    await putFile(`yards/${id}/photo.jpg`, data, 'image/jpeg');
+    const cc = geo?.cc || null;
+    const yard = await createYard({
+      id,
+      lat: la,
+      lon: lo,
+      lang: L,
+      place_info: { cc, country: geo?.country || null, state: geo?.state || null, district: geo?.district || null, village: geo?.village || null, currency: currencyFor(cc) },
+      photo_path: `yards/${id}/photo.jpg`,
+      outline: sam.outline ? { ...sam.outline, width: sam.width, height: sam.height } : null,
+      sam: { prompt: sam.prompt, error: sam.error, model: MODELS.sam },
+    });
+    return { yard: yardView(yard), samError: sam.error };
+  })
+);
+app.patch(
+  '/api/yards/:id',
+  guard,
+  timed(async (req) => {
+    const yard = await getYard(req.params.id);
+    if (!yard) throw new Error('Yard not found');
+    const { size, sun } = req.body || {};
+    const patch = {};
+    if (sun) {
+      if (!['full', 'half', 'shade'].includes(sun)) throw new Error('sun must be full, half or shade');
+      patch.sun = sun;
+    }
+    if (size) {
+      const r = sizeToM2(size, yard.place_info?.cc);
+      if (r.ask || r.error) return { ask: r.ask || null, sizeError: r.error || null };
+      // "I don't know": a medium yard stands in, labelled as an estimate until the farmer gives a size.
+      patch.size = { ...size, estimate: Boolean(r.estimate) };
+      patch.size_m2 = r.estimate ? 12 : r.m2;
+    }
+    const next = await updateYard(yard.id, patch);
+    return { yard: yardView(next), ...(next.size_m2 ? await yardDetails(next) : {}) };
+  })
+);
+app.get(
+  '/api/yards/:id',
+  guard,
+  timed(async (req) => {
+    const yard = await getYard(req.params.id);
+    if (!yard) throw new Error('Yard not found');
+    return { yard: yardView(yard), ...(yard.size_m2 ? await yardDetails(yard) : {}) };
+  })
+);
+app.get('/api/yards/:id/photo', guard, async (req, res) => {
+  try {
+    const yard = await getYard(req.params.id);
+    const file = yard?.photo_path ? await getFile(yard.photo_path) : null;
+    if (!file) return res.status(404).end();
+    res.set('Content-Type', file.contentType).set('Cache-Control', 'private, max-age=86400').send(file.buffer);
+  } catch {
+    res.status(502).end();
+  }
+});
+app.get(
+  '/api/yards/:id/shops',
+  guard,
+  timed(async (req) => {
+    const yard = await getYard(req.params.id);
+    if (!yard) throw new Error('Yard not found');
+    useLimit('shops');
+    return nearbyShops(yard.lat, yard.lon, { kind: 'garden', radiusKm: 15 });
+  })
+);
+app.delete(
+  '/api/yards/:id',
+  guard,
+  timed(async (req) => {
+    const yard = await getYard(req.params.id);
+    if (!yard) throw new Error('Yard not found');
+    const deleted = await deleteYard(yard.id);
+    if (!deleted) throw new Error('Yard could not be deleted');
+    await deleteFiles([yard.photo_path].filter(Boolean)).catch(() => null);
+    return { deleted: true, id: yard.id };
+  })
+);
+
+// ---------- help with a crop problem (v0.15.0): the nearest agriculture office and the farm hotline ----------
+async function whereFor({ landId, yardId, shedId }) {
+  if (landId) {
+    const l = await getLand(String(landId));
+    if (l) return { lat: l.lat, lon: l.lon, cc: l.place_info?.cc || (await reverseGeocode(l.lat, l.lon).catch(() => null))?.cc || null };
+  }
+  if (yardId) {
+    const y = await getYard(String(yardId));
+    if (y) return { lat: y.lat, lon: y.lon, cc: y.place_info?.cc || null };
+  }
+  if (shedId) {
+    const s = (await listSheds()).find((x) => String(x.id) === String(shedId));
+    if (s && Number.isFinite(s.lat)) return { lat: s.lat, lon: s.lon, cc: (await reverseGeocode(s.lat, s.lon).catch(() => null))?.cc || null };
+  }
+  return null;
+}
+app.get(
+  '/api/help/offices',
+  guard,
+  timed(async (req) => {
+    const at = await whereFor(req.query);
+    if (!at) throw new Error('Pick a field, yard or shed first');
+    useLimit('shops');
+    return { help: await officeHelp({ ...at, lang: pickLang(req.query.lang) }), at };
+  })
+);
+
 // Crop calendar: every crop's sowing and harvest window for the land's FAO zone.
 // Uses the given land, else the newest land in Bangladesh, else the Bogura demo zone.
 app.get(
@@ -732,11 +894,26 @@ app.post(
   '/api/ask',
   guard,
   timed(async (req) => {
-    const { text, landId, shedId, lang } = req.body || {};
+    const { text, landId, shedId, yardId, lang } = req.body || {};
     if (!text) throw new Error('text is required');
     useLimit('ask');
     // v0.11.3: a shed is picked, so Sathi answers about the shed (kit, eggs, sell rule, last camera check).
     if (shedId) return askShed(String(text), String(shedId), lang);
+    // v0.15.0: a home yard: its size, sun and picks; crop problems go to the nearest agriculture office.
+    if (yardId) {
+      const yard = await getYard(String(yardId));
+      if (!yard) throw new Error('Yard not found');
+      const d = yard.size_m2 ? await yardDetails(yard) : null;
+      const context = [
+        'this is a HOME YARD (the open space in front of the house), not a farm field',
+        yard.size_m2 ? `about ${yard.size_m2} square metres${yard.size?.estimate ? ' (a rough estimate, the farmer did not give the size)' : ''}` : 'size not given yet',
+        yard.sun ? `sun: ${yard.sun === 'full' ? 'all day' : yard.sun === 'half' ? 'half the day' : 'mostly shade'}` : '',
+        d?.picks?.length ? `suggested now: ${d.picks.map((p) => `${p.key.replace(/_/g, ' ')} (${p.count ? `${p.count} plants` : `${p.bedM2} m2 bed`}, first harvest in ${p.days[0]} to ${p.days[1]} days)`).join(', ')}` : '',
+        d?.weather?.rainDate ? `rain expected ${d.weather.rainDate}, so skip watering that day` : '',
+        d?.weather?.hot ? 'very hot today: water in the evening and shade young plants' : '',
+      ].filter(Boolean).join('; ');
+      return runAgent({ userText: String(text).slice(0, 2000), lat: yard.lat, lon: yard.lon, context, cc: yard.place_info?.cc || null, lang: pickLang(lang) });
+    }
     // No land picked yet: answer for the Bogura demo plot (the Scenario 1 plot with full data).
     let lat = DEMO_PLACES.bogura.lat;
     let lon = DEMO_PLACES.bogura.lon;
@@ -771,7 +948,8 @@ app.post(
     }
     if (!landId) plan = await buildPlan({ lat, lon, place: 'bogura' }).catch(() => null);
     if (!landId && plan) plan.demoLand = true;
-    return runAgent({ userText: String(text).slice(0, 2000), lat, lon, context, noField, plan });
+    const landCc = landId ? (await getLand(landId).catch(() => null))?.place_info?.cc : null;
+    return runAgent({ userText: String(text).slice(0, 2000), lat, lon, context, noField, plan, cc: landCc || plan?.place?.cc || (landId ? null : 'BD'), lang: pickLang(lang) });
   })
 );
 

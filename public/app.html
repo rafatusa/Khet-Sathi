@@ -174,6 +174,14 @@
       <div class="card sh-vet"><div class="lab"><span data-icon="warn"></span><span data-t="unwellH"></span></div><p class="muted small" data-t="unwellT"></p><button class="btn turm" type="button" data-vet data-t="callVet"></button></div>
       <div class="card sh-sales"><div class="lab"><span data-icon="rupee"></span><span data-t="salesH"></span><span class="src-tag sim" data-t="simulated"></span></div><div class="salesrow" id="shSales"></div><div class="btns"><button class="btn" type="button" data-sell data-t="callShopsNow"></button><button class="btn ghost" type="button" data-rule data-t="changeRule"></button></div></div>
     </div>
+    <!-- v0.15.0: home yard (ks-yard.js) -->
+    <div class="dash" id="dashYard" hidden>
+      <div class="card span2"><div class="lab"><span data-icon="camera"></span><span data-t="ydPhotoH"></span><span class="src-tag">SAM 3.1</span></div><div class="ydpic" id="ydPic"></div><div class="zinfo" id="ydSam"></div></div>
+      <div class="card span2"><div class="lab"><span data-icon="sun"></span><span data-t="ydNowH"></span><span class="src-tag">Open-Meteo</span></div><div class="kpis" id="ydStats"></div><div class="zinfo" id="ydTip"></div><div class="btns"><button class="btn ghost" type="button" id="ydResize" data-t="ydChangeSize"></button></div></div>
+      <div class="card span2"><div class="lab"><span data-icon="sprout"></span><span data-t="ydPicksH"></span></div><div class="ydpicks" id="ydPicks"></div><div class="zinfo" id="ydWhy"></div></div>
+      <div class="card span2"><div class="lab"><span data-icon="cart"></span><span data-t="ydBuyH"></span><span class="src-tag sim" data-t="samplePrices"></span></div><div id="ydList"></div><div id="ydShops"></div><div class="btns"><button class="btn" type="button" id="ydFindShops" data-t="ydFindShops"></button><button class="btn ghost" type="button" id="ydCopy" data-t="ydCopy"></button></div><p class="muted small" data-t="ydDemoNote"></p></div>
+      <div class="card span2 ydhelp"><div class="lab"><span data-icon="phone"></span><span data-t="helpH"></span></div><p class="muted small" data-t="helpT"></p><button class="btn turm" type="button" data-help data-t="helpFind"></button><div class="btns"><button class="btn ghost" type="button" id="ydRemove" data-t="ydRemove"></button></div></div>
+    </div>
   </section>
 
   <!-- SHED (poultry: camera clips from the phone, count, sound, vet) -->
@@ -364,6 +372,7 @@
     <h2 data-t="welcomeH"></h2>
     <button class="cta wide" type="button" id="welcomeAdd"><span data-icon="plus"></span><span data-t="welcomeAdd"></span></button>
     <button class="btn ghost wide" type="button" id="welcomeShedAdd" style="margin-top:10px"><span data-t="welcomeShedAdd"></span></button>
+    <button class="btn ghost wide" type="button" id="welcomeYardAdd" style="margin-top:10px"><span data-t="welcomeYardAdd"></span></button>
     <button class="demopick" type="button" id="welcomeDemo"><span data-icon="sprout"></span><span><b data-t="watchDemo"></b><small data-t="watchDemoS"></small></span><span class="tag" data-t="demoTag"></span></button>
     <p class="muted small" data-t="welcomeNote"></p>
   </div>
@@ -387,7 +396,10 @@
     <div class="farmlist" id="farmList"></div>
     <div class="secl" data-t="shedsH"></div>
     <div class="farmlist" id="shedList"></div>
+    <div class="secl" data-t="yardsH"></div>
+    <div class="farmlist" id="yardList"></div>
     <div class="two"><button class="cta wide" id="addFromList"><span data-icon="plus"></span><span data-t="addField"></span></button><button class="cta wide turm" id="addShedBtn"><span data-icon="plus"></span><span data-t="addShed"></span></button></div>
+    <button class="btn ghost wide" type="button" id="addYardBtn" style="margin-top:10px"><span data-icon="plus"></span><span data-t="addYard"></span></button>
     <button class="demopick" type="button" id="farmDemo"><span data-icon="sprout"></span><span><b data-t="watchDemo"></b><small data-t="watchDemoS"></small></span><span class="tag" data-t="demoTag"></span></button>
   </div>
 </div>
@@ -462,6 +474,33 @@
   </div>
 </div>
 
+<!-- v0.15.0: ADD YARD (photo -> SAM 3.1 outline -> size in the farmer's units and sun -> picks) -->
+<div class="sheet" id="yardSheet" hidden>
+  <div class="wrap sh narrowsh">
+    <div class="shtop"><button class="iconbtn" id="yardClose" data-tl="close">×</button><h2 style="margin:0" data-t="addYard"></h2></div>
+    <div id="yd1">
+      <p class="sub" data-t="ydAddS"></p>
+      <div class="pick2"><label class="bigpick"><span data-icon="camera"></span><b data-t="ydPhoto"></b><input type="file" id="ydPhotoIn" accept="image/*" capture="environment" hidden></label><button class="bigpick" id="ydGps" type="button"><span data-icon="pin"></span><b data-t="pGps"></b></button></div>
+      <div class="preview" id="ydPrev" hidden><img id="ydPimg" alt=""></div>
+      <div class="presets" id="ydPresets"></div>
+      <div class="placeTag" id="ydLoc"></div>
+      <button class="cta wide" id="ydNext" disabled><span data-icon="sprout"></span><span data-t="ydNext"></span></button>
+    </div>
+    <div id="yd2" hidden><div class="maploading" style="position:static;margin:24px 0"><span class="spin"></span><span data-t="ydBusy"></span></div></div>
+    <div id="yd3" hidden>
+      <div class="ydpic" id="ydPic2"></div>
+      <div class="msg bot" id="ydQ"></div>
+      <div class="chips" id="ydUnits"></div>
+      <div class="ydsize" id="ydAB"><label><span id="ydAL"></span><input id="ydA" inputmode="decimal" maxlength="7"></label><span class="x">×</span><label><span id="ydBL"></span><input id="ydB" inputmode="decimal" maxlength="7"></label></div>
+      <label class="field" id="ydNBox" hidden><span id="ydNL"></span><input id="ydN" inputmode="decimal" maxlength="7"></label>
+      <p class="note" id="ydAsk" hidden></p>
+      <b data-t="ydSunQ"></b>
+      <div class="chips" id="ydSun"></div>
+      <button class="cta wide" id="ydShow" type="button"><span data-icon="sprout"></span><span data-t="ydShow"></span></button>
+    </div>
+  </div>
+</div>
+
 <nav class="bottom"><div class="row" role="tablist" id="tabs">
   <button role="tab" data-tab="home" aria-selected="true"><span data-icon="home"></span><span data-t="nHome"></span></button>
   <button role="tab" data-tab="field" aria-selected="false"><span data-icon="sat"></span><span data-t="nField"></span></button>
@@ -479,5 +518,6 @@
 <script src="/next/ks-shed.js"></script>
 <script src="/next/ks-harvest.js"></script>
 <script src="/next/ks-admin.js"></script>
+<script src="/next/ks-yard.js"></script>
 </body>
 </html>

@@ -113,7 +113,7 @@
   const imgUrl = (u) => (u ? `${u}${u.includes('?') ? '&' : '?'}t=${encodeURIComponent(sess?.access_token || '')}${viewParam() ? `&view=${encodeURIComponent(viewParam())}` : ''}` : '');
 
   // ---------- state ----------
-  const S = { view: null, admin: false, tab: 'home', mode: 'field', lands: [], sheds: [], cur: null, shed: null, plan: null, field: null, sensors: null, deals: [], alerts: [], health: null, pass: 0, layer: 'sat', zoom: 1, playing: null, chat: [] };
+  const S = { view: null, admin: false, tab: 'home', mode: 'field', lands: [], sheds: [], yards: [], yard: null, cur: null, shed: null, plan: null, field: null, sensors: null, deals: [], alerts: [], health: null, pass: 0, layer: 'sat', zoom: 1, playing: null, chat: [] };
 
   // ---------- text on the page ----------
   function applyLang() {
@@ -135,6 +135,8 @@
 
   // ---------- tabs ----------
   function show(tab) {
+    // v0.15.0: a home yard has Home, Sathi and Money (no satellite field, shed or market).
+    if (S.mode === 'yard' && ['field', 'shed', 'market'].includes(tab)) tab = 'home';
     if (tab === 'field' && S.mode === 'shed') tab = 'shed';
     if (tab === 'shed' && S.mode === 'field') tab = 'field';
     if (tab !== 'field') stopPlay();
@@ -162,15 +164,17 @@
   function applyMode() {
     $$('#tabs [data-tab="field"]').forEach((b) => (b.hidden = S.mode !== 'field'));
     $$('#tabs [data-tab="shed"]').forEach((b) => (b.hidden = S.mode !== 'shed'));
+    $$('#tabs [data-tab="market"]').forEach((b) => (b.hidden = S.mode === 'yard'));
     $('#dash').hidden = S.mode !== 'field';
     $('#dashShed').hidden = S.mode !== 'shed';
+    $('#dashYard').hidden = S.mode !== 'yard';
     const growing = S.mode === 'field' && growingNow();
     $('#dashCrop').hidden = !growing;
     $('#grow').closest('.card').hidden = growing;
     $('#mkField').hidden = S.mode !== 'field' || growing;
     $('#mkCrop').hidden = !growing;
     $('#mkShed').hidden = S.mode !== 'shed';
-    $('#modeChip').textContent = t(S.mode === 'shed' ? 'mPoultry' : 'mField');
+    $('#modeChip').textContent = t(S.mode === 'shed' ? 'mPoultry' : S.mode === 'yard' ? 'mYard' : 'mField');
     $('#modeChip').className = `mchip ${S.mode}`;
     document.body.dataset.mode = S.mode;
     // v0.12.0: the demo line only for demo places; a farmer's own land says it is real data.
@@ -302,7 +306,7 @@
     const tok = sess?.access_token;
     saveSess(null);
     fetch('/api/auth/signout', { method: 'POST', headers: tok ? { Authorization: `Bearer ${tok}` } : {} }).catch(() => null);
-    Object.assign(S, { view: null, admin: false, lands: [], sheds: [], cur: null, shed: null, plan: null, field: null, deals: [], alerts: [], chat: [] });
+    Object.assign(S, { view: null, admin: false, lands: [], sheds: [], yards: [], yard: null, cur: null, shed: null, plan: null, field: null, deals: [], alerts: [], chat: [] });
     renderViewBar();
     showLanding();
   });
@@ -399,7 +403,7 @@
   const shedLine = (s) => (s ? `${shedName(s)}${s.chickens ? ` · ${fmt('aboutChickens', { n: num(s.chickens) })}` : ''}` : '');
   function renderHeader() {
     const l = S.cur;
-    $('#farmLine').textContent = S.mode === 'shed' ? shedLine(S.shed) : l ? `${landTitle(l)} · ${l.acres ? `${num(l.acres, 2)} ${t('acShort')}` : t('noOutlineShort')}${growingNow() ? ` · ${cropName(l.crop)}` : ''}` : t('noLandYet');
+    $('#farmLine').textContent = S.mode === 'yard' ? window.KSYard?.headerLine() || '' : S.mode === 'shed' ? shedLine(S.shed) : l ? `${landTitle(l)} · ${l.acres ? `${num(l.acres, 2)} ${t('acShort')}` : t('noOutlineShort')}${growingNow() ? ` · ${cropName(l.crop)}` : ''}` : t('noLandYet');
   }
   function renderAll() {
     renderHeader();
@@ -442,6 +446,7 @@
   }
 
   function hero() {
+    if (S.mode === 'yard') return window.KSYard?.hero() || { big: t('myYard'), sub: '', cta: t('askSaathi'), icon: 'chat', go: () => ask(t('qYard')) };
     if (S.mode === 'shed') return window.KSShed?.hero() || { big: shedLine(S.shed), sub: '', cta: t('checkShed'), icon: 'camera', go: () => show('shed') };
     const l = S.cur;
     if (!l) return { big: t('heroAddH'), sub: t('heroAddS'), cta: t('addLand'), icon: 'plus', go: openAdd };
@@ -465,7 +470,8 @@
     $('#heroSub').textContent = h.sub;
     $('#heroCtaT').textContent = h.cta;
     $('#heroIc').innerHTML = I[h.icon] || '';
-    updatePlant($('#plantHome'), S.mode === 'shed' ? 0.8 : latest()?.ndvi?.mean);
+    updatePlant($('#plantHome'), S.mode === 'shed' ? 0.8 : S.mode === 'yard' ? 0.6 : latest()?.ndvi?.mean);
+    if (S.mode === 'yard') return window.KSYard?.renderHome();
     if (S.mode === 'shed') return window.KSShed?.renderHome();
     renderScore();
     renderKpis();
@@ -1049,7 +1055,7 @@
   // One conversation per place: switching between a field and a shed starts a fresh thread (v0.11.3).
   let threadFor = null;
   function renderSaathi() {
-    const key = S.mode === 'shed' ? `shed:${S.shed?.id}` : `land:${S.cur?.id}`;
+    const key = S.mode === 'shed' ? `shed:${S.shed?.id}` : S.mode === 'yard' ? `yard:${S.yard?.id}` : `land:${S.cur?.id}`;
     if (threadFor !== key) {
       $('#thread').innerHTML = '';
       threadFor = key;
@@ -1057,15 +1063,21 @@
     if (!$('#thread').children.length) {
       const c = S.plan?.crops?.[0];
       if (S.mode === 'shed') bubble(fmt('greetShed', { shed: shedLine(S.shed) }));
+      else if (S.mode === 'yard') bubble(t('ydHello'));
       else bubble(c ? fmt('greetCrop', { land: landTitle(S.cur), crop: cropName(c.key) }) : t('saathiHello'));
     }
     renderQuick();
     renderPending();
     renderHow();
+    // The how-it-works list is about the satellite field; a home yard does not use it.
+    $('#how').closest('.panel').hidden = S.mode === 'yard';
   }
   function renderQuick() {
     const c = S.plan?.crops?.[0];
-    const q = S.mode === 'shed' ? [['egg', t('chipShed'), t('qShed')], ['drop', t('chipWater'), t('qWater')], ['rupee', t('chipEggs'), t('qEggs')], ['warn', t('chipVet'), t('qVet')]] : [['sat', t('chipField'), t('qField')], ['sprout', t('chipGrow'), t('qGrow')], ...(c ? [['seed', fmt('chipPlan', { crop: cropName(c.key) }), fmt('qPlan', { crop: cropName(c.key) })]] : []), ['sun', t('chipWeather'), t('qWeather')]];
+    const q =
+      S.mode === 'shed' ? [['egg', t('chipShed'), t('qShed')], ['drop', t('chipWater'), t('qWater')], ['rupee', t('chipEggs'), t('qEggs')], ['warn', t('chipVet'), t('qVet')]]
+      : S.mode === 'yard' ? [['sprout', t('chipYard'), t('qYard')], ['drop', t('chipYardWater'), t('qYardWater')], ['phone', t('chipHelp'), t('qHelp')]]
+      : [['sat', t('chipField'), t('qField')], ['sprout', t('chipGrow'), t('qGrow')], ...(c ? [['seed', fmt('chipPlan', { crop: cropName(c.key) }), fmt('qPlan', { crop: cropName(c.key) })]] : []), ['sun', t('chipWeather'), t('qWeather')], ['phone', t('chipHelp'), t('qHelp')]];
     q.unshift(['chat', t('chipCan'), t('qCan')]); // v0.13.1: "What can you do?" first
     $('#quick').innerHTML = q.map(([ic, label, text]) => `<button class="chip" type="button" data-q="${esc(text)}">${I[ic]}${esc(label)}</button>`).join('');
   }
@@ -1088,12 +1100,21 @@
     bubble(text, 'me');
     const tp = typing();
     try {
-      const r = await postJson('/api/ask', S.mode === 'shed' ? { text, shedId: S.shed?.id || null, lang } : { text, landId: S.cur?.id || null });
+      const r = await postJson('/api/ask', S.mode === 'shed' ? { text, shedId: S.shed?.id || null, lang } : S.mode === 'yard' ? { text, yardId: S.yard?.id || null, lang } : { text, landId: S.cur?.id || null, lang });
       tp.remove();
       if (!r.ok) throw new Error(r.error);
       const tools = (r.trace || []).filter((s) => s.type === 'tool').map((s) => s.name.replace(/_/g, ' '));
       const m = bubble(r.answer || t('noAnswer'), 'bot', [r.brain?.label ? fmt('answeredBy', { model: r.brain.label }) : '', tools.length ? `✓ ${tools.join(' · ')}` : ''].filter(Boolean).join('  '));
       $('#brainLine').textContent = r.brain?.label ? `${t('online')} · ${r.brain.label}` : t('online');
+      // v0.15.0: the agriculture offices Sathi found, with Call (the farmer's own phone) and Directions.
+      const help = (r.trace || []).find((s) => s.type === 'tool' && s.name === 'find_agri_office')?.output;
+      if (help && window.KSYard) {
+        const box = document.createElement('div');
+        box.className = 'msg bot offices';
+        box.innerHTML = window.KSYard.officeHtml(help);
+        $('#thread').appendChild(box);
+        $('#thread').scrollTop = 1e9;
+      }
       if (r.answer) speak(r.answer, m);
     } catch (err) {
       tp.remove();
@@ -1260,19 +1281,25 @@
     $('#shedList').innerHTML = S.sheds.length
       ? S.sheds.map((s, i) => `<button class="fitem shed ${S.mode === 'shed' && s.id === S.shed?.id ? 'on' : ''}" data-shed="${s.id}" style="animation-delay:${i * 60}ms"><span class="th">${I.egg}</span><span class="m"><b>${esc(shedName(s))}</b><div>${esc(s.chickens ? fmt('aboutChickens', { n: num(s.chickens) }) : '')} · ${esc(t('simKit'))}</div></span></button>`).join('')
       : `<div class="muted">${esc(t('noSheds'))}</div>`;
+    $('#yardList').innerHTML = window.KSYard ? window.KSYard.listHtml() : '';
     $('#farmSheet').hidden = false;
   }
   $('#farmBtn').addEventListener('click', openFarm);
   $('#farmSheet').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-id],[data-shed]');
+    const b = e.target.closest('[data-id],[data-shed],[data-yard]');
     if (!b) return;
     $('#farmSheet').hidden = true;
-    if (b.dataset.shed) openShed(b.dataset.shed);
+    if (b.dataset.yard) window.KSYard?.open(b.dataset.yard);
+    else if (b.dataset.shed) openShed(b.dataset.shed);
     else openLand(b.dataset.id).then(() => S.tab === 'shed' && show('field'));
   });
   $('#addShedBtn').addEventListener('click', () => {
     $('#farmSheet').hidden = true;
     window.KSShed?.openAddShed();
+  });
+  $('#addYardBtn').addEventListener('click', () => {
+    $('#farmSheet').hidden = true;
+    window.KSYard?.openAdd();
   });
   $('#farmClose').addEventListener('click', () => ($('#farmSheet').hidden = true));
   $('#addFromList').addEventListener('click', () => {
@@ -1545,7 +1572,7 @@
     if (afterLogin === 'demo') S.view = 'demo';
     afterLogin = null;
     try {
-      await Promise.all([loadLands(), loadSheds()]);
+      await Promise.all([loadLands(), loadSheds(), window.KSYard?.loadYards()]);
     } catch {
       return;
     }
@@ -1563,8 +1590,11 @@
     const want = store.get('ks_land');
     const pick = S.lands.find((l) => l.id === want) || S.lands[0];
     S.shed = S.sheds.find((s) => s.id === store.get('ks_shed')) || S.sheds[0] || null;
+    const yard = S.yards.find((y) => y.id === store.get('ks_yard')) || S.yards[0];
     if (store.get('ks_mode') === 'shed' && S.shed) openShed(S.shed.id);
+    else if (store.get('ks_mode') === 'yard' && yard) await window.KSYard.open(yard.id);
     else if (pick) await openLand(pick.id).catch((e) => toast(e.message));
+    else if (yard) await window.KSYard.open(yard.id);
     else renderAll();
     loadSide();
     welcome();
@@ -1572,7 +1602,7 @@
   // First sign-in on this browser: the demo places, ready to try, and adding one's own field.
   // First sign-in on this browser, with an empty farm: add a field or a shed, or watch the demo farm.
   function welcome() {
-    if (S.view || S.lands.length || S.sheds.length) return;
+    if (S.view || S.lands.length || S.sheds.length || S.yards.length) return;
     const key = `ks_welcomed_${sess?.email || ''}`;
     if (store.get(key)) return;
     store.set(key, '1');
@@ -1581,6 +1611,10 @@
   $('#welcomeShedAdd').addEventListener('click', () => {
     $('#welcomeSheet').hidden = true;
     window.KSShed?.openAddShed();
+  });
+  $('#welcomeYardAdd').addEventListener('click', () => {
+    $('#welcomeSheet').hidden = true;
+    window.KSYard?.openAdd();
   });
   $('#welcomeDemo').addEventListener('click', () => {
     $('#welcomeSheet').hidden = true;
@@ -1598,15 +1632,17 @@
   }
   async function enterView(v) {
     S.view = v;
-    Object.assign(S, { lands: [], sheds: [], cur: null, shed: null, plan: null, field: null, deals: [], alerts: [], chat: [] });
+    Object.assign(S, { lands: [], sheds: [], yards: [], yard: null, cur: null, shed: null, plan: null, field: null, deals: [], alerts: [], chat: [] });
     store.set('ks_land', '');
     store.set('ks_shed', '');
+    store.set('ks_yard', '');
     renderViewBar();
-    await Promise.all([loadLands(), loadSheds()]).catch(() => null);
+    await Promise.all([loadLands(), loadSheds(), window.KSYard?.loadYards()]).catch(() => null);
     S.shed = S.sheds[0] || null;
     S.mode = 'field';
     if (S.lands[0]) await openLand(S.lands[0].id).catch((e) => toast(e.message));
     else if (S.shed) openShed(S.shed.id);
+    else if (S.yards[0]) await window.KSYard.open(S.yards[0].id);
     else renderAll();
     show('home');
     loadSide();
@@ -1633,7 +1669,7 @@
 
   // Shared with ks-shed.js (poultry, egg sale, buying for a field, demo calls).
   window.KS = {
-    S, $, $$, I, t, fmt, num, esc, fd, loc, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store,
+    S, $, $$, I, t, fmt, num, esc, fd, loc, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store, shrink, exifGPS,
     lang: () => lang, show, ask, speak, toWav, renderAll, renderHeader, loadSide, loadSheds, openShed, openFarm, bubble, count, mini, lineChart,
     playUrl: (url) =>
       new Promise((done) => {
