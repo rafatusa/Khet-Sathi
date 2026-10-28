@@ -1360,6 +1360,35 @@ await checkAsync('Meta request IDs: each Meta response is recorded with its x-re
   }
 });
 
+await checkAsync('Demo leaf: saved without a measurement while SAM is down, measured once later, then never asked again', async () => {
+  const dl = await import('../lib/demoleaf.js');
+  const files = new Map();
+  const putFile = async (path, buffer) => files.set(path, { buffer: Buffer.from(buffer) });
+  const getFile = async (path) => files.get(path) || null;
+  const shape = { svgPath: 'M0 0L4 0L4 4Z', bounds: { left: 1, top: 2, right: 30, bottom: 40 }, mw: 4, mh: 4 };
+  assert.equal(dl.cleanMeasure({ leaf: { svgPath: 'x' } }), null, 'no bounds or share: not kept');
+  const clean = dl.cleanMeasure({ width: 100, height: 80, leaf: { ...shape, raw: { big: true } }, patches: [shape], share: 30.6, extra: 1 });
+  assert.equal(clean.share, 31);
+  assert.ok(!('raw' in clean.leaf) && !('extra' in clean));
+  const saved = await dl.saveLeaf({ photo: Buffer.from('jpg'), width: 100, height: 80, measure: null }, { putFile });
+  assert.equal(saved.measure, null);
+  let calls = 0;
+  const down = async () => { calls++; return { error: 'model_not_found' }; };
+  const after1 = await dl.retryLeaf({ getFile, putFile, measure: down });
+  assert.equal(after1.measure, null);
+  assert.equal(after1.tries, 1);
+  assert.match(after1.lastError, /model_not_found/);
+  const up = async (img) => { calls++; assert.match(img.dataUrl, /^data:image\/jpeg;base64,/); return { width: 100, height: 80, leaf: shape, patches: [shape], share: 22 }; };
+  const after2 = await dl.retryLeaf({ getFile, putFile, measure: up });
+  assert.equal(after2.measure.share, 22);
+  assert.ok(after2.measuredAt);
+  const n = calls;
+  const after3 = await dl.retryLeaf({ getFile, putFile, measure: up });
+  assert.equal(calls, n, 'a measured leaf is never sent to SAM again');
+  assert.equal(after3.measure.share, 22);
+  assert.equal((await dl.loadLeaf({ getFile })).measure.share, 22, 'kept in storage');
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);

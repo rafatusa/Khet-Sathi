@@ -37,6 +37,7 @@ import sharp from 'sharp';
 import { unitsFor, sizeToM2, sizeWords, sizeClass, pickPlants, shoppingList, waterTip, meanTemp, outlineYard, SOUTH_ASIA } from './lib/yard.js';
 import { officeHelp } from './lib/office.js';
 import { measureProblem } from './lib/problem.js';
+import { loadLeaf, saveLeaf, leafPhoto, retryLeaf } from './lib/demoleaf.js';
 import { fetchWeather } from './lib/weather.js';
 import { withKeep, recall, remember } from './lib/keep.js';
 import { checkNumbers, factsFrom } from './lib/numcheck.js';
@@ -47,7 +48,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.19.2';
+const VERSION = '0.19.3';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -799,6 +800,8 @@ app.get(
   timed(async (req) => {
     const yard = await getYard(req.params.id);
     if (!yard) throw new Error('Yard not found');
+    // v0.19.3: a demo yard saved while SAM was down gets its outline later, by itself (not on real farms).
+    if (yard.demo && !yard.outline) retryLater(`yard|${yard.id}`, () => retryYardOutline(yard.id));
     return { yard: yardView(yard), ...(yard.size_m2 ? await yardDetails(yard) : {}) };
   })
 );
@@ -846,6 +849,71 @@ app.post(
     const { data, info } = await sharp(photo.buffer).rotate().resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer({ resolveWithObject: true });
     const m = await measureProblem({ dataUrl: `data:image/jpeg;base64,${data.toString('base64')}`, width: info.width, height: info.height });
     return { measure: { ...m, model: MODELS.sam } };
+  })
+);
+
+// ---------- the demo leaf and SAM retries for demo places (v0.19.3) ----------
+// The demo farm's places saved while SAM was down get their outline once SAM answers, then it is kept for
+// good: at start and every 3 hours (warmDemo) and when someone opens them, at most once every 10 minutes
+// each. Retries run in a writable demo scope, so a judge opening a demo yard can trigger the save.
+const WRITE_DEMO = { mode: 'demo', owner: null, readOnly: false, admin: true };
+const lastRetry = new Map();
+const RETRY_GAP_MS = Number(process.env.DEMO_RETRY_MS) || 10 * 60 * 1000; // 10 minutes; tests use a few seconds
+function retryLater(key, fn) {
+  if (Date.now() - (lastRetry.get(key) || 0) < RETRY_GAP_MS) return;
+  lastRetry.set(key, Date.now());
+  runAs({ id: 'demo-retry', email: 'demo-retry' }, fn, WRITE_DEMO).catch((err) => console.log('demo retry', key, err.message));
+}
+async function imageFor(buffer) {
+  const { data, info } = await sharp(buffer).rotate().resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer({ resolveWithObject: true });
+  return { data, image: { dataUrl: `data:image/jpeg;base64,${data.toString('base64')}`, width: info.width, height: info.height } };
+}
+async function retryYardOutline(id) {
+  const y = await getYard(id);
+  if (!y?.demo || y.outline || !y.photo_path) return y;
+  const f = await getFile(y.photo_path);
+  if (!f?.buffer) return y;
+  const { image } = await imageFor(Buffer.from(f.buffer));
+  const sam = await outlineYard(image);
+  if (!sam.outline) return y;
+  const done = await updateYard(id, { outline: { ...sam.outline, width: sam.width, height: sam.height }, sam: { prompt: sam.prompt, error: null, model: MODELS.sam, later: new Date().toISOString() } });
+  console.log(`demo yard ${id}: outline saved`);
+  return done;
+}
+const leafDeps = () => ({ getFile, putFile, measure: measureProblem });
+app.get(
+  '/api/problem/demo-leaf',
+  guard,
+  timed(async () => {
+    const meta = await loadLeaf(leafDeps());
+    if (meta && !meta.measure) retryLater('leaf', () => retryLeaf(leafDeps()));
+    return { leaf: meta ? { savedAt: meta.savedAt, measuredAt: meta.measuredAt, measure: meta.measure, width: meta.width, height: meta.height, photoUrl: `/api/problem/demo-leaf/photo?v=${encodeURIComponent(meta.savedAt)}` } : null };
+  })
+);
+app.get('/api/problem/demo-leaf/photo', guard, async (req, res) => {
+  try {
+    const f = await leafPhoto(leafDeps());
+    if (!f) return res.status(404).end();
+    res.set('Content-Type', 'image/jpeg').set('Cache-Control', 'private, max-age=86400').send(Buffer.from(f.buffer));
+  } catch {
+    res.status(502).end();
+  }
+});
+app.post(
+  '/api/problem/demo-leaf',
+  guard,
+  timed(async (req) => {
+    const sc = currentScope();
+    if (sc?.mode !== 'demo' || !sc.admin || sc.readOnly) throw new Error('Only an admin can set the demo leaf, inside the demo farm');
+    const photo = dataUrlToBuffer(req.body?.photoDataUrl);
+    if (!photo) throw new Error('Take or pick a photo first');
+    const { data, image } = await imageFor(photo.buffer);
+    const meta = await saveLeaf({ photo: data, width: image.width, height: image.height, measure: req.body?.measure || null }, leafDeps());
+    if (!meta.measure) {
+      lastRetry.delete('leaf');
+      retryLater('leaf', () => retryLeaf(leafDeps()));
+    }
+    return { leaf: { savedAt: meta.savedAt, measuredAt: meta.measuredAt, measured: Boolean(meta.measure) } };
   })
 );
 
@@ -1826,6 +1894,13 @@ async function warmDemo() {
       await yardDetails(y).catch(() => null);
       n++;
     }
+    // v0.19.3: demo yards and the demo leaf still waiting for SAM.
+    for (const y of (await listYards().catch(() => [])).filter((x) => x.demo && !x.outline)) {
+      lastRetry.delete(`yard|${y.id}`);
+      retryLater(`yard|${y.id}`, () => retryYardOutline(y.id));
+    }
+    lastRetry.delete('leaf');
+    retryLater('leaf', () => retryLeaf(leafDeps()));
     return n;
   }, scope).catch(() => 0);
   console.log(`demo warm-up: ${done} places in ${Math.round((Date.now() - t0) / 1000)} s`);

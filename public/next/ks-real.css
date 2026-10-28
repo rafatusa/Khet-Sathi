@@ -422,3 +422,13 @@ body[data-page="landing"]>header,body[data-page="landing"]>main,body[data-page="
 /* v0.19.2: Meta request IDs on failing checks (contrast 8:1) */
 .reqid{margin-top:6px;font:500 12.5px var(--f-mono);color:#5f3a12;background:#fcf0d2;border-radius:8px;padding:5px 8px;display:inline-block;word-break:break-all;user-select:all}
 #adCopyMeta{margin-left:8px}
+
+/* v0.19.3: the demo leaf (contrast: #5c4400 on #fcf0d2 is 8.4:1) */
+.dleaf{display:flex;gap:12px;align-items:center;width:100%;margin:12px 0 6px;padding:10px 12px;border:2px solid var(--turmeric);border-radius:14px;background:var(--turmeric-soft);font:inherit;color:var(--ink);text-align:left;cursor:pointer;min-height:64px}
+.dleaf:focus-visible{outline:3px solid var(--leaf);outline-offset:2px}
+.dleaf img{width:56px;height:56px;object-fit:cover;border-radius:10px;flex:none}
+.dleaf b{display:block}.dleaf small{display:block;color:#5c4400;font-size:13px;line-height:1.4}
+.dleaf .tag{margin-left:auto;font:500 .7rem var(--f-mono);background:var(--surface);color:#5c4400;border-radius:6px;padding:2px 7px;flex:none}
+.dsave{margin-top:10px}.dsave small{display:block;color:var(--muted);font-size:13px;margin-top:6px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dleaf small,:root:not([data-theme="light"]) .dleaf .tag{color:#f6dfa6}}
+:root[data-theme="dark"] .dleaf small,:root[data-theme="dark"] .dleaf .tag{color:#f6dfa6}

@@ -1,6 +1,8 @@
 // Text for the new app shell (v0.10.0). Keys not found here fall back to /i18n.js (crop, soil and alert names).
 window.KS_TEXT = {
   bn: {
+    // v0.19.3
+    pbDemoTry: "ডেমো পাতা দিয়ে দেখুন", pbDemoMeasured: "SAM 3.1 দাগ দিয়েছে {date} · দাগ পাতার প্রায় {n}%", pbDemoNotYet: "এখনও মাপা হয়নি: SAM 3.1 ফিরলে নিজেই মাপা হবে", pbDemoNotYetLong: "এই ডেমো পাতা এখনও মাপা হয়নি। SAM 3.1 আবার উত্তর দিলে নিজেই মাপা হবে আর রাখা থাকবে। ছবি আর আপনার উত্তর দিয়ে সারাংশ এখনই হয়।", pbSaveDemo: "ডেমো পাতা হিসেবে রাখুন", pbSaveDemoS: "শুধু অ্যাডমিন, শুধু ডেমো খামারে। ডেমো খামারে সবাই এই পাতা দিয়ে দেখতে পারবে; আবার রাখলে আগেরটা বদলে যাবে।", pbSavedDemo: "ডেমো পাতা রাখা হয়েছে, মাপসহ", pbSavedDemoLater: "ডেমো পাতা রাখা হয়েছে; SAM 3.1 ফিরলে নিজেই মাপা হবে",
     // v0.19.2
     adReqId: "Request ID {id} · {t} UTC", adCopyMeta: "Meta সাপোর্টের জন্য কপি", adCopied: "কপি হয়েছে: Discord আর Meta টিকিটে পেস্ট করুন",
     // v0.19.1
@@ -506,6 +508,8 @@ window.KS_TEXT = {
     useAnyway: 'তবুও যোগ করুন', zone: 'অংশ', zonesH: 'জমির অংশ', zoomIn: 'বড় করুন', zoomOut: 'ছোট করুন',
   },
   hi: {
+    // v0.19.3
+    pbDemoTry: "डेमो पत्ते से आज़माएँ", pbDemoMeasured: "SAM 3.1 ने {date} को घेरा · धब्बे पत्ते का लगभग {n}%", pbDemoNotYet: "अभी नापा नहीं गया: SAM 3.1 लौटते ही अपने आप नापा जाएगा", pbDemoNotYetLong: "यह डेमो पत्ता अभी नापा नहीं गया। SAM 3.1 के फिर जवाब देते ही अपने आप नापा जाएगा और रखा रहेगा। फ़ोटो और आपके जवाबों से सारांश अभी बनता है।", pbSaveDemo: "डेमो पत्ते के रूप में रखें", pbSaveDemoS: "सिर्फ़ एडमिन, सिर्फ़ डेमो फ़ार्म में। डेमो फ़ार्म में सब इस पत्ते से आज़मा सकेंगे; फिर से रखने पर पुराना बदल जाएगा।", pbSavedDemo: "डेमो पत्ता नाप के साथ रखा गया", pbSavedDemoLater: "डेमो पत्ता रखा गया; SAM 3.1 लौटते ही अपने आप नापा जाएगा",
     // v0.19.2
     adReqId: "Request ID {id} · {t} UTC", adCopyMeta: "Meta सपोर्ट के लिए कॉपी", adCopied: "कॉपी हो गया: Discord और Meta टिकट में पेस्ट करें",
     // v0.19.1
@@ -1012,6 +1016,8 @@ window.KS_TEXT = {
     useAnyway: 'फिर भी जोड़ें', zone: 'हिस्सा', zonesH: 'खेत के हिस्से', zoomIn: 'बड़ा करें', zoomOut: 'छोटा करें',
   },
   en: {
+    // v0.19.3
+    pbDemoTry: "Try with the demo leaf", pbDemoMeasured: "Outlined by SAM 3.1 on {date} · patches about {n}% of the leaf", pbDemoNotYet: "Not measured yet: it will be measured by itself when SAM 3.1 is back", pbDemoNotYetLong: "This demo leaf is not measured yet. When SAM 3.1 answers again it is measured by itself and kept. The summary works now, from the photo and your answers.", pbSaveDemo: "Save as the demo leaf", pbSaveDemoS: "Admin only, demo farm only. Everyone in the demo farm can then try this leaf; saving again replaces it.", pbSavedDemo: "Saved as the demo leaf, with its measurement", pbSavedDemoLater: "Saved as the demo leaf; it will be measured by itself when SAM 3.1 is back",
     // v0.19.2
     adReqId: "Request ID {id} · {t} UTC", adCopyMeta: "Copy for Meta support", adCopied: "Copied: paste it into Discord and the Meta ticket",
     // v0.19.1

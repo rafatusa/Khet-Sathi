@@ -1,7 +1,8 @@
 // Khet Sathi v0.16.0: a photo of a crop problem. SAM 3.1 outlines the leaf and the yellow or brown patches and
 // Sathi works out how much of the leaf they cover: a measurement, never a diagnosis. The farmer taps what they
 // see, since when and on how many plants; Sathi puts it into a summary for the agriculture office that the
-// farmer sends themselves (WhatsApp through the phone's own share sheet, or copy). Nothing is saved.
+// farmer sends themselves (WhatsApp through the phone's own share sheet, or copy). Nothing is saved, except
+// (v0.19.3) the one demo leaf the admin keeps for the demo farm.
 (() => {
   'use strict';
   const K = window.KS;
@@ -77,11 +78,63 @@
     $('#probSheet').scrollTop = 0;
   }
   function open() {
-    Object.assign(P, { photo: null, m: null, plant: null, signs: new Set(), since: null, many: null, other: '' });
+    Object.assign(P, { photo: null, m: null, plant: null, signs: new Set(), since: null, many: null, other: '', demo: false });
     $('#pbIntro').textContent = t('pbIntro');
     $('#pbOffices').innerHTML = '';
     $('#probSheet').hidden = false;
     step(1);
+    loadDemoLeaf();
+  }
+
+  // ---------- v0.19.3: the demo farm's sample leaf ----------
+  // Saved once by the admin (with its SAM measurement, or measured later by the server when SAM is back);
+  // everyone in the demo farm can try it. Real farms' photos are still never stored.
+  let demoLeaf = null;
+  async function loadDemoLeaf() {
+    const card = $('#pbDemoLeaf');
+    card.hidden = true;
+    demoLeaf = null;
+    if (S.view !== 'demo') return;
+    const r = await api('/api/problem/demo-leaf').catch(() => null);
+    if (!r?.ok || !r.leaf || S.view !== 'demo') return;
+    demoLeaf = r.leaf;
+    const m = demoLeaf.measure;
+    const sub = m ? fmt('pbDemoMeasured', { date: K.fd(String(demoLeaf.measuredAt).slice(0, 10)), n: num(m.share) }) : t('pbDemoNotYet');
+    card.innerHTML = `<img src="${esc(K.imgUrl(demoLeaf.photoUrl))}" alt=""><span><b>${esc(t('pbDemoTry'))}</b><small>${esc(sub)}</small></span><span class="tag">${esc(t('demoTag'))}</span>`;
+    card.hidden = false;
+  }
+  async function blobToDataUrl(blob) {
+    return new Promise((done, fail) => {
+      const fr = new FileReader();
+      fr.onload = () => done(fr.result);
+      fr.onerror = () => fail(fr.error);
+      fr.readAsDataURL(blob);
+    });
+  }
+  $('#pbDemoLeaf').addEventListener('click', async () => {
+    if (!demoLeaf) return;
+    const res = await fetch(K.imgUrl(demoLeaf.photoUrl)).catch(() => null);
+    if (!res?.ok) return toast(t('error'));
+    P.photo = await blobToDataUrl(await res.blob());
+    P.demo = true;
+    step(2);
+    showMeasure(demoLeaf.measure || { error: 'not measured yet', width: demoLeaf.width, height: demoLeaf.height });
+  });
+  $('#pbSaveDemoBtn').addEventListener('click', async () => {
+    if (!P.photo) return;
+    $('#pbSaveDemoBtn').disabled = true;
+    const r = await postJson('/api/problem/demo-leaf', { photoDataUrl: P.photo, measure: measured() ? P.m : null }).catch((err) => ({ ok: false, error: err.message }));
+    $('#pbSaveDemoBtn').disabled = false;
+    if (!r.ok) return toast(`${t('error')}: ${r.error}`);
+    toast(t(r.leaf.measured ? 'pbSavedDemo' : 'pbSavedDemoLater'));
+  });
+  function showMeasure(m) {
+    P.m = m;
+    $('#pbPic').innerHTML = picHtml();
+    $('#pbMeasure').innerHTML = measured()
+      ? `<div class="kpis pbstats"><div class="kpi"><div class="lab"><span>${esc(t('pbLeaf'))}</span></div><div class="kv ydkv">${esc(t('pbLeafOk'))}</div></div><div class="kpi"><div class="lab"><span>${esc(t('pbPatch'))}</span></div><div class="kv ydkv">≈ ${esc(num(P.m.share))}%</div></div></div><div class="msg bot pbsay">${esc(P.m.share ? fmt('pbSays', { n: num(P.m.share), k: num(P.m.patches.length) }) : t('pbSaysNone'))}</div>`
+      : `<p class="note">${esc(t(P.demo ? 'pbDemoNotYetLong' : 'pbNoMeasure'))}</p>`;
+    $('#pbNext').disabled = false;
   }
   $('#probClose').addEventListener('click', () => ($('#probSheet').hidden = true));
   $('#pbJustOffice').addEventListener('click', () => {
@@ -92,18 +145,14 @@
     const f = e.target.files[0];
     if (!f) return;
     P.photo = await K.shrink(f, 1280);
+    P.demo = false;
     e.target.value = '';
     step(2);
     $('#pbPic').innerHTML = picHtml();
     $('#pbMeasure').innerHTML = `<div class="maploading" style="position:static;margin:8px 0"><span class="spin"></span><span>${esc(t('pbMeasuring'))}</span></div>`;
     $('#pbNext').disabled = true;
     const r = await postJson('/api/problem/measure', { photoDataUrl: P.photo }).catch((err) => ({ ok: false, error: err.message }));
-    P.m = r.ok ? r.measure : { error: r.error };
-    $('#pbPic').innerHTML = picHtml();
-    $('#pbMeasure').innerHTML = measured()
-      ? `<div class="kpis pbstats"><div class="kpi"><div class="lab"><span>${esc(t('pbLeaf'))}</span></div><div class="kv ydkv">${esc(t('pbLeafOk'))}</div></div><div class="kpi"><div class="lab"><span>${esc(t('pbPatch'))}</span></div><div class="kv ydkv">≈ ${esc(num(P.m.share))}%</div></div></div><div class="msg bot pbsay">${esc(P.m.share ? fmt('pbSays', { n: num(P.m.share), k: num(P.m.patches.length) }) : t('pbSaysNone'))}</div>`
-      : `<p class="note">${esc(t('pbNoMeasure'))}</p>`;
-    $('#pbNext').disabled = false;
+    showMeasure(r.ok ? r.measure : { error: r.error });
   });
   $('#pbNext').addEventListener('click', () => {
     step(3);
@@ -137,14 +186,16 @@
   // ---------- the summary ----------
   function rows() {
     const plant = P.plant === 'other' ? $('#pbOtherIn').value.trim() || t('pbOther') : t(P.plant);
-    const age = cropAge();
+    // v0.19.3: the age is the field crop's (from its sowing date), so it is shown only for that crop.
+    const age = P.plant === 'other' ? '' : cropAge();
     const seen = [...P.signs].map((s) => t(`pbSign_${s}`)).join(', ');
     return [
       [t('pbRCrop'), [plant, age].filter(Boolean).join(', ')],
       [t('pbRSeen'), [seen || t('pbNotSaid'), P.many ? t(`pbMany_${P.many}`) : ''].filter(Boolean).join(' · ')],
       [t('pbRMeas'), measured() ? fmt('pbMeasLine', { n: num(P.m.share) }) : t('pbNotMeasured')],
       [t('pbRSince'), P.since ? t(`pbSince_${P.since}`) : t('pbNotSaid')],
-      [t('pbRWhere'), [kindName(), placeName()].filter(Boolean).join(', ')],
+      // v0.19.3: the place name alone ("Bolpur land"); "field" or "home yard" only when it has no name.
+      [t('pbRWhere'), placeName() || kindName()],
     ];
   }
   const summaryText = () => [t('pbShareH'), ...rows().map(([k, v]) => `${k}: ${v}`), t('pbSentFrom')].join('\n');
@@ -153,6 +204,8 @@
     step(4);
     $('#pbSum').innerHTML = `<div class="pbsumtop">${P.photo ? `<img src="${esc(P.photo)}" alt="">` : ''}<b>${esc(t('pbSumH'))}</b></div>${rows().map(([k, v]) => `<div class="pbrow"><b>${esc(k)}</b><span>${esc(v)}</span></div>`).join('')}`;
     $('#pbOffices').innerHTML = '';
+    // v0.19.3: the admin, inside the demo farm, can keep this photo as the demo leaf (not the demo leaf itself).
+    $('#pbSaveDemo').hidden = !(S.view === 'demo' && S.admin && P.photo && !P.demo);
   });
   $('#pbShare').addEventListener('click', () => share(summaryText(), P.photo));
   $('#pbCopy').addEventListener('click', () => copy(summaryText()));
