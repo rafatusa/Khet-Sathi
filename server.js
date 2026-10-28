@@ -45,7 +45,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.18.0';
+const VERSION = '0.18.1';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -652,7 +652,29 @@ app.post(
 );
 
 // ---------- sheds (v0.11.0) ----------
-app.get('/api/sheds', guard, timed(async () => ({ sheds: await listSheds() })));
+// v0.18.1: each shed carries its own currency, from the country at its location (the same address lookup the
+// yard uses, done once per spot and kept in memory). The demo shed sits near Bolpur, West Bengal, so it stays
+// in rupees. A shed with no location gets none and the app uses the farm's field currency.
+const shedCur = new Map();
+async function shedCurrency(s) {
+  if (s?.demo || s?.builtIn) return currencyFor('IN');
+  const lat = Number(s?.lat);
+  const lon = Number(s?.lon);
+  if (s?.lat == null || s?.lon == null || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  const key = `${lat.toFixed(3)},${lon.toFixed(3)}`;
+  if (shedCur.has(key)) return shedCur.get(key);
+  const look = reverseGeocode(lat, lon, 'en')
+    .then((g) => {
+      const c = g?.cc ? currencyFor(g.cc) : null;
+      if (c) shedCur.set(key, c);
+      return c;
+    })
+    .catch(() => null);
+  // A slow lookup never holds up the shed list; it finishes in the background and the next load has it.
+  return Promise.race([look, new Promise((r) => setTimeout(() => r(null), 4000))]);
+}
+const withCurrency = async (s) => (s ? { ...s, currency: await shedCurrency(s) } : s);
+app.get('/api/sheds', guard, timed(async () => ({ sheds: await Promise.all((await listSheds()).map(withCurrency)) })));
 app.post(
   '/api/sheds',
   guard,
@@ -669,7 +691,7 @@ app.post(
       lon: Number.isFinite(lon) ? lon : null,
       lang: ['bn', 'hi', 'en'].includes(req.body?.lang) ? req.body.lang : 'bn',
     });
-    return { shed };
+    return { shed: await withCurrency(shed) };
   })
 );
 

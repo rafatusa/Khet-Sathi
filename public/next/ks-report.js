@@ -56,7 +56,7 @@
     ];
     const done = [];
     passes.filter((x) => within7(x.date)).forEach((x) => done.push(fmt('repPassDone', { date: fd(x.date), v: num(x.ndvi.mean, 2) })));
-    (S.deals || []).filter((d) => d.land_id === l?.id && within7(d.created_at)).forEach((d) => done.push(`${fmt(d.direction === 'sell' ? 'repSold' : 'repBought', { total: money(Number(d.total_inr || 0), (d.items || [])[0]?.symbol || '₹') })}${d.items?.[0]?.simulated !== false ? ` (${t('demoTag')})` : ''}`));
+    (S.deals || []).filter((d) => d.land_id === l?.id && within7(d.created_at)).forEach((d) => done.push(`${fmt(d.direction === 'sell' ? 'repSold' : 'repBought', { total: money(Number(d.total_inr || 0), (d.items || [])[0]?.symbol || K.curSym()) })}${d.items?.[0]?.simulated !== false ? ` (${t('demoTag')})` : ''}`));
     const al = (S.alerts || []).filter((a) => a.land_id === l?.id && within7(a.created_at)).length;
     if (al) done.push(fmt('repAlerts', { n: num(al) }));
     const next = [];
@@ -86,14 +86,14 @@
     const checks = (d.clips || []).filter((c) => within7(c.result?.checkedAt));
     const done = [];
     checks.forEach((c) => done.push(fmt('repCheck', { date: fd(c.result.checkedAt.slice(0, 10)), n: num(c.result.count?.count ?? 0) })));
-    sales.forEach((x) => done.push(`${fmt('repSold', { total: money(Number(x.total_inr || 0), '₹') })} (${t('simulated')})`));
+    sales.forEach((x) => done.push(`${fmt('repSold', { total: money(Number(x.total_inr || 0), K.shedSym()) })} (${t('simulated')})`));
     return {
       title: `${K.shedLine(S.shed)} · ${t('repTitle')}`,
       sub: t('repShedSub'),
       kpis: [
         [t('repEggsToday'), have.length ? num(have.at(-1).eggs) : '—'],
         [t('repEggsAvg'), avg != null ? num(avg) : '—'],
-        [t('repSales'), sales.length ? money(total, '₹') : '—'],
+        [t('repSales'), sales.length ? money(total, K.shedSym()) : '—'],
       ],
       chart: bars(eggs.map((x) => x.eggs ?? null), eggs.map((x) => fd(x.date, { weekday: 'short' }))),
       chartH: t('repChartEggs'),

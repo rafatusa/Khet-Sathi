@@ -10,7 +10,8 @@
   const L = () => K.lang();
   const isDemoShed = () => Boolean(S.shed?.demo || S.shed?.builtIn);
   const isDemoLand = () => S.cur?.location_source === 'demo';
-  const rupees = (n) => money(Number(n) || 0, '₹');
+  // v0.18.1: in the shed's own currency (৳ for a shed in Bangladesh); the demo shed near Bolpur stays in rupees.
+  const rupees = (n) => money(Number(n) || 0, K.shedSym());
 
   const P = { poultry: null, clips: { clips: [], todayId: null, max: 5 }, eggs: [], sel: null, pending: null, market: null, pick: new Set(['seed', 'fert', 'plough']), shop: null, feedIdx: 0, showResult: false };
   const last = { count: null, obs: null, birds: null, still: 0, resting: false, soundBad: false, vetLine: '' };

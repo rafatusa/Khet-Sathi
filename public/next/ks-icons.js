@@ -37,3 +37,17 @@ clock:'<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="19" fill="none" strok
 warn:'<svg viewBox="0 0 48 48"><path d="M24 5l21 38H3z" fill="currentColor"/><path d="M24 18v12" stroke="var(--surface)" stroke-width="4" stroke-linecap="round"/><circle cx="24" cy="36" r="2.5" fill="var(--surface)"/></svg>',
 soil:'<svg viewBox="0 0 48 48"><path d="M4 22h40v20H4z" fill="currentColor" opacity=".8"/><path d="M4 22q10-6 20 0t20 0" fill="currentColor"/><g fill="var(--surface)" opacity=".5"><circle cx="12" cy="32" r="2"/><circle cx="26" cy="36" r="2.5"/><circle cx="36" cy="29" r="1.8"/></g><path d="M24 22V8M24 12c-4-4-8-4-10-3M24 10c4-4 8-4 10-3" stroke="var(--leaf)" stroke-width="3" fill="none" stroke-linecap="round"/></svg>'
 };
+
+// v0.18.1: the money coin shows the currency of the place being viewed (৳ in Bangladesh, ₹ in India, $ in the US).
+// ks.js sets window.KS_CUR to a function that returns that symbol; until then the coin shows ₹.
+(function () {
+  const coin = (sym) => {
+    const s = String(sym || '₹');
+    const size = s.length > 2 ? 12 : s.length === 2 ? 15 : s === '৳' ? 28 : 22;
+    const y = s === '৳' ? 33 : s.length > 1 ? 29 : 32;
+    const e = s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    return `<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="currentColor"/><circle cx="24" cy="24" r="15" fill="none" stroke="var(--surface)" stroke-width="1.5" opacity=".5"/><text x="24" y="${y}" text-anchor="middle" font-size="${size}" font-weight="700" fill="var(--surface)" font-family="sans-serif">${e}</text></svg>`;
+  };
+  window.KS_COIN = coin;
+  Object.defineProperty(window.KS_ICONS, 'rupee', { get: () => coin(typeof window.KS_CUR === 'function' ? window.KS_CUR() : '₹'), enumerable: true, configurable: true });
+})();

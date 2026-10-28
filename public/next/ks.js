@@ -32,8 +32,13 @@
     const s = Math.round(Math.abs(n)).toLocaleString('en-IN');
     return `${n < 0 ? '−' : ''}${cur}${digits(s)}`;
   };
-  // v0.11.0: the land's currency comes from its country (place check); sheds and egg sales stay in rupees.
-  const curSym = () => S.plan?.currency?.symbol || S.cur?.place_info?.currency?.symbol || '₹';
+  // v0.11.0: the land's currency comes from its country (place check).
+  // v0.18.1: a shed's comes from its own location (the server adds it); a shed without one uses the farm's field
+  // currency; a yard uses its own. The money coin icon follows whichever place is being viewed.
+  const fieldSym = () => S.plan?.currency?.symbol || S.cur?.place_info?.currency?.symbol || (S.lands || []).find((l) => l.place_info?.currency?.symbol)?.place_info.currency.symbol || null;
+  const shedSym = (sh = S.shed) => sh?.currency?.symbol || fieldSym() || '₹';
+  const curSym = () => (S.mode === 'shed' ? shedSym() : S.mode === 'yard' ? S.yard?.place_info?.currency?.symbol || fieldSym() || '₹' : fieldSym() || '₹');
+  window.KS_CUR = curSym;
   const cropName = (key) => t(`crop_${key}`);
 
   // ---------- small helpers from the design ----------
@@ -473,6 +478,7 @@
   }
   function renderAll() {
     renderHeader();
+    document.querySelectorAll('[data-icon="rupee"]').forEach((e) => (e.innerHTML = I.rupee));
     applyMode();
     if (S.tab === 'home') renderHome();
     if (S.tab === 'field') renderField();
@@ -770,8 +776,8 @@
 
   // Money follows the place: a field's buys and sells, or the shed's egg sales.
   const isEggDeal = (d) => (d.items || [])[0]?.item === 'eggs';
-  const dealCur = (d) => (d.items || [])[0]?.symbol || '₹';
-  const mc = () => (S.mode === 'shed' ? '₹' : curSym());
+  const dealCur = (d) => (d.items || [])[0]?.symbol || curSym();
+  const mc = () => curSym();
   function dealTotals() {
     const conf = S.deals.filter((d) => d.status === 'confirmed').filter((d) => (S.mode === 'shed' ? isEggDeal(d) : !isEggDeal(d) && (!d.land_id || d.land_id === S.cur?.id)));
     const inc = conf.filter((d) => d.direction === 'sell').reduce((a, d) => a + Number(d.total_inr || 0), 0);
@@ -1979,7 +1985,7 @@
 
   // Shared with ks-shed.js (poultry, egg sale, buying for a field, demo calls).
   window.KS = {
-    S, $, $$, I, t, fmt, num, esc, fd, loc, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, skelBox, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store, shrink, exifGPS,
+    S, $, $$, I, t, fmt, num, esc, fd, loc, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, skelBox, shedSym, curSym, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store, shrink, exifGPS,
     lang: () => lang, show, ask, speak, toWav, renderAll, renderHeader, loadSide, loadSheds, openShed, openFarm, bubble, count, mini, lineChart,
     playUrl: (url) =>
       new Promise((done) => {
