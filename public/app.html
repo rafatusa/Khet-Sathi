@@ -148,11 +148,25 @@
 
   <!-- HOME -->
   <section id="home" role="tabpanel">
+    <!-- v0.18.0: a farm with no place yet -->
+    <div class="emptyhome" id="emptyHome" hidden>
+      <img src="/icons/icon.svg" alt="" width="64" height="64">
+      <h2 data-t="ehH"></h2>
+      <p class="muted" data-t="ehT"></p>
+      <div class="ehgrid">
+        <button class="ehbtn" type="button" id="ehField"><span data-icon="sat"></span><b data-t="ehField"></b><small data-t="ehFieldS"></small></button>
+        <button class="ehbtn" type="button" id="ehShed"><span data-icon="egg"></span><b data-t="ehShed"></b><small data-t="ehShedS"></small></button>
+        <button class="ehbtn" type="button" id="ehYard"><span data-icon="home"></span><b data-t="ehYard"></b><small data-t="ehYardS"></small></button>
+      </div>
+      <button class="demopick" type="button" id="ehDemo"><span data-icon="sprout"></span><span><b data-t="watchDemo"></b><small data-t="watchDemoS"></small></span><span class="tag" data-t="demoTag"></span></button>
+    </div>
     <div class="strip">
       <div class="plantmini" id="plantHome"></div>
       <div class="strip-t"><div class="big" id="heroBig"></div><div class="hi" id="heroSub"></div></div>
       <button class="cta" id="heroCta"><span data-icon="check" id="heroIc"></span><span id="heroCtaT"></span></button>
     </div>
+    <!-- v0.18.0: the weekly report for the place on screen -->
+    <div class="replink"><button class="btn ghost" type="button" data-report><span data-icon="clock"></span><span data-t="repBtn"></span></button></div>
     <div class="dash cropdash" id="dashCrop" hidden>
       <div class="card span2"><div class="lab"><span data-icon="harvester"></span><span data-t="readyH"></span><span class="src-tag">SENTINEL-2 · <span id="hvCalSrc"></span></span></div><div id="hvReady"></div></div>
       <div class="card span2"><div class="lab"><span data-icon="tractor"></span><span data-t="bookH"></span><span class="src-tag sim" id="hvBookTag" data-t="demoTag"></span></div><div id="hvBook"></div></div>
@@ -489,6 +503,16 @@
   </div>
 </div>
 
+<!-- v0.18.0: WEEKLY FARM REPORT (printable: Save as PDF from the phone's print screen) -->
+<div class="sheet" id="repSheet" hidden>
+  <div class="wrap sh narrowsh">
+    <div class="shtop noprint"><button class="iconbtn" id="repClose" data-tl="close">×</button><h2 style="margin:0" data-t="repTitle"></h2></div>
+    <div id="repBody"></div>
+    <div class="btns noprint" style="margin-top:12px"><button class="cta wa" type="button" id="repShare"><span data-icon="chat"></span><span data-t="shareWa"></span></button><button class="btn ghost" type="button" id="repPdf" data-t="repPdf"></button></div>
+    <p class="muted small noprint" data-t="repPdfNote"></p>
+  </div>
+</div>
+
 <!-- v0.16.0: A CROP PROBLEM (photo -> SAM 3.1 leaf and patches, measured -> farmer's answers -> summary to send) -->
 <div class="sheet" id="probSheet" hidden>
   <div class="wrap sh narrowsh">
@@ -576,5 +600,6 @@
 <script src="/next/ks-yard.js"></script>
 <script src="/next/ks-problem.js"></script>
 <script src="/next/ks-install.js"></script>
+<script src="/next/ks-report.js"></script>
 </body>
 </html>

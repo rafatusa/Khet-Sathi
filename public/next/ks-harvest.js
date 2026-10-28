@@ -51,7 +51,7 @@
     const r = ready();
     const crop = cropName(S.cur.crop);
     const ask = () => K.ask(fmt('qPlanHarvest', { crop }));
-    if (!H.data) return { big: crop, sub: t('loadingPlan'), cta: t('askSaathi'), icon: 'chat', go: ask };
+    if (!H.data) return { big: crop, sub: '', cta: t('askSaathi'), icon: 'chat', go: ask };
     if (!r) return { big: crop, sub: t('noSowDate'), cta: t('setSowDate'), icon: 'clock', go: () => openGrow({ land: S.cur, plan: S.plan }) };
     const big = r.stage === 'ready' ? fmt('heroHarvestNow', { crop }) : r.stage === 'late' ? fmt('heroHarvestLate', { crop }) : fmt('heroHarvestIn', { crop, n: num(r.daysLeft) });
     const sub = [fmt('harvestWin', { a: fd(r.harvestStart), b: fd(r.harvestEnd) }), r.stage === 'ripening' ? t('turning') : ''].filter(Boolean).join(' · ');
@@ -65,7 +65,7 @@
     load();
     const d = H.data;
     if (!d) {
-      ['#hvReady', '#hvBook', '#hvSell'].forEach((s) => ($(s).innerHTML = emptyBox(t('loadingPlan'))));
+      ['#hvReady', '#hvBook', '#hvSell'].forEach((s) => ($(s).innerHTML = K.skelBox()));
       return;
     }
     if (d.error) {
@@ -160,7 +160,7 @@
     load();
     const d = H.data;
     if (!d) {
-      $('#mcRule').innerHTML = emptyBox(t('loadingPlan'));
+      $('#mcRule').innerHTML = K.skelBox();
       $('#mcOffers').innerHTML = '';
       $('#mcBuyers').innerHTML = emptyBox(t('findingBuyers'));
       return;
@@ -379,5 +379,5 @@
     }
   });
 
-  window.KSHarvest = { load, hero, renderHome, renderMarket, steps, openGrow };
+  window.KSHarvest = { load, hero, renderHome, renderMarket, steps, openGrow, data: () => H.data };
 })();

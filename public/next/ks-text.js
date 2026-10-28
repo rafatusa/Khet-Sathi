@@ -1,6 +1,21 @@
 // Text for the new app shell (v0.10.0). Keys not found here fall back to /i18n.js (crop, soil and alert names).
 window.KS_TEXT = {
   bn: {
+    // v0.18.0
+    loadingL: "লোড হচ্ছে", noMoneyT: "প্রথম বিক্রি বা অর্ডারের পর টাকার আসা-যাওয়া এখানে দেখা যাবে।", birdsCounted: "গোনা মুরগি", birdsStill: "নড়ছে না",
+    ehH: "আপনার খামার শুরু করুন", ehT: "একটা জায়গা যোগ করুন: সাথী স্যাটেলাইট থেকে জমি দেখবে, শেডের ক্যামেরা দেখবে, উঠোনে কী লাগাবেন বলবে।",
+    ehField: "জমি", ehFieldS: "ছবি বা লোকেশন দিয়ে", ehShed: "মুরগির শেড", ehShedS: "নাম আর কতগুলো মুরগি", ehYard: "বাড়ির উঠোন", ehYardS: "একটা ছবি থেকে",
+    repBtn: "সাপ্তাহিক রিপোর্ট", repTitle: "সাপ্তাহিক রিপোর্ট", repPdf: "PDF হিসেবে রাখুন",
+    repPdfNote: "PDF: ফোনের প্রিন্ট পর্দায় \"PDF হিসেবে সেভ করুন\" বেছে নিন।", repChartL: "চার্ট", repNdvi: "সবুজ ভাব (NDVI)",
+    repRain7: "সামনের ৭ দিনে বৃষ্টি", repToHarvest: "কাটা পর্যন্ত", repNextPass: "পরের স্যাটেলাইট ছবি", repDays: "{n} দিন",
+    repPassDone: "{date}-এর স্যাটেলাইট ছবি: সবুজ ভাব {v}", repSold: "বিক্রি {total}", repBought: "কেনা {total}", repAlerts: "{n}টি সতর্কবার্তা",
+    repRainOn: "{date} বৃষ্টি হতে পারে: সেদিন সেচ লাগবে না", repNoRain: "সামনের কয়েক দিন বৃষ্টি নেই", repNextPassOn: "পরের স্যাটেলাইট ছবি {date}",
+    repHarvestFrom: "{crop} কাটার সময় {date} থেকে", repSowBy: "{crop} বোনা যাবে {date} পর্যন্ত",
+    repChartNdvi: "ফসলের সবুজ ভাব, শেষ কয়েকটা স্যাটেলাইট ছবি", repShedSub: "শেডের কিট ডেমো", repEggsToday: "আজকের ডিম", repEggsAvg: "৭ দিনে গড় ডিম",
+    repSales: "এই সপ্তাহে বিক্রি", repChartEggs: "দিনে কত ডিম", repCheck: "{date}: ক্যামেরা দেখা, {n}টি মুরগি গোনা",
+    repShedNext: "প্রতিদিন একবার শেডের ক্যামেরা দেখুন; গরম বা পানি কমলে সাথী জানাবে।", repShedSrc: "শেডের কিট (ডেমো) · ক্যামেরা · SAM 3.1",
+    repPicks: "এখন লাগানোর গাছ", repPlantNow: "এখন যা লাগানো যায়", repDemoNote: "ডেমো লেখা অংশগুলো নমুনা", repDone: "এই সপ্তাহে যা হলো",
+    repNext: "সামনের সপ্তাহে", repQuiet: "এই সপ্তাহে নতুন কিছু হয়নি",
     // v0.17.0
     wkH: "সাথী কাজ করছে", secShort: "সে", wkCtx_field: "আপনার জমির মাপ, মাটি, আবহাওয়া আর ক্যালেন্ডার নিচ্ছে", wkCtx_yard: "উঠোনের মাপ আর আবহাওয়া দেখছে",
     wkCtx_shed: "শেডের কিট আর ক্যামেরার শেষ দেখা পড়ছে", wkShedSrc: "শেডের কিট (ডেমো) · ক্যামেরা", wkThink: "প্রশ্নটা বুঝে পরিকল্পনা করছে",
@@ -485,6 +500,21 @@ window.KS_TEXT = {
     useAnyway: 'তবুও যোগ করুন', zone: 'অংশ', zonesH: 'জমির অংশ', zoomIn: 'বড় করুন', zoomOut: 'ছোট করুন',
   },
   hi: {
+    // v0.18.0
+    loadingL: "लोड हो रहा है", noMoneyT: "पहली बिक्री या ऑर्डर के बाद पैसों का आना-जाना यहाँ दिखेगा।", birdsCounted: "गिनी गई मुर्गियाँ",
+    birdsStill: "हिल नहीं रहीं", ehH: "अपना खेत शुरू करें",
+    ehT: "एक जगह जोड़ें: साथी उपग्रह से खेत देखेगी, शेड का कैमरा देखेगी, आँगन में क्या लगाएँ बताएगी।", ehField: "खेत", ehFieldS: "फ़ोटो या लोकेशन से",
+    ehShed: "मुर्गी शेड", ehShedS: "नाम और कितनी मुर्गियाँ", ehYard: "घर का आँगन", ehYardS: "एक फ़ोटो से", repBtn: "साप्ताहिक रिपोर्ट",
+    repTitle: "साप्ताहिक रिपोर्ट", repPdf: "PDF के रूप में रखें", repPdfNote: "PDF: फ़ोन की प्रिंट स्क्रीन पर \"PDF के रूप में सेव करें\" चुनें।",
+    repChartL: "चार्ट", repNdvi: "हरियाली (NDVI)", repRain7: "अगले 7 दिन बारिश", repToHarvest: "कटाई तक", repNextPass: "अगली उपग्रह तस्वीर",
+    repDays: "{n} दिन", repPassDone: "{date} की उपग्रह तस्वीर: हरियाली {v}", repSold: "बिक्री {total}", repBought: "ख़रीद {total}",
+    repAlerts: "{n} चेतावनियाँ", repRainOn: "{date} बारिश हो सकती है: उस दिन सिंचाई नहीं चाहिए", repNoRain: "अगले कुछ दिन बारिश नहीं",
+    repNextPassOn: "अगली उपग्रह तस्वीर {date}", repHarvestFrom: "{crop} की कटाई {date} से", repSowBy: "{crop} {date} तक बो सकते हैं",
+    repChartNdvi: "फ़सल की हरियाली, पिछली कुछ उपग्रह तस्वीरें", repShedSub: "शेड की किट डेमो", repEggsToday: "आज के अंडे", repEggsAvg: "7 दिन का औसत",
+    repSales: "इस हफ़्ते बिक्री", repChartEggs: "रोज़ कितने अंडे", repCheck: "{date}: कैमरा जाँच, {n} मुर्गियाँ गिनीं",
+    repShedNext: "रोज़ एक बार शेड का कैमरा देखें; गर्मी या पानी कम होने पर साथी बताएगी।", repShedSrc: "शेड की किट (डेमो) · कैमरा · SAM 3.1",
+    repPicks: "अभी लगाने के पौधे", repPlantNow: "अभी क्या लगा सकते हैं", repDemoNote: "डेमो लिखे हिस्से नमूना हैं", repDone: "इस हफ़्ते क्या हुआ",
+    repNext: "अगले हफ़्ते", repQuiet: "इस हफ़्ते कुछ नया नहीं हुआ",
     // v0.17.0
     wkH: "साथी काम कर रही है", secShort: "से", wkCtx_field: "आपके खेत का नाप, मिट्टी, मौसम और कैलेंडर ले रही है",
     wkCtx_yard: "आँगन का नाप और मौसम देख रही है", wkCtx_shed: "शेड की किट और कैमरे की आख़िरी जाँच पढ़ रही है", wkShedSrc: "शेड की किट (डेमो) · कैमरा",
@@ -950,7 +980,7 @@ window.KS_TEXT = {
     nCams: 'मुर्गी', nField: 'खेत', nHome: 'होम', nMarket: 'बाज़ार', nMoney: 'पैसा', nSaathi: 'साथी',
     ndviH: 'फ़सल की हरियाली (NDVI)', ndviMean: 'औसत NDVI', ndviMinMax: 'NDVI कम / ज़्यादा', net: 'शुद्ध', next: 'अब', nextPass: 'अगला पास',
     nextPassInfo: '{sat} · {date} (10 दिन के चक्कर से अनुमान)', noAnswer: 'जवाब नहीं मिला', noFaoHere: 'इस इलाक़े का सरकारी बुवाई कैलेंडर नहीं है। साथी मिट्टी और मौसम देखकर अनुमान दे सकता है।',
-    noFieldFound: 'खेत की सीमा नहीं मिली', noLandYet: 'अभी कोई ज़मीन नहीं', noMoney: 'अभी कोई लेन-देन नहीं', noOutlineShort: 'सीमा नहीं', noPhotoGps: 'फ़ोटो में GPS नहीं, फ़ोन की लोकेशन ले रहा हूँ',
+    noFieldFound: 'खेत की सीमा नहीं मिली', noLandYet: 'अभी कोई ज़मीन नहीं', noMoney: 'अभी कोई लेन-देन नहीं', noOutlineShort: 'सीमा नहीं', noPhotoGps: 'फ़ोटो में GPS नहीं, फ़ोन की लोकेशन ले रही हूँ',
     noRainSoon: 'जल्द बारिश नहीं', noZones: 'साफ़ पास मिलने पर खेत के हिस्से दिखेंगे', nothingWaiting: 'अभी कुछ इंतज़ार में नहीं',
     noData: 'डेटा नहीं', hBare: 'खाली या कटा खेत', hSparse: 'हल्की हरियाली', hMid: 'बढ़ती फ़सल', hDense: 'घनी हरी फ़सल',
     oneClear: 'सिर्फ़ {date} का पास साफ़ था', oneWatch: '1 पर नज़र रखें', online: 'आपका खेत देख रहा है · ऑनलाइन', openClassic: 'पुराने ऐप में खोलें', outlineBy: 'सीमा',
@@ -970,6 +1000,21 @@ window.KS_TEXT = {
     useAnyway: 'फिर भी जोड़ें', zone: 'हिस्सा', zonesH: 'खेत के हिस्से', zoomIn: 'बड़ा करें', zoomOut: 'छोटा करें',
   },
   en: {
+    // v0.18.0
+    loadingL: "Loading", noMoneyT: "Money in and out shows here after your first sale or order.", birdsCounted: "chickens counted",
+    birdsStill: "not moving", ehH: "Start your farm",
+    ehT: "Add a place: Sathi watches a field from the satellite, checks a shed camera, or says what to plant in your yard.", ehField: "Field",
+    ehFieldS: "from a photo or location", ehShed: "Poultry shed", ehShedS: "a name and how many chickens", ehYard: "Home yard", ehYardS: "from one photo",
+    repBtn: "Weekly report", repTitle: "Weekly report", repPdf: "Save as PDF", repPdfNote: "PDF: on the phone's print screen, pick \"Save as PDF\".",
+    repChartL: "Chart", repNdvi: "Greenness (NDVI)", repRain7: "Rain, next 7 days", repToHarvest: "To harvest", repNextPass: "Next satellite image",
+    repDays: "{n} days", repPassDone: "Satellite image of {date}: greenness {v}", repSold: "Sold {total}", repBought: "Bought {total}",
+    repAlerts: "{n} alerts", repRainOn: "Rain is likely {date}: no irrigation needed that day", repNoRain: "No rain in the next few days",
+    repNextPassOn: "Next satellite image {date}", repHarvestFrom: "{crop} harvest from {date}", repSowBy: "{crop} can be sown until {date}",
+    repChartNdvi: "Crop greenness, last few satellite images", repShedSub: "the shed kit is a demo", repEggsToday: "Eggs today",
+    repEggsAvg: "7-day average", repSales: "Sales this week", repChartEggs: "Eggs per day", repCheck: "{date}: camera check, {n} chickens counted",
+    repShedNext: "Check the shed camera once a day; Sathi warns you about heat or low water.", repShedSrc: "shed kit (demo) · camera · SAM 3.1",
+    repPicks: "Plants to sow now", repPlantNow: "What to plant now", repDemoNote: "parts marked demo are samples", repDone: "This week",
+    repNext: "Next week", repQuiet: "Nothing new this week",
     // v0.17.0
     wkH: "Sathi is working", secShort: "s", wkCtx_field: "Getting your field size, soil, weather and calendar",
     wkCtx_yard: "Checking the yard size and weather", wkCtx_shed: "Reading the shed kit and the last camera check", wkShedSrc: "shed kit (demo) · camera",

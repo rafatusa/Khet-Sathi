@@ -320,3 +320,48 @@ body[data-page="landing"]>header,body[data-page="landing"]>main,body[data-page="
 @keyframes wv{0%,100%{height:5px}50%{height:16px}}
 @keyframes ring{from{transform:scale(.85);opacity:.5}to{transform:scale(1.18);opacity:0}}
 @media (prefers-reduced-motion:reduce){#sathiAv .avwave i,#sathiAv.talking::after,.work .sp{animation:none}}
+/* v0.18.0: design pass */
+/* 1. Phones: five tabs in one row; Settings stays in the avatar menu (desktop keeps it in the header). */
+@media (max-width:999px){#tabs [data-tab="settings"]{display:none!important}}
+/* 2. Loading placeholders */
+.skel{display:grid;gap:8px;padding:2px 0}
+.skel i{display:block;border-radius:10px;background:linear-gradient(90deg,var(--line) 0%,var(--bg) 50%,var(--line) 100%);background-size:200% 100%;animation:shim 1.3s linear infinite}
+@keyframes shim{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.skel i{animation:none}}
+/* 3. Empty Home */
+.emptyhome{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:24px 18px;display:grid;gap:10px;justify-items:center;text-align:center;animation:rise .4s}
+.emptyhome h2{font-family:var(--f-display);font-size:1.4rem;line-height:1.2;margin:4px 0 0;max-width:30ch}
+.emptyhome>p{margin:0;max-width:52ch}
+.ehgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;width:100%;margin-top:8px}
+@media (max-width:640px){.ehgrid{grid-template-columns:1fr}}
+.ehbtn{font:inherit;color:var(--ink);background:var(--bg);border:2px solid var(--line);border-radius:16px;padding:16px 12px;display:grid;gap:4px;justify-items:center;cursor:pointer;min-height:44px;transition:border-color .15s,background .15s}
+.ehbtn:hover{border-color:var(--leaf);background:var(--leaf-soft)}.ehbtn:active{transform:scale(.98)}
+.ehbtn [data-icon]{width:36px;color:var(--leaf)}.ehbtn b{font-family:var(--f-display);font-size:1.05rem}.ehbtn small{color:var(--muted)}
+.emptyhome .demopick{width:100%;text-align:left}
+/* 4. Money with no deals yet */
+.moneyempty{display:grid;gap:4px;justify-items:center;text-align:center;padding:18px 8px}
+.moneyempty .mi{width:52px;height:52px;border-radius:50%;background:var(--leaf-soft);color:var(--leaf);display:grid;place-items:center}.moneyempty .mi svg{width:28px;height:28px}
+.moneyempty p{margin:0;max-width:40ch}
+/* 5. The shed kit card fits its content */
+.card.sh-kit{align-self:start}
+/* Weekly report */
+.replink{display:flex;justify-content:flex-end;margin:-4px 0 12px}
+.replink .btn{min-height:44px}
+.rep{background:#fff;color:#1d2419;border:1px solid var(--line);border-radius:18px;padding:18px;display:grid;gap:12px}
+.rhead{display:flex;gap:10px;align-items:center}.rhead img{width:40px;height:40px;flex:none}.rhead b{font-family:var(--f-display);font-size:1.05rem;display:block;line-height:1.25}.rhead small{color:#5a6553}
+.rk{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.rk>div{background:#f3f5ec;border-radius:12px;padding:8px 10px;min-width:0}.rk .k{font-size:.75rem;color:#5a6553}.rk .v{font-family:var(--f-display);font-weight:800;font-size:1.05rem;line-height:1.2}
+.rsec h4{margin:0 0 6px;font-size:.92rem}.rsec ul{margin:0;padding-left:18px;font-size:.92rem}.rsec li{margin:3px 0}
+.repchart{width:100%;height:auto;display:block}
+.rfoot{font-size:.75rem;color:#5a6553;border-top:1px solid #dde2d4;padding-top:8px}
+/* Print: only the report, on one A4 page */
+@media print{
+  @page{size:A4;margin:14mm}
+  body.printing-report>*:not(#repSheet){display:none!important}
+  body.printing-report #repSheet{position:static!important;inset:auto;background:#fff!important;overflow:visible}
+  body.printing-report #repSheet .noprint{display:none!important}
+  body.printing-report .rep{border:0;padding:0;max-width:none}
+  body.printing-report .wrap.sh{max-width:none;padding:0}
+  html:has(body.printing-report),body.printing-report{background:#fff!important}
+  body.printing-report .repchart{width:120mm;max-width:100%;display:block}
+}
+.zinfo:empty{display:none}

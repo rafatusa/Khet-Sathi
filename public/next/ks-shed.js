@@ -79,7 +79,7 @@
     if (sale && sale.trays >= 1 && (sale.due || S.alerts.some((a) => a.title === 'sell_due' || a.title === 'sell_offers'))) {
       const r = sale.rule || {};
       const rule = [r.min_count ? fmt('ruleWhen', { n: num(r.min_count) }) : '', r.every_days ? fmt('ruleEveryN', { n: num(r.every_days) }) : '', r.ask_first !== false ? t('ruleAskShort') : '', r.floor_price ? fmt('ruleFloorShort', { p: rupees(r.floor_price) }) : ''].filter(Boolean).join(' · ');
-      return { big: fmt('traysReady', { n: num(sale.trays) }), sub: rule, cta: t('seeOffers'), icon: 'rupee', go: () => startSale() };
+      return { big: fmt('traysReady', { n: num(sale.trays) }), sub: rule, cta: t('seeOffers'), icon: 'chat', go: () => startSale() }; // v0.18.0: an outline icon (the filled rupee showed as a white blob)
     }
     if (last.still > 0 && !last.resting) return { big: fmt('stillTitle', { n: num(last.still) }), sub: last.vetLine || t('b_birds_still'), cta: t('callVet'), icon: 'warn', go: openVet };
     return { big: K.shedLine(S.shed), sub: feedLine() || t('shedNormal'), cta: t('checkShed'), icon: 'camera', go: () => K.show('shed') };
@@ -824,7 +824,7 @@
   async function loadMarket() {
     if (!S.cur) return;
     const id = S.cur.id;
-    $('#mkNeeds').innerHTML = emptyBox(t('loadingPlan'));
+    $('#mkNeeds').innerHTML = K.skelBox();
     $('#mkCall').hidden = true;
     $('#mkTotal').textContent = '';
     $('#mkShops').innerHTML = emptyBox(t('findingShops'));
@@ -969,5 +969,6 @@
     }
   }
 
-  window.KSShed = { load, render, renderHome, hero, openAddShed, openVet, playCalls, comingSoon };
+  // v0.18.0: what the weekly report needs (eggs per day and this shed's camera checks).
+  window.KSShed = { load, render, renderHome, hero, openAddShed, openVet, playCalls, comingSoon, reportData: () => ({ eggs: P.eggs, clips: myClips() }) };
 })();

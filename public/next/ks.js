@@ -518,7 +518,7 @@
     if (!l) return { big: t('heroAddH'), sub: t('heroAddS'), cta: t('addLand'), icon: 'plus', go: openAdd };
     if (!hasField(l)) return { big: t('heroNoFieldH'), sub: t('heroNoFieldS'), cta: t('rescan'), icon: 'pin', go: rescan };
     if (S.plan?.blocked) return { big: t('resiH'), sub: placeLine(S.plan.place), cta: t('addField'), icon: 'pin', go: openAdd };
-    if (growingNow()) return window.KSHarvest?.hero() || { big: cropName(l.crop), sub: t('loadingPlan'), cta: t('askSaathi'), icon: 'chat', go: () => ask(fmt('qPlanHarvest', { crop: cropName(l.crop) })) };
+    if (growingNow()) return window.KSHarvest?.hero() || { big: cropName(l.crop), sub: '', cta: t('askSaathi'), icon: 'chat', go: () => ask(fmt('qPlanHarvest', { crop: cropName(l.crop) })) };
     const c = S.plan?.crops?.[0];
     if (c) {
       const sub = [placeLine(S.plan.place), whenText(c)].filter(Boolean).join(' · ');
@@ -530,6 +530,16 @@
   $('#heroCta').addEventListener('click', () => heroGo && heroGo());
 
   function renderHome() {
+    // v0.18.0: a farm with no place yet gets one clear start screen instead of empty cards.
+    const empty = S.mode === 'field' && !S.cur;
+    $('#emptyHome').hidden = !empty;
+    $('#home .strip').hidden = empty;
+    $('#home .replink').hidden = empty;
+    if (empty) {
+      ['#dash', '#dashCrop'].forEach((s) => ($(s).hidden = true));
+      $('#ehDemo').hidden = Boolean(S.view);
+      return;
+    }
     const h = hero();
     heroGo = h.go;
     $('#heroBig').textContent = h.big;
@@ -619,6 +629,10 @@
     const dots = data.length < 12 ? data.map((v, i) => `<circle cx="${xs(i)}" cy="${ys(v)}" r="2.6" fill="${color}"/>`).join('') : '';
     return `<svg class="chart" viewBox="0 0 ${W} ${H}">${ticks}${xlab}<path class="ar" d="${d} L${ex} ${H - B} L${L} ${H - B}Z" fill="${soft}"/><path class="ln draw" pathLength="1" d="${d}" stroke="${color}"/>${dots}<circle class="pulse" cx="${ex}" cy="${ey}" r="5" stroke="${color}"/><circle class="end" cx="${ex}" cy="${ey}" r="5.5" fill="${color}" stroke="var(--surface)" stroke-width="2.5"/>${pinS}</svg>`;
   }
+  // v0.18.0: while something loads, its shape shimmers in place (no sentence, nothing jumps when it arrives).
+  function skelBox(h = 84) {
+    return `<div class="skel" aria-busy="true" aria-label="${esc(t('loadingL'))}"><i style="width:42%;height:14px"></i><i style="height:${h}px"></i><i style="width:70%;height:14px"></i></div>`;
+  }
   function emptyBox(text) {
     return `<div class="emptybox">${esc(text)}</div>`;
   }
@@ -698,7 +712,7 @@
     $('#growSrc').textContent = cropSrc(p);
     if (!S.cur) return (box.innerHTML = emptyBox(t('heroAddS')));
     if (!hasField(S.cur)) return (box.innerHTML = emptyBox(t('heroNoFieldS')));
-    if (!p) return (box.innerHTML = emptyBox(t('loadingPlan')));
+    if (!p) return (box.innerHTML = skelBox());
     if (p.blocked) return (box.innerHTML = blockedBox(p));
     if (!p.calendar?.length) {
       box.innerHTML = `${emptyBox(t('noFaoHere'))}<button class="btn ghost" id="aiEstimate">${esc(t('aiEstimate'))}</button>`;
@@ -743,7 +757,7 @@
   function renderRain() {
     const days = S.plan?.weather?.days || [];
     if (!days.length) {
-      $('#chRain').innerHTML = emptyBox(S.cur && hasField(S.cur) ? t('loadingPlan') : t('heroAddS'));
+      $('#chRain').innerHTML = (S.cur && hasField(S.cur) ? skelBox(120) : emptyBox(t('heroAddS')));
       $('#wx').innerHTML = '';
       return;
     }
@@ -766,6 +780,9 @@
   }
   function renderDonut() {
     const { conf, inc, out } = dealTotals();
+    // v0.18.0: no deals yet: a short empty state instead of an empty chart.
+    $('#money .bars').hidden = !conf.length;
+    $('#money .barl').hidden = !conf.length;
     const tot = Math.max(inc + out, 1);
     const box = $('#donut');
     const pIn = (inc / tot) * 100;
@@ -827,7 +844,7 @@
       $('#trackFill').style.width = '0%';
       if (!S.cur) box.innerHTML = emptyBox(t('heroAddS'));
       else if (!hasField(S.cur)) box.innerHTML = emptyBox(t('heroNoFieldS'));
-      else if (!p) box.innerHTML = emptyBox(t('loadingPlan'));
+      else if (!p) box.innerHTML = skelBox();
       else if (p.blocked) box.innerHTML = emptyBox(t('resiH'));
       else if (!p.calendar?.length) {
         box.innerHTML = `${emptyBox(t('noFaoHere'))}<button class="btn ghost" id="aiEstimate2">${esc(t('aiEstimate'))}</button>`;
@@ -1532,6 +1549,9 @@
   // ================= MONEY =================
   function renderMoney() {
     const { conf, inc, out } = dealTotals();
+    // v0.18.0: no deals yet: a short empty state instead of an empty chart.
+    $('#money .bars').hidden = !conf.length;
+    $('#money .barl').hidden = !conf.length;
     const mx = Math.max(inc, out, 1);
     $('#mIn').textContent = money(inc, mc());
     $('#mOut').textContent = money(out, mc());
@@ -1545,7 +1565,7 @@
             return `<div class="entry">${I[d.direction === 'sell' ? 'rupee' : 'cart']}<div class="t"><b>${esc(label)}</b><div class="who">${esc(new Date(d.created_at).toLocaleDateString(loc(), { day: 'numeric', month: 'short' }))} · ${esc(t('simulated'))}</div></div><span class="a ${d.direction === 'sell' ? 'in-c' : 'out-c'}">${d.direction === 'sell' ? '+' : '−'}${esc(money(Number(d.total_inr || 0), dealCur(d)))}</span></div>`;
           })
           .join('')
-      : `<div class="muted" style="text-align:center;padding:16px">${esc(t('noMoney'))}</div>`;
+      : `<div class="moneyempty"><span class="mi">${I.cart}</span><b>${esc(t('noMoney'))}</b><p class="muted small">${esc(t('noMoneyT'))}</p></div>`;
   }
 
   // ================= LAND SWITCHER =================
@@ -1886,17 +1906,18 @@
   }
   // First sign-in on this browser: the demo places, ready to try, and adding one's own field.
   // First sign-in on this browser, with an empty farm: add a field or a shed, or watch the demo farm.
-  function welcome() {
-    if (S.view || S.lands.length || S.sheds.length || S.yards.length) return;
-    const key = `ks_welcomed_${sess?.email || ''}`;
-    if (store.get(key)) return;
-    store.set(key, '1');
-    $('#welcomeSheet').hidden = false;
-  }
+  // v0.18.0: the empty Home now offers the same choices (field, shed, yard, demo farm), so the welcome
+  // sheet no longer opens by itself.
+  function welcome() {}
   $('#welcomeShedAdd').addEventListener('click', () => {
     $('#welcomeSheet').hidden = true;
     window.KSShed?.openAddShed();
   });
+  // v0.18.0: the empty Home's buttons.
+  $('#ehField').addEventListener('click', openAdd);
+  $('#ehShed').addEventListener('click', () => window.KSShed?.openAddShed());
+  $('#ehYard').addEventListener('click', () => window.KSYard?.openAdd());
+  $('#ehDemo').addEventListener('click', () => enterView('demo'));
   $('#welcomeYardAdd').addEventListener('click', () => {
     $('#welcomeSheet').hidden = true;
     window.KSYard?.openAdd();
@@ -1958,7 +1979,7 @@
 
   // Shared with ks-shed.js (poultry, egg sale, buying for a field, demo calls).
   window.KS = {
-    S, $, $$, I, t, fmt, num, esc, fd, loc, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store, shrink, exifGPS,
+    S, $, $$, I, t, fmt, num, esc, fd, loc, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, skelBox, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store, shrink, exifGPS,
     lang: () => lang, show, ask, speak, toWav, renderAll, renderHeader, loadSide, loadSheds, openShed, openFarm, bubble, count, mini, lineChart,
     playUrl: (url) =>
       new Promise((done) => {

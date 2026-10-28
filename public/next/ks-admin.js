@@ -20,7 +20,7 @@
   async function loadChecks(force = false) {
     A.busy = true;
     $('#adRun').disabled = true;
-    $('#adChecks').innerHTML = emptyBox(t('loadingPlan'));
+    $('#adChecks').innerHTML = K.skelBox();
     const r = await api(`/api/admin/checks${force ? '?run=1' : ''}`).catch((e) => ({ ok: false, error: e.message }));
     A.busy = false;
     $('#adRun').disabled = false;
@@ -38,7 +38,7 @@
   }
 
   async function loadOverview() {
-    $('#adFarms').innerHTML = emptyBox(t('loadingPlan'));
+    $('#adFarms').innerHTML = K.skelBox();
     const r = await api('/api/admin/overview').catch((e) => ({ ok: false, error: e.message }));
     A.overview = r.ok ? r : { error: r.error };
     renderOverview();

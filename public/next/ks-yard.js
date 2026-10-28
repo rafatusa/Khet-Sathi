@@ -75,7 +75,7 @@
     if (!y) return { big: t('ydHeroAdd'), sub: '', cta: t('addYard'), icon: 'plus', go: openAdd };
     if (!y.size_m2) return { big: t('ydHeroSize'), sub: yardTitle(y), cta: t('ydGiveSize'), icon: 'pin', go: () => openAdd(y) };
     const p = Y.d?.picks || [];
-    if (!p.length) return { big: Y.d ? t('ydNoPicks') : t('loadingPlan'), sub: yardTitle(y), cta: t('askSaathi'), icon: 'chat', go: () => K.ask(t('qYard')) };
+    if (!p.length) return { big: Y.d ? t('ydNoPicks') : '', sub: yardTitle(y), cta: t('askSaathi'), icon: 'chat', go: () => K.ask(t('qYard')) };
     return { big: fmt('ydHero', { plants: p.map((x) => plantName(x.key)).join(', ') }), sub: `${sizeText(Y.d, y)} · ${sunWord(y.sun)}`, cta: t('askSaathi'), icon: 'chat', go: () => K.ask(t('qYard')) };
   }
   function renderHome() {
@@ -96,7 +96,7 @@
     $('#ydPicks').innerHTML = !y?.size_m2
       ? `<div class="emptybox">${esc(t('ydNeedSize'))}</div><button class="btn" type="button" data-ydsize>${esc(t('ydGiveSize'))}</button>`
       : !d
-        ? `<div class="emptybox">${esc(t('loadingPlan'))}</div>`
+        ? K.skelBox()
         : d.error
           ? `<div class="emptybox">${esc(`${t('error')}: ${d.error}`)}</div>`
           : picks.length
@@ -328,5 +328,5 @@
   });
 
   $('#ydShare').addEventListener('click', () => window.KSProblem?.share(listText()));
-  window.KSYard = { loadYards, open, hero, renderHome, headerLine, listHtml, openAdd, officeHtml, yardTitle, picks: () => Y.d?.picks || [] };
+  window.KSYard = { loadYards, open, hero, renderHome, headerLine, listHtml, openAdd, officeHtml, yardTitle, picks: () => Y.d?.picks || [], details: () => Y.d || {} };
 })();
