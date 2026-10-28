@@ -49,15 +49,17 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.20.1';
+const VERSION = '0.21.0';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
 const PUB = path.join(__dirname, 'public');
 app.get(['/', '/index.html'], (req, res) => res.sendFile(path.join(PUB, 'app.html')));
 // v0.15.1: each tab has its own address; they all open the same app, which shows that tab.
-app.get(['/home', '/sathi', '/field', '/shed', '/market', '/money', '/settings'], (req, res) => res.sendFile(path.join(PUB, 'app.html')));
+app.get(['/home', '/sathi', '/field', '/shed', '/market', '/money', '/settings', '/guide'], (req, res) => res.sendFile(path.join(PUB, 'app.html')));
 // v0.17.0: browsers ask for /favicon.ico on their own; the app's icon answers.
+// v0.21.0: the guide for browser agents (Meta's Muse and others); /llms.txt is served from public/ as it is.
+app.get('/for-agents', (req, res) => res.sendFile(path.join(PUB, 'for-agents.html')));
 app.get('/favicon.ico', (req, res) => res.type('image/png').sendFile(path.join(PUB, 'icons', 'favicon-32.png')));
 // The service worker must come from the site root to look after the whole app, and must never be cached stale.
 app.get('/sw.js', (req, res) => res.set('Cache-Control', 'no-cache').type('application/javascript').sendFile(path.join(PUB, 'sw.js')));

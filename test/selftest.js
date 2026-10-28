@@ -1392,7 +1392,7 @@ await checkAsync('Demo leaf: saved without a measurement while SAM is down, meas
 
 await checkAsync('v0.20.1: spots asked with three short phrases and combined; Measure again; yard says SAM answered', async () => {
   const pb = await import('../lib/problem.js');
-  assert.deepEqual(pb.PATCH_PROMPTS, ['brown spot', 'yellow patch', 'spot']);
+  assert.deepEqual(pb.PATCH_PROMPTS, ['brown spot', 'yellow patch', 'spot', 'brown area']);
   const obj = (l, t, r, b) => ({ id: 1, box: { left: l, top: t, right: r, bottom: b }, areaPx: (r - l) * (b - t), containsPoint: true, raw: { l, t, r, b }, mask: { width: 4, height: 4, bounds: { left: l, top: t, right: r, bottom: b }, svgPath: 'M0 0Z' } });
   const asked = [];
   const seg = async (img, prompt) => {
@@ -1400,13 +1400,14 @@ await checkAsync('v0.20.1: spots asked with three short phrases and combined; Me
     if (prompt === 'leaf') return { objects: [obj(0, 0, 100, 100)] };
     if (prompt === 'brown spot') return { objects: [obj(10, 10, 30, 30)] };
     if (prompt === 'yellow patch') throw new Error('timeout');
+    if (prompt === 'brown area') return { objects: [obj(0, 0, 100, 100), obj(140, 10, 170, 40)] }; // the whole leaf again, and a spot on another leaf
     return { objects: [obj(11, 11, 30, 30), obj(60, 60, 80, 80)] }; // 'spot': one repeat, one new
   };
   const rect = (g, gw, gh, sc, raw) => { for (let yy = Math.floor(raw.t * sc); yy < Math.floor(raw.b * sc); yy++) for (let xx = Math.floor(raw.l * sc); xx < Math.floor(raw.r * sc); xx++) g[yy * gw + xx] = 1; };
-  const m = await pb.measureProblem({ dataUrl: 'x', width: 100, height: 100 }, { segment: seg, paintFn: rect });
+  const m = await pb.measureProblem({ dataUrl: 'x', width: 200, height: 100 }, { segment: seg, paintFn: rect });
   assert.equal(m.error, null, 'one phrase failing does not fail the measurement');
-  assert.deepEqual(asked.slice(1).sort(), ['brown spot', 'spot', 'yellow patch']);
-  assert.equal(m.patches.length, 2, 'the same spot found by two phrases is counted once');
+  assert.deepEqual(asked.slice(1).sort(), ['brown area', 'brown spot', 'spot', 'yellow patch']);
+  assert.equal(m.patches.length, 2, 'the same spot found twice counts once; spots on other leaves and the whole leaf again are dropped');
   assert.equal(m.share, 8, '20x20 + 20x20 of a 100x100 leaf');
   const allDown = await pb.measureProblem({ dataUrl: 'x', width: 100, height: 100 }, { segment: async (i, p) => { if (p === 'leaf') return { objects: [obj(0, 0, 100, 100)] }; throw new Error('model_not_found'); } });
   assert.match(allDown.error, /model_not_found/, 'every phrase failing is an error, not 0%');
@@ -1432,6 +1433,28 @@ await checkAsync('v0.20.1: spots asked with three short phrases and combined; Me
   const again = await dl.retryLeaf({ getFile, putFile, force: true, measure: async () => ({ leaf: shape, patches: [shape], share: 40 }), now: new Date('2026-10-29T00:01:00Z') });
   assert.equal(again.measure.share, 40);
   assert.equal(again.measuredAt, '2026-10-29T00:01:00.000Z');
+});
+
+await checkAsync('v0.21.0: Guide and agent texts exist in Bangla, Hindi and English; every button named in the Guide exists; the agent guides state the rules', async () => {
+  const fs = await import('node:fs');
+  const vm = await import('node:vm');
+  const box = { window: {} };
+  vm.runInNewContext(fs.readFileSync(new URL('../public/next/ks-text.js', import.meta.url), 'utf8'), box);
+  vm.runInNewContext(fs.readFileSync(new URL('../public/i18n.js', import.meta.url), 'utf8'), box);
+  const T = Object.values(box.window).find((v) => v && v.en && v.bn && v.hi);
+  assert.ok(T, 'app text found');
+  const I = Object.values(box.window).find((v) => v && v !== T && v.en && v.bn && v.hi) || { bn: {}, hi: {}, en: {} };
+  const keys = Object.keys(T.en).filter((k) => /^(gd|ag)[A-Z0-9]/.test(k) || ['askL', 'addAnyL', 'pbPickPlant'].includes(k));
+  assert.ok(keys.length > 40);
+  for (const L of ['bn', 'hi']) for (const k of keys) assert.ok(T[L][k], `${L} ${k}`);
+  for (const L of ['bn', 'hi', 'en']) for (const k of keys) for (const [, ref] of String(T[L][k]).matchAll(/\{([a-zA-Z0-9]+)\}/g)) assert.ok(T[L][ref] || I[L]?.[ref], `${L} ${k} names {${ref}}`);
+  const page = fs.readFileSync(new URL('../public/for-agents.html', import.meta.url), 'utf8');
+  const txt = fs.readFileSync(new URL('../public/llms.txt', import.meta.url), 'utf8');
+  for (const doc of [page, txt]) {
+    assert.match(doc, /never guess one/);
+    assert.match(doc, /never names a disease or a medicine/);
+    assert.match(doc, /data-action/);
+  }
 });
 
 await checkAsync('Meta relay: with the two Railway variables set, calls go to the relay with the key in X-Meta-Key and the secret; without them, direct', async () => {

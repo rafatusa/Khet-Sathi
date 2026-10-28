@@ -96,7 +96,7 @@
         ['harvester', I.harvester, t('harvesterL'), fmt('harvesterS', { ac: num(ac, 2), date: fd(r?.harvestStart) })],
         ['transport', I.tractor, t('transportL'), fmt('transportS', { q: num(q || 0, 1), u: unitT(d.unit) })],
       ]
-        .map(([w, ic, a, b]) => `<div class="bookrow"><span class="bic">${ic}</span><span class="nm"><b>${esc(a)}</b><small>${esc(b)}</small></span><button class="btn" type="button" data-book="${w}">${esc(t('book'))}</button></div>`)
+        .map(([w, ic, a, b]) => `<div class="bookrow"><span class="bic">${ic}</span><span class="nm"><b>${esc(a)}</b><small>${esc(b)}</small></span><button class="btn" type="button" data-book="${w}" aria-label="${esc(`${t('book')}: ${a}`)}">${esc(t('book'))}</button></div>`)
         .join('') + `<p class="muted small">${esc(t(isDemo() ? 'bookNoteDemo' : 'bookNoteReal'))}</p>`;
     $('#hvSellTag').hidden = !isDemo();
     $('#hvSell').innerHTML = q
@@ -170,7 +170,7 @@
     const u = unitT(d.unit);
     $('#mcTag').hidden = !isDemo();
     $('#mcRule').innerHTML = `
-      <div class="ruleopt"><span>${esc(t('sellQtyL'))}</span><div class="stepper"><button type="button" class="iconbtn" data-mc="qty:-1">−</button><b>${esc(r.qty ? `${num(r.qty, 1)} ${u}` : '—')}</b><button type="button" class="iconbtn" data-mc="qty:1">+</button></div>${d.amount ? `<small class="muted">${esc(fmt('aboutQty', { q: num(d.amount.units, 1), u }))}</small>` : ''}</div>
+      <div class="ruleopt"><span>${esc(t('sellQtyL'))}</span><div class="stepper"><button type="button" class="iconbtn" data-mc="qty:-1" aria-label="${esc(`${t('agLess')}: ${t('sellQtyL')}`)}">−</button><b>${esc(r.qty ? `${num(r.qty, 1)} ${u}` : '—')}</b><button type="button" class="iconbtn" data-mc="qty:1" aria-label="${esc(`${t('agMore')}: ${t('sellQtyL')}`)}">+</button></div>${d.amount ? `<small class="muted">${esc(fmt('aboutQty', { q: num(d.amount.units, 1), u }))}</small>` : ''}</div>
       <label class="ruleopt"><span>${esc(fmt('floorL', { u }))}</span><span class="floorin"><span>${esc(sym())}</span><input id="mcFloor" inputmode="numeric" value="${r.floor_price ?? ''}" placeholder="${esc(d.samplePrice ? String(d.samplePrice) : '')}"></span><small class="muted">${esc(d.samplePrice ? t('floorHint') : t('noRealPrice'))}</small></label>
       <div class="ruleopt"><span>${esc(t('whenL'))}</span><div class="chips">${['harvest', 'hold30'].map((w) => `<button type="button" class="chip" data-when="${w}" aria-pressed="${r.when === w}">${esc(t(w === 'harvest' ? 'whenHarvest' : 'whenHold'))}</button>`).join('')}</div></div>
       <label class="ruleopt"><label><input type="checkbox" id="mcAsk" ${r.ask_first !== false ? 'checked' : ''}><span>${esc(t('askMe'))}</span></label></label>

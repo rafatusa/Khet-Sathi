@@ -10,6 +10,7 @@
 <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="help" href="/for-agents" title="How AI agents can use Khet Sathi">
 <meta property="og:title" content="Khet Sathi">
 <meta property="og:description" content="One voice for every farm decision: Bangla, Hindi and English, on Meta's Muse models.">
 <meta property="og:image" content="https://khetsathi.royalbengal.ai/icons/og.png">
@@ -27,7 +28,7 @@
     <div class="lp-logo"><img class="lp-mark" src="/icons/icon.svg" alt="" width="34" height="34">Khet <span>Sathi</span></div>
     <a href="#lp-how" data-t="lpNavHow"></a><a href="#lp-calls" data-t="lpNavCalls"></a><a href="#lp-built" data-t="lpNavBuilt"></a>
     <span class="lp-sp"></span>
-    <div class="lang" role="group" aria-label="Language"><button data-lang="bn" aria-pressed="true">বাং</button><button data-lang="hi" aria-pressed="false">हिं</button><button data-lang="en" aria-pressed="false">EN</button></div>
+    <div class="lang" role="group" aria-label="Language"><button type="button" data-lang="bn" aria-pressed="true" aria-label="বাংলা (Bangla)">বাং</button><button type="button" data-lang="hi" aria-pressed="false" aria-label="हिंदी (Hindi)">हिं</button><button type="button" data-lang="en" aria-pressed="false" aria-label="English">EN</button></div>
     <button class="lp-btn dark" type="button" data-lp="signin" data-t="signIn"></button>
     <button class="lp-av" type="button" data-lp="app" id="lpAv" data-tl="lpGoFarm" hidden></button>
   </nav>
@@ -97,16 +98,17 @@
   <div class="wrap top">
     <a class="logo-btn" href="/" id="logoBtn" data-tl="lpHomeL"><img src="/icons/icon.svg" alt="" width="44" height="44"></a>
     <div>
-      <div class="brand">Khet <span>Sathi</span></div>
+      <div class="brand" role="link" tabindex="0" data-tl="lpHomeL">Khet <span>Sathi</span></div>
       <button class="farmbtn" id="farmBtn" data-tl="switchLand"><span class="mchip" id="modeChip"></span><span class="t" id="farmLine"></span><span data-icon="chev"></span></button>
     </div>
     <div class="toptabs" id="topTabs"></div>
     <div class="hbtns">
-      <button class="addbtn" id="addBtn"><span data-icon="plus"></span><span class="t" data-t="addAny"></span></button>
-      <div class="lang" role="group" aria-label="Language"><button data-lang="bn" aria-pressed="true">বাং</button><button data-lang="hi" aria-pressed="false">हिं</button><button data-lang="en" aria-pressed="false">EN</button></div>
+      <button class="guidebtn" id="guideBtn" type="button" data-tl="gdTab"><span data-icon="guide"></span></button>
+      <button class="addbtn" id="addBtn" type="button" data-tl="addAnyL"><span data-icon="plus"></span><span class="t" data-t="addAny"></span></button>
+      <div class="lang" role="group" aria-label="Language"><button type="button" data-lang="bn" aria-pressed="true" aria-label="বাংলা (Bangla)">বাং</button><button type="button" data-lang="hi" aria-pressed="false" aria-label="हिंदी (Hindi)">हिं</button><button type="button" data-lang="en" aria-pressed="false" aria-label="English">EN</button></div>
       <button class="avatar-btn" id="meBtn" type="button" data-tl="account" hidden></button>
     </div>
-    <div class="memenu" id="meMenu" hidden><div class="em mono" id="meEmail"></div><button type="button" id="meSettings" data-t="nSettings" hidden></button><button type="button" id="meDemo" data-t="watchDemo"></button><button type="button" id="meTour" data-t="tourMenu"></button><div class="lang menu-lang" role="group" aria-label="Language"><button data-lang="bn" aria-pressed="true">বাং</button><button data-lang="hi" aria-pressed="false">हिं</button><button data-lang="en" aria-pressed="false">EN</button></div><button type="button" id="meFarm" data-t="myFarm"></button><button type="button" id="meOut" data-t="signOut"></button></div>
+    <div class="memenu" id="meMenu" hidden><div class="em mono" id="meEmail"></div><button type="button" id="meSettings" data-t="nSettings" hidden></button><button type="button" id="meDemo" data-t="watchDemo"></button><button type="button" id="meTour" data-t="tourMenu"></button><button type="button" id="meGuide" data-t="gdTab"></button><div class="lang menu-lang" role="group" aria-label="Language"><button type="button" data-lang="bn" aria-pressed="true" aria-label="বাংলা (Bangla)">বাং</button><button type="button" data-lang="hi" aria-pressed="false" aria-label="हिंदी (Hindi)">हिं</button><button type="button" data-lang="en" aria-pressed="false" aria-label="English">EN</button></div><button type="button" id="meFarm" data-t="myFarm"></button><button type="button" id="meOut" data-t="signOut"></button></div>
   </div>
 </header>
 
@@ -297,11 +299,11 @@
           <div class="avatar" id="sathiAv"><span data-icon="leaf"></span><span class="avwave" aria-hidden="true"><i></i><i></i><i></i><i></i></span></div>
           <div><b>Sathi</b><div class="who" id="brainLine" data-t="online"></div></div>
         </div>
-        <div class="thread" id="thread" aria-live="polite"></div>
+        <div class="thread" id="thread" role="log" aria-live="polite" data-tl="nSaathi"></div>
         <div class="quick" id="quick"></div>
         <div id="listen" hidden class="listening"><div class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span data-t="listening"></span></div>
         <form class="askrow" id="askForm">
-          <input id="askInput" autocomplete="off" data-tp="askPh">
+          <input id="askInput" autocomplete="off" data-tp="askPh" data-tl="askL">
           <button class="mic" type="button" id="mic" data-tl="speak"><span data-icon="mic"></span></button>
         </form>
       </div>
@@ -343,6 +345,9 @@
       </div>
     </div>
   </section>
+
+  <!-- GUIDE (v0.21.0): how the app works, for people and AI agents; filled by ks-guide.js -->
+  <section id="guide" role="tabpanel" hidden><div id="guideBody"></div></section>
 
   <section id="money" role="tabpanel" hidden>
     <div class="panel">
@@ -418,7 +423,7 @@
   </div>
 </div>
 
-<div class="sheet" id="farmSheet" hidden>
+<div class="sheet" id="farmSheet" data-name="switchLand" hidden>
   <div class="wrap sh">
     <div class="shtop"><button class="iconbtn" id="farmClose" data-tl="close">×</button><h2 style="margin:0" id="farmTitle"></h2></div>
     <div class="secl" data-t="fieldsH"></div>
@@ -447,7 +452,7 @@
 </div>
 
 <!-- VET: what Sathi saw, two questions, the exact words and the farmer's yes -->
-<div class="sheet" id="vetSheet" hidden>
+<div class="sheet" id="vetSheet" data-name="signsTitle" hidden>
   <div class="wrap sh narrowsh">
     <div class="shtop"><button class="iconbtn" id="vetClose" data-tl="close">×</button><h2 style="margin:0" id="vetTitle"></h2></div>
     <div id="v1"><p class="muted small" data-t="signsHint"></p><div class="chips" id="vetSigns"></div><p class="muted small" id="vetSignsNote" data-t="signsNote"></p><button class="cta wide" type="button" id="vetNext1"><span data-t="signsOk"></span></button></div>
@@ -591,9 +596,11 @@
   <button role="tab" data-tab="saathi" aria-selected="false"><span data-icon="chat"></span><span data-t="nSaathi"></span><span class="badge" id="badge" hidden>0</span></button>
   <button role="tab" data-tab="market" aria-selected="false"><span data-icon="cart"></span><span data-t="nMarket"></span></button>
   <button role="tab" data-tab="money" aria-selected="false"><span data-icon="rupee"></span><span data-t="nMoney"></span></button>
+  <button role="tab" data-tab="guide" aria-selected="false"><span data-icon="guide"></span><span data-t="gdTab"></span></button>
   <button role="tab" data-tab="settings" aria-selected="false" hidden><span data-icon="eye"></span><span data-t="nSettings"></span></button>
 </div></nav>
-<div class="toast" id="toast" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="sr-only" id="agentSay" role="status" aria-live="polite"></div>
 <script src="/i18n.js"></script>
 <script src="/next/ks-icons.js"></script>
 <script src="/next/ks-text.js"></script>
@@ -606,5 +613,7 @@
 <script src="/next/ks-install.js"></script>
 <script src="/next/ks-report.js"></script>
 <script src="/next/ks-tour.js"></script>
+<script src="/next/ks-guide.js"></script>
+<script src="/next/ks-agent.js"></script>
 </body>
 </html>

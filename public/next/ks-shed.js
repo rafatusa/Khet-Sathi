@@ -952,7 +952,7 @@
   // "Coming soon" sheet (calls, email, CCTV): a plain promise, never a fake result.
   document.body.insertAdjacentHTML(
     'beforeend',
-    `<div class="sheet" id="soonSheet" hidden><div class="wrap sh narrowsh"><div class="shtop"><button class="iconbtn" id="soonClose" aria-label="close">×</button></div><div class="soonbox"><span class="soonic">${I.chat}</span><h2 id="soonT"></h2><p id="soonS"></p><span class="pill warn">${esc(t('comingSoon'))}</span></div><button class="cta wide" type="button" id="soonOk"><span>${esc(t('gotIt'))}</span></button></div></div>`
+    `<div class="sheet" id="soonSheet" data-name="comingSoon" hidden><div class="wrap sh narrowsh"><div class="shtop"><button class="iconbtn" id="soonClose" aria-label="close">×</button></div><div class="soonbox"><span class="soonic">${I.chat}</span><h2 id="soonT"></h2><p id="soonS"></p><span class="pill warn">${esc(t('comingSoon'))}</span></div><button class="cta wide" type="button" id="soonOk"><span>${esc(t('gotIt'))}</span></button></div></div>`
   );
   $('#soonClose').addEventListener('click', () => ($('#soonSheet').hidden = true));
   $('#soonOk').addEventListener('click', () => ($('#soonSheet').hidden = true));

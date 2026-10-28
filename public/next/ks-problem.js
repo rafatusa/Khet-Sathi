@@ -178,7 +178,8 @@
   $('#pbNext').addEventListener('click', () => {
     step(3);
     const plants = plantChoices();
-    P.plant = P.plant || plants[0]?.key || 'other';
+    // v0.21.0: nothing is picked in advance (the demo leaf is not the field's rice); the field's crop stays first.
+    P.plant = P.plant || null;
     $('#pbPlants').innerHTML = [...plants, { key: 'other', name: t('pbOther') }].map((p) => `<button class="chip" type="button" data-plant="${esc(p.key)}" aria-pressed="${p.key === P.plant}">${esc(p.name)}</button>`).join('');
     $('#pbOtherBox').hidden = P.plant !== 'other';
     $('#pbSigns').innerHTML = SIGNS.map((s) => `<button class="chip" type="button" data-sign="${s}" aria-pressed="${P.signs.has(s)}">${esc(t(`pbSign_${s}`))}</button>`).join('');
@@ -221,6 +222,7 @@
   }
   const summaryText = () => [t('pbShareH'), ...rows().map(([k, v]) => `${k}: ${v}`), t('pbSentFrom')].join('\n');
   $('#pbMake').addEventListener('click', () => {
+    if (!P.plant) return toast(t('pbPickPlant'));
     if (!P.signs.size) return toast(t('pbPickSign'));
     step(4);
     $('#pbSum').innerHTML = `<div class="pbsumtop">${P.photo ? `<img src="${esc(P.photo)}" alt="">` : ''}<b>${esc(t('pbSumH'))}</b></div>${rows().map(([k, v]) => `<div class="pbrow"><b>${esc(k)}</b><span>${esc(v)}</span></div>`).join('')}`;

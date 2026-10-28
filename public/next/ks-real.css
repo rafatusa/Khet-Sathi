@@ -432,3 +432,42 @@ body[data-page="landing"]>header,body[data-page="landing"]>main,body[data-page="
 .dsave{margin-top:10px}.dsave small{display:block;color:var(--muted);font-size:13px;margin-top:6px}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dleaf small,:root:not([data-theme="light"]) .dleaf .tag{color:#f6dfa6}}
 :root[data-theme="dark"] .dleaf small,:root[data-theme="dark"] .dleaf .tag{color:#f6dfa6}
+
+/* v0.21.0: the check mark on main buttons was drawn white on white (only the circle showed). */
+.cta [data-icon="check"] path{stroke:var(--leaf)}
+.cta.turm [data-icon="check"] path{stroke:var(--turmeric)}
+.cta.wa [data-icon="check"] path{stroke:#1f7a43}
+/* v0.21.0: text only for screen readers and browser agents */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.sheet:focus{outline:none}
+
+/* v0.21.0: the Guide. A tab on laptops; on phones the bottom bar keeps its five buttons and the Guide opens from
+   the header button and the account menu. */
+nav.bottom [data-tab="guide"]{display:none}
+.guidebtn{width:40px;height:40px;border-radius:50%;border:2px solid var(--line);background:var(--surface);color:var(--leaf);display:grid;place-items:center;cursor:pointer;flex:none;padding:0}
+.guidebtn svg{width:22px;height:22px}
+@media (min-width:1000px){.guidebtn{display:none}}
+.gd-hero{display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px 20px}
+.gd-hero>div{flex:1 1 320px;min-width:0}
+.gd-hero h1{margin:0 0 4px;font:800 1.5rem/1.2 var(--f-display)}
+.gd-hero p{margin:0;color:var(--muted)}
+.gd-hero .btns{display:flex;gap:8px;flex-wrap:wrap}
+.gd-sec{margin:22px 0 8px;font:700 .78rem var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.gd-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:999px){.gd-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.gd-grid{grid-template-columns:1fr}}
+.gd-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.gd-card h3{margin:0 0 4px;font-size:1rem}
+.gd-card p{margin:0;color:var(--muted);font-size:.9rem}
+.gd-card .m{display:inline-block;margin-top:8px;font:600 .72rem var(--f-mono, ui-monospace);color:var(--leaf);background:color-mix(in srgb,var(--leaf) 12%,var(--surface));padding:3px 7px;border-radius:6px}
+.gd-steps details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:0 14px;margin-bottom:8px}
+.gd-steps summary{font-weight:700;cursor:pointer;min-height:48px;display:flex;align-items:center}
+.gd-steps ol{margin:0 0 12px;padding-left:22px}
+.gd-steps li{margin:4px 0}
+.gd-steps b{color:var(--leaf)}
+.gd-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:640px){.gd-two{grid-template-columns:1fr}}
+.gd-real{border-left:4px solid var(--leaf)}
+.gd-demo{border-left:4px solid var(--turmeric)}
+.gd-note{margin:12px 0 0;color:var(--muted);font-size:.92rem}
+.gd-note a{color:var(--leaf);font-weight:700}

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Khet Sathi for AI agents</title>
+<meta name="description" content="How browser agents (Meta's Muse and others) can use the Khet Sathi farm app: screens, common tasks, rules.">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<style>
+  :root { --bg:#f6f5ee; --card:#fff; --ink:#1d2419; --muted:#56614f; --line:#dde2d4; --leaf:#2f7a2a; --leafbg:#e5efdc; --warn:#fbf0d6; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  main { max-width:820px; margin:0 auto; padding:28px 16px 64px; }
+  h1 { font-size:28px; line-height:1.2; margin:0 0 6px; }
+  h2 { font-size:20px; margin:32px 0 10px; padding-top:8px; border-top:1px solid var(--line); }
+  h3 { font-size:16px; margin:20px 0 6px; }
+  p, li { max-width:72ch; }
+  .lead { color:var(--muted); }
+  code, kbd { font:14px ui-monospace, Consolas, monospace; background:var(--leafbg); padding:1px 5px; border-radius:4px; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); font-size:15px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { background:#eef1e6; font-size:13px; }
+  .rule { background:var(--warn); border-radius:10px; padding:12px 14px; }
+  ol li { margin:3px 0; }
+  a { color:var(--leaf); }
+</style>
+</head>
+<body>
+<main>
+<h1>Khet Sathi for AI agents</h1>
+<p class="lead">This page is for browser agents such as Meta's Muse acting for a person. Khet Sathi is a farm app for smallholder farmers in Bangladesh, India and anywhere else: fields seen by satellite, poultry sheds checked from phone videos, home yards, a farm helper called Sathi, and selling the harvest. A plain-text copy is at <a href="/llms.txt">/llms.txt</a>.</p>
+
+<h2 id="rules">Rules</h2>
+<div class="rule">
+<ol>
+  <li><b>Sign-in needs the person.</b> Sign in sends a 6-digit code to their email. Ask the person for the code; never guess one, never try codes.</li>
+  <li><b>Confirm before acting.</b> Ask the person before any Book, Sell, Confirm, Save, Remove or Share step.</li>
+  <li><b>Sathi never names a disease or a medicine</b>, for crops or for birds. Do not ask her to. For a sick crop or bird she finds the nearest agriculture office or vet.</li>
+  <li><b>Labels you must keep.</b> "sample prices", "demo" and "simulated" mark things that are not real. Do not present them as real quotes, orders or calls.</li>
+  <li>Calls to buyers and services in the app are demo calls and never reach a real person. Real shops and offices are only listed (Google Maps), with their phone number for the person to call.</li>
+</ol>
+</div>
+
+<h2 id="find">How to find things on the page</h2>
+<ul>
+  <li>Every button has a fixed <code>data-action</code> attribute that does not change with the language (for example <code>data-action="addBtn"</code>). Visible text changes with the language buttons <b>বাংলা (Bangla)</b>, <b>हिंदी (Hindi)</b> and <b>English</b>; press <b>English</b> first if that helps.</li>
+  <li>Popups are dialogs with a name (their title). When one opens or closes, a status message says "Opened: …" or "Closed: …". <kbd>Escape</kbd> or the button "Close: …" closes it.</li>
+  <li>While the app works it shows a status message ("Measuring…", "Looking for shops near this field…"). Wait until it is gone before the next step.</li>
+  <li>Short notices ("Saved", errors) appear as a status message at the bottom.</li>
+</ul>
+
+<h2 id="screens">Screens</h2>
+<table>
+  <thead><tr><th>Screen</th><th>Address</th><th>What it is for</th></tr></thead>
+  <tbody>
+    <tr><td>Home</td><td><code>/home</code></td><td>The place on screen (a field, a shed or a yard): what to do today, weather, tasks</td></tr>
+    <tr><td>Sathi</td><td><code>/sathi</code></td><td>Ask Sathi anything by text or voice. Her answer shows each step of her work and where each number came from</td></tr>
+    <tr><td>Field</td><td><code>/field</code></td><td>The field from the Sentinel-2 satellite: greenness, moisture, rain, temperature</td></tr>
+    <tr><td>Poultry</td><td><code>/shed</code></td><td>A shed's videos: SAM 3.1 counts the chickens; Muse Spark listens for unusual sounds</td></tr>
+    <tr><td>Market</td><td><code>/market</code></td><td>Selling the harvest: buyers' offers (demo calls) and the person's own selling rules</td></tr>
+    <tr><td>Money</td><td><code>/money</code></td><td>Income and costs for the place</td></tr>
+    <tr><td>Guide</td><td><code>/guide</code></td><td>How the app works, for people: the same tasks as below, in Bangla, Hindi and English. On phones it opens from the book button in the header</td></tr>
+    <tr><td>Settings</td><td><code>/settings</code></td><td>Admins only: checks of every service</td></tr>
+  </tbody>
+</table>
+<p>The button under the app name in the header (<code>data-action="farmBtn"</code>) switches between the person's places. <b>Add a field, shed or yard</b> (<code>addBtn</code>) adds one. The account button (<code>meBtn</code>) has <b>Watch the demo farm</b> (<code>meDemo</code>), <b>My farm</b> and <b>Sign out</b>.</p>
+
+<h2 id="tasks">Common tasks</h2>
+
+<h3>Sign in</h3>
+<ol>
+  <li>Press <b>Sign in</b>. Type the person's email in the email box, press <b>Send me a code</b>.</li>
+  <li>Ask the person for the 6-digit code from that email and type it in the code box.</li>
+</ol>
+
+<h3>Look at the demo farm (no farm of your own needed)</h3>
+<ol>
+  <li>After sign-in, open the account button and press <b>Watch the demo farm</b>. A bar at the top says it is the demo farm; <b>My farm</b> returns.</li>
+  <li>The demo farm cannot be changed by visitors; anything saved there is refused with a notice.</li>
+</ol>
+
+<h3>Ask Sathi</h3>
+<ol>
+  <li>Open <b>Sathi</b>. Type in the box named <b>Ask Sathi</b> and press <kbd>Enter</kbd>.</li>
+  <li>Her answer appears in the conversation (a log that announces new messages). Wait until the working steps end.</li>
+</ol>
+
+<h3>Report a crop problem (measured, never diagnosed)</h3>
+<ol>
+  <li>On Home, press <b>Take a photo of the problem</b> (or, in the demo farm, <b>Try with the demo leaf</b>).</li>
+  <li>Give a close photo of one leaf. Wait for the measurement (SAM 3.1 outlines the leaf and its spots), then press <b>Next</b>.</li>
+  <li>Pick the plant (the field's crop, or <b>Another plant</b> and type its name), at least one thing seen, since when and how many plants.</li>
+  <li>Press <b>Make the summary</b>. Then, with the person's OK: <b>Send on WhatsApp (with photo)</b>, <b>Copy</b>, or <b>Nearest agriculture office</b> for the office's phone number and directions.</li>
+</ol>
+
+<h3>Add a home yard</h3>
+<ol>
+  <li>Press <b>Add a field, shed or yard</b>; the list of places opens. Press <b>Add a yard</b> (<code>addYardBtn</code>). Give one photo of the open space in front of the house and the location.</li>
+  <li>Give the size in the local unit and how much sun it gets. Sathi says what to plant now, with a shopping list (sample prices) and real nurseries nearby.</li>
+</ol>
+
+<h3>Add a field</h3>
+<ol>
+  <li>Press <b>Add a field, shed or yard</b>, then <b>Add field</b> (<code>addFromList</code>). Give a photo taken in the field or a location, press <b>Find my field</b>.</li>
+  <li>Sathi finds the field on the satellite image and checks what covers it. Pick what is growing or what to plant.</li>
+</ol>
+
+<h3>Add a poultry shed</h3>
+<ol>
+  <li>Press <b>Add a field, shed or yard</b>, then <b>Add shed</b> (<code>addShedBtn</code>). Give a name and about how many chickens. The sensor kit is a demo; phone videos of the shed are checked for real.</li>
+</ol>
+
+<h3>The weekly report</h3>
+<ol>
+  <li>On Home press <b>Weekly report</b>. It covers every field, shed and yard: the last 7 days and the week ahead. Keep it as a PDF or share it with the person's OK.</li>
+</ol>
+
+<h3>Sell the harvest</h3>
+<ol>
+  <li>Open <b>Market</b>. Offers come from demo calls to buyers; they are marked demo.</li>
+  <li>Choose an offer and press confirm only after the person agrees. Nothing is sold for real in the demo.</li>
+</ol>
+
+<h2 id="data">Where the data comes from</h2>
+<p>OpenStreetMap, ESA WorldCover, Copernicus Sentinel-2, MIRCA-OS, FAOSTAT, SoilGrids and Open-Meteo, read live. Meta's models: Muse Spark (Sathi), SAM 3.1 (outlines), Muse Voice Transcribe (voice). When a source does not answer, the app shows the last good data with the time it is from.</p>
+</main>
+</body>
+</html>

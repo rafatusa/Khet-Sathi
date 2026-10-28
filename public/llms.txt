@@ -1,0 +1,84 @@
+# Khet Sathi for AI agents
+
+The same guide as https://khetsathi.royalbengal.ai/for-agents, as plain text.
+
+This page is for browser agents such as Meta's Muse acting for a person. Khet Sathi is a farm app for smallholder farmers in Bangladesh, India and anywhere else: fields seen by satellite, poultry sheds checked from phone videos, home yards, a farm helper called Sathi, and selling the harvest. A plain-text copy is at /llms.txt.
+
+## Rules
+
+- Sign-in needs the person. Sign in sends a 6-digit code to their email. Ask the person for the code; never guess one, never try codes.
+- Confirm before acting. Ask the person before any Book, Sell, Confirm, Save, Remove or Share step.
+- Sathi never names a disease or a medicine, for crops or for birds. Do not ask her to. For a sick crop or bird she finds the nearest agriculture office or vet.
+- Labels you must keep. "sample prices", "demo" and "simulated" mark things that are not real. Do not present them as real quotes, orders or calls.
+- Calls to buyers and services in the app are demo calls and never reach a real person. Real shops and offices are only listed (Google Maps), with their phone number for the person to call.
+
+## How to find things on the page
+
+- Every button has a fixed data-action attribute that does not change with the language (for example data-action="addBtn"). Visible text changes with the language buttons বাংলা (Bangla), हिंदी (Hindi) and English; press English first if that helps.
+- Popups are dialogs with a name (their title). When one opens or closes, a status message says "Opened: …" or "Closed: …". Escape or the button "Close: …" closes it.
+- While the app works it shows a status message ("Measuring…", "Looking for shops near this field…"). Wait until it is gone before the next step.
+- Short notices ("Saved", errors) appear as a status message at the bottom.
+
+## Screens
+
+- Home (/home): The place on screen (a field, a shed or a yard): what to do today, weather, tasks
+- Sathi (/sathi): Ask Sathi anything by text or voice. Her answer shows each step of her work and where each number came from
+- Field (/field): The field from the Sentinel-2 satellite: greenness, moisture, rain, temperature
+- Poultry (/shed): A shed's videos: SAM 3.1 counts the chickens; Muse Spark listens for unusual sounds
+- Market (/market): Selling the harvest: buyers' offers (demo calls) and the person's own selling rules
+- Money (/money): Income and costs for the place
+- Guide (/guide): How the app works, for people: the same tasks as below, in Bangla, Hindi and English. On phones it opens from the book button in the header
+- Settings (/settings): Admins only: checks of every service
+
+The button under the app name in the header (data-action="farmBtn") switches between the person's places. Add a field, shed or yard (addBtn) adds one. The account button (meBtn) has Watch the demo farm (meDemo), My farm and Sign out.
+
+## Common tasks
+
+### Sign in
+
+- Press Sign in. Type the person's email in the email box, press Send me a code.
+- Ask the person for the 6-digit code from that email and type it in the code box.
+
+### Look at the demo farm (no farm of your own needed)
+
+- After sign-in, open the account button and press Watch the demo farm. A bar at the top says it is the demo farm; My farm returns.
+- The demo farm cannot be changed by visitors; anything saved there is refused with a notice.
+
+### Ask Sathi
+
+- Open Sathi. Type in the box named Ask Sathi and press Enter.
+- Her answer appears in the conversation (a log that announces new messages). Wait until the working steps end.
+
+### Report a crop problem (measured, never diagnosed)
+
+- On Home, press Take a photo of the problem (or, in the demo farm, Try with the demo leaf).
+- Give a close photo of one leaf. Wait for the measurement (SAM 3.1 outlines the leaf and its spots), then press Next.
+- Pick the plant (the field's crop, or Another plant and type its name), at least one thing seen, since when and how many plants.
+- Press Make the summary. Then, with the person's OK: Send on WhatsApp (with photo), Copy, or Nearest agriculture office for the office's phone number and directions.
+
+### Add a home yard
+
+- Press Add a field, shed or yard; the list of places opens. Press Add a yard (addYardBtn). Give one photo of the open space in front of the house and the location.
+- Give the size in the local unit and how much sun it gets. Sathi says what to plant now, with a shopping list (sample prices) and real nurseries nearby.
+
+### Add a field
+
+- Press Add a field, shed or yard, then Add field (addFromList). Give a photo taken in the field or a location, press Find my field.
+- Sathi finds the field on the satellite image and checks what covers it. Pick what is growing or what to plant.
+
+### Add a poultry shed
+
+- Press Add a field, shed or yard, then Add shed (addShedBtn). Give a name and about how many chickens. The sensor kit is a demo; phone videos of the shed are checked for real.
+
+### The weekly report
+
+- On Home press Weekly report. It covers every field, shed and yard: the last 7 days and the week ahead. Keep it as a PDF or share it with the person's OK.
+
+### Sell the harvest
+
+- Open Market. Offers come from demo calls to buyers; they are marked demo.
+- Choose an offer and press confirm only after the person agrees. Nothing is sold for real in the demo.
+
+## Where the data comes from
+
+OpenStreetMap, ESA WorldCover, Copernicus Sentinel-2, MIRCA-OS, FAOSTAT, SoilGrids and Open-Meteo, read live. Meta's models: Muse Spark (Sathi), SAM 3.1 (outlines), Muse Voice Transcribe (voice). When a source does not answer, the app shows the last good data with the time it is from.

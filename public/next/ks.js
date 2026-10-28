@@ -142,7 +142,7 @@
   // ---------- tabs ----------
   // v0.15.1: every tab has its own address, so back and forward work, a refresh stays on the tab,
   // and a link like /sathi opens that tab (after signing in).
-  const TAB_PATH = { home: '/home', field: '/field', shed: '/shed', saathi: '/sathi', market: '/market', money: '/money', settings: '/settings' };
+  const TAB_PATH = { home: '/home', field: '/field', shed: '/shed', saathi: '/sathi', market: '/market', money: '/money', settings: '/settings', guide: '/guide' };
   const tabFromPath = (p = location.pathname) => Object.keys(TAB_PATH).find((k) => TAB_PATH[k] === p.replace(/\/+$/, '')) || null;
   window.addEventListener('popstate', () => {
     if (document.body.dataset.auth !== 'in') return;
@@ -184,6 +184,7 @@
     if (tab === 'saathi') renderSaathi();
     if (tab === 'money') renderMoney();
     if (tab === 'settings') window.KSAdmin?.render();
+    if (tab === 'guide') window.KSGuide?.render();
     if (tab === 'shed' || tab === 'market') window.KSShed?.render(tab);
     window.scrollTo({ top: 0, behavior: RM ? 'auto' : 'smooth' });
   }
@@ -1651,7 +1652,7 @@
       .slice(0, 6)
       .map((a) => {
         const { title, body } = alertText(a);
-        return `<div class="action"><div class="ah">${I[a.area === 'market' ? 'rupee' : a.area === 'shed' ? 'warn' : a.source === 'weather' ? 'rain' : 'drop']}<div><b>${esc(title)}</b><div class="muted small">${esc(body)}</div></div></div><div class="btns"><button class="btn ghost" data-read="${a.id}">${esc(t('gotIt'))}</button>${a.title.startsWith('sell_') ? `<button class="btn" data-goshed="market">${esc(t('seeIt'))}</button>` : a.title === 'order_booked' ? `<button class="btn" data-gotab="money">${esc(t('seeIt'))}</button>` : ''}</div></div>`;
+        return `<div class="action"><div class="ah">${I[a.area === 'market' ? 'rupee' : a.area === 'shed' ? 'warn' : a.source === 'weather' ? 'rain' : 'drop']}<div><b>${esc(title)}</b><div class="muted small">${esc(body)}</div></div></div><div class="btns"><button class="btn ghost" data-read="${a.id}" aria-label="${esc(`${t('gotIt')}: ${title}`)}">${esc(t('gotIt'))}</button>${a.title.startsWith('sell_') ? `<button class="btn" data-goshed="market">${esc(t('seeIt'))}</button>` : a.title === 'order_booked' ? `<button class="btn" data-gotab="money">${esc(t('seeIt'))}</button>` : ''}</div></div>`;
       })
       .join('');
     box.querySelectorAll('[data-goshed]').forEach((b) => b.addEventListener('click', () => (S.mode === 'shed' ? show('market') : openShed(S.shed?.id || S.sheds[0]?.id))));
