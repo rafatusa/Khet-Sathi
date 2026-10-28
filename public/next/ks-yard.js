@@ -110,6 +110,7 @@
     $('#ydShops').innerHTML = Y.shops ? shopsHtml(Y.shops) : '';
     $('#ydFindShops').hidden = !L || Boolean(Y.shops);
     $('#ydCopy').hidden = !L;
+    $('#ydShare').hidden = !L;
     $('#ydRemove').textContent = t(Y.sure ? 'ydRemoveSure' : 'ydRemove');
     $('#ydRemove').hidden = S.view === 'demo' && !S.admin;
   }
@@ -317,11 +318,15 @@
       .join('');
     const src = offices.length ? `<div class="muted small">${esc(fmt('fromSrc', { src: h.source || '' }))}</div>` : `<div class="muted small">${esc(t('noOffice'))}</div>`;
     const hot = h.hotline ? `<div class="hot"><b>${esc(h.hotline.name)}</b><div class="num">${esc(K.digits(h.hotline.number))}</div><div class="small">${esc(h.hotline.hours)}</div><a class="btn" href="tel:${esc(h.hotline.tel)}">${I.phone}${esc(fmt('callNum', { n: K.digits(h.hotline.number) }))}</a></div>` : '';
-    return `${rows}${src}${hot}<div class="muted small">${esc(t('helpSoon'))}</div>`;
+    // v0.16.0: send the offices on (WhatsApp, through the phone's own share sheet), or photograph the problem.
+    const text = [t('helpH'), ...offices.map((o) => `${o.name} (${num(o.km, 1)} km)${o.phone ? `: ${o.phone}` : ''}${o.address ? `, ${o.address}` : ''}`), h.hotline ? `${h.hotline.name}: ${h.hotline.number}` : ''].filter(Boolean).join('\n');
+    const acts = `<div class="btns"><button class="btn turm" type="button" data-problem>${I.camera}${esc(t('pbTake'))}</button><button class="btn ghost" type="button" data-sharetext="${esc(encodeURIComponent(text))}">${esc(t('shareWa'))}</button></div>`;
+    return `${rows}${src}${hot}${acts}<div class="muted small">${esc(t('helpSoon'))}</div>`;
   }
   document.addEventListener('click', (e) => {
     if (e.target.closest('[data-help]')) K.ask(t('qHelp'));
   });
 
-  window.KSYard = { loadYards, open, hero, renderHome, headerLine, listHtml, openAdd, officeHtml, yardTitle };
+  $('#ydShare').addEventListener('click', () => window.KSProblem?.share(listText()));
+  window.KSYard = { loadYards, open, hero, renderHome, headerLine, listHtml, openAdd, officeHtml, yardTitle, picks: () => Y.d?.picks || [] };
 })();

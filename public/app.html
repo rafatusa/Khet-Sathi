@@ -165,6 +165,7 @@
         <div class="trackbar"><i id="trackFill"></i></div>
         <div class="journey" id="journey"></div>
       </div>
+      <div class="card span2 ydhelp"><div class="lab"><span data-icon="phone"></span><span data-t="helpH"></span></div><p class="muted small" data-t="helpT"></p><div class="btns"><button class="btn turm" type="button" data-problem data-t="pbTake"></button><button class="btn ghost" type="button" data-help data-t="helpFind"></button></div></div>
     </div>
     <!-- Poultry home (a shed is picked) -->
     <div class="dash" id="dashShed" hidden>
@@ -179,8 +180,8 @@
       <div class="card span2"><div class="lab"><span data-icon="camera"></span><span data-t="ydPhotoH"></span><span class="src-tag">SAM 3.1</span></div><div class="ydpic" id="ydPic"></div><div class="zinfo" id="ydSam"></div></div>
       <div class="card span2"><div class="lab"><span data-icon="sun"></span><span data-t="ydNowH"></span><span class="src-tag">Open-Meteo</span></div><div class="kpis" id="ydStats"></div><div class="zinfo" id="ydTip"></div><div class="btns"><button class="btn ghost" type="button" id="ydResize" data-t="ydChangeSize"></button></div></div>
       <div class="card span2"><div class="lab"><span data-icon="sprout"></span><span data-t="ydPicksH"></span></div><div class="ydpicks" id="ydPicks"></div><div class="zinfo" id="ydWhy"></div></div>
-      <div class="card span2"><div class="lab"><span data-icon="cart"></span><span data-t="ydBuyH"></span><span class="src-tag sim" data-t="samplePrices"></span></div><div id="ydList"></div><div id="ydShops"></div><div class="btns"><button class="btn" type="button" id="ydFindShops" data-t="ydFindShops"></button><button class="btn ghost" type="button" id="ydCopy" data-t="ydCopy"></button></div><p class="muted small" data-t="ydDemoNote"></p></div>
-      <div class="card span2 ydhelp"><div class="lab"><span data-icon="phone"></span><span data-t="helpH"></span></div><p class="muted small" data-t="helpT"></p><button class="btn turm" type="button" data-help data-t="helpFind"></button><div class="btns"><button class="btn ghost" type="button" id="ydRemove" data-t="ydRemove"></button></div></div>
+      <div class="card span2"><div class="lab"><span data-icon="cart"></span><span data-t="ydBuyH"></span><span class="src-tag sim" data-t="samplePrices"></span></div><div id="ydList"></div><div id="ydShops"></div><div class="btns"><button class="btn" type="button" id="ydFindShops" data-t="ydFindShops"></button><button class="btn ghost" type="button" id="ydShare" data-t="shareWa"></button><button class="btn ghost" type="button" id="ydCopy" data-t="ydCopy"></button></div><p class="muted small" data-t="ydDemoNote"></p></div>
+      <div class="card span2 ydhelp"><div class="lab"><span data-icon="phone"></span><span data-t="helpH"></span></div><p class="muted small" data-t="helpT"></p><div class="btns"><button class="btn turm" type="button" data-problem data-t="pbTake"></button><button class="btn ghost" type="button" data-help data-t="helpFind"></button></div><div class="btns"><button class="btn ghost" type="button" id="ydRemove" data-t="ydRemove"></button></div></div>
     </div>
   </section>
 
@@ -391,7 +392,7 @@
 
 <div class="sheet" id="farmSheet" hidden>
   <div class="wrap sh">
-    <div class="shtop"><button class="iconbtn" id="farmClose" data-tl="close">×</button><h2 style="margin:0" data-t="myFarm"></h2></div>
+    <div class="shtop"><button class="iconbtn" id="farmClose" data-tl="close">×</button><h2 style="margin:0" id="farmTitle"></h2></div>
     <div class="secl" data-t="fieldsH"></div>
     <div class="farmlist" id="farmList"></div>
     <div class="secl" data-t="shedsH"></div>
@@ -400,6 +401,7 @@
     <div class="farmlist" id="yardList"></div>
     <div class="two"><button class="cta wide" id="addFromList"><span data-icon="plus"></span><span data-t="addField"></span></button><button class="cta wide turm" id="addShedBtn"><span data-icon="plus"></span><span data-t="addShed"></span></button></div>
     <button class="btn ghost wide" type="button" id="addYardBtn" style="margin-top:10px"><span data-icon="plus"></span><span data-t="addYard"></span></button>
+    <button class="cta wide" type="button" id="farmBack" hidden><span data-icon="home"></span><span data-t="farmBackT"></span></button>
     <button class="demopick" type="button" id="farmDemo"><span data-icon="sprout"></span><span><b data-t="watchDemo"></b><small data-t="watchDemoS"></small></span><span class="tag" data-t="demoTag"></span></button>
   </div>
 </div>
@@ -474,6 +476,39 @@
   </div>
 </div>
 
+<!-- v0.16.0: A CROP PROBLEM (photo -> SAM 3.1 leaf and patches, measured -> farmer's answers -> summary to send) -->
+<div class="sheet" id="probSheet" hidden>
+  <div class="wrap sh narrowsh">
+    <div class="shtop"><button class="iconbtn" id="probClose" data-tl="close">×</button><h2 style="margin:0" data-t="pbTitle"></h2></div>
+    <div id="pb1">
+      <div class="msg bot" id="pbIntro"></div>
+      <div class="pick2"><label class="bigpick"><span data-icon="camera"></span><b data-t="pbTake"></b><input type="file" id="pbPhotoIn" accept="image/*" capture="environment" hidden></label><button class="bigpick" id="pbJustOffice" type="button"><span data-icon="phone"></span><b data-t="pbJustOffice"></b></button></div>
+      <p class="muted small" data-t="pbNever"></p>
+    </div>
+    <div id="pb2" hidden>
+      <div id="pbPic"></div>
+      <div id="pbMeasure"></div>
+      <p class="note pbnotdx" data-t="pbNotDx"></p>
+      <button class="cta wide" id="pbNext" type="button"><span data-t="nextStep"></span></button>
+    </div>
+    <div id="pb3" hidden>
+      <b data-t="pbQPlant"></b><div class="chips" id="pbPlants"></div>
+      <label class="field" id="pbOtherBox" hidden><span data-t="pbOtherL"></span><input id="pbOtherIn" maxlength="40"></label>
+      <b data-t="pbQSigns"></b><div class="chips" id="pbSigns"></div>
+      <b data-t="pbQSince"></b><div class="chips" id="pbSince"></div>
+      <b data-t="pbQMany"></b><div class="chips" id="pbMany"></div>
+      <button class="cta wide" id="pbMake" type="button"><span data-icon="check"></span><span data-t="pbMake"></span></button>
+    </div>
+    <div id="pb4" hidden>
+      <div class="pbsum" id="pbSum"></div>
+      <button class="cta wide wa" id="pbShare" type="button"><span data-icon="chat"></span><span data-t="pbShare"></span></button>
+      <div class="btns"><button class="btn ghost" id="pbCopy" type="button" data-t="pbCopy"></button><button class="btn ghost" id="pbOffice" type="button" data-t="pbOffice"></button></div>
+      <div id="pbOffices"></div>
+      <p class="muted small" data-t="pbYouSend"></p>
+    </div>
+  </div>
+</div>
+
 <!-- v0.15.0: ADD YARD (photo -> SAM 3.1 outline -> size in the farmer's units and sun -> picks) -->
 <div class="sheet" id="yardSheet" hidden>
   <div class="wrap sh narrowsh">
@@ -519,5 +554,6 @@
 <script src="/next/ks-harvest.js"></script>
 <script src="/next/ks-admin.js"></script>
 <script src="/next/ks-yard.js"></script>
+<script src="/next/ks-problem.js"></script>
 </body>
 </html>

@@ -312,8 +312,10 @@
   document.addEventListener('click', (e) => {
     if (!$('#meMenu').hidden && !e.target.closest('#meMenu')) $('#meMenu').hidden = true;
   });
-  $('#meFarm').addEventListener('click', () => {
+  // v0.16.0: "My farm" always means the person's own farm, also from inside the demo farm.
+  $('#meFarm').addEventListener('click', async () => {
     $('#meMenu').hidden = true;
+    if (S.view) await enterView(null);
     openFarm();
   });
   $('#meOut').addEventListener('click', async () => {
@@ -1098,7 +1100,10 @@
       : S.mode === 'yard' ? [['sprout', t('chipYard'), t('qYard')], ['drop', t('chipYardWater'), t('qYardWater')], ['phone', t('chipHelp'), t('qHelp')]]
       : [['sat', t('chipField'), t('qField')], ['sprout', t('chipGrow'), t('qGrow')], ...(c ? [['seed', fmt('chipPlan', { crop: cropName(c.key) }), fmt('qPlan', { crop: cropName(c.key) })]] : []), ['sun', t('chipWeather'), t('qWeather')], ['phone', t('chipHelp'), t('qHelp')]];
     q.unshift(['chat', t('chipCan'), t('qCan')]); // v0.13.1: "What can you do?" first
-    $('#quick').innerHTML = q.map(([ic, label, text]) => `<button class="chip" type="button" data-q="${esc(text)}">${I[ic]}${esc(label)}</button>`).join('');
+    $('#quick').innerHTML =
+      q.map(([ic, label, text]) => `<button class="chip" type="button" data-q="${esc(text)}">${I[ic]}${esc(label)}</button>`).join('') +
+      // v0.16.0: a photo of a crop problem, measured and sent to the agriculture office (fields and yards).
+      (S.mode === 'shed' ? '' : `<button class="chip" type="button" data-problem>${I.camera}${esc(t('pbTake'))}</button>`);
   }
   $('#quick').addEventListener('click', (e) => {
     const b = e.target.closest('[data-q]');
@@ -1355,6 +1360,10 @@
       ? S.sheds.map((s, i) => `<button class="fitem shed ${S.mode === 'shed' && s.id === S.shed?.id ? 'on' : ''}" data-shed="${s.id}" style="animation-delay:${i * 60}ms"><span class="th">${I.egg}</span><span class="m"><b>${esc(shedName(s))}</b><div>${esc(s.chickens ? fmt('aboutChickens', { n: num(s.chickens) }) : '')} · ${esc(t('simKit'))}</div></span></button>`).join('')
       : `<div class="muted">${esc(t('noSheds'))}</div>`;
     $('#yardList').innerHTML = window.KSYard ? window.KSYard.listHtml() : '';
+    // v0.16.0: say whose farm this list is, and inside the demo farm (or someone's farm) offer the way back.
+    $('#farmTitle').textContent = t(S.view === 'demo' ? 'demoFarmH' : S.view ? 'viewFarmH' : 'myFarm');
+    $('#farmBack').hidden = !S.view;
+    $('#farmDemo').hidden = Boolean(S.view);
     $('#farmSheet').hidden = false;
   }
   $('#farmBtn').addEventListener('click', openFarm);
@@ -1729,6 +1738,10 @@
   $('#meDemo').addEventListener('click', () => {
     $('#meMenu').hidden = true;
     enterView('demo');
+  });
+  $('#farmBack').addEventListener('click', () => {
+    $('#farmSheet').hidden = true;
+    enterView(null);
   });
   $('#farmDemo').addEventListener('click', () => {
     $('#farmSheet').hidden = true;

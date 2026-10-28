@@ -36,6 +36,7 @@ import {
 import sharp from 'sharp';
 import { unitsFor, sizeToM2, sizeWords, sizeClass, pickPlants, shoppingList, waterTip, meanTemp, outlineYard, SOUTH_ASIA } from './lib/yard.js';
 import { officeHelp } from './lib/office.js';
+import { measureProblem } from './lib/problem.js';
 import { fetchWeather } from './lib/weather.js';
 import { reverseGeocode } from './lib/place.js';
 import { runAs, currentOwner, currentScope, scopeFor, isAdmin, userFromToken, sendCode, verifyCode, refreshSession, signOut, useLimit, LIMITS, usageToday, listUsers, seenUsers } from './lib/auth.js';
@@ -44,7 +45,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.15.1';
+const VERSION = '0.16.0';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -79,7 +80,7 @@ async function guard(req, res, next) {
   return runAs(user, next, scope);
 }
 // Read-only visitors may still talk to Sathi and, in the demo farm, play the demo calls (nothing is saved).
-const RO_TALK = /^\/api\/(ask|speak|transcribe|vet\/message)$/;
+const RO_TALK = /^\/api\/(ask|speak|transcribe|vet\/message|problem\/measure)$/;
 const RO_DEMO_CALLS = /^\/api\/(vet\/call|sell\/run|lands\/[^/]+\/(order|harvest\/run|harvest\/book))$/;
 function readOnlyAllowed(req, scope) {
   const p = req.path;
@@ -794,6 +795,20 @@ app.delete(
     if (!deleted) throw new Error('Yard could not be deleted');
     await deleteFiles([yard.photo_path].filter(Boolean)).catch(() => null);
     return { deleted: true, id: yard.id };
+  })
+);
+
+// ---------- a photo of a crop problem (v0.16.0): measured, never diagnosed; nothing is saved ----------
+app.post(
+  '/api/problem/measure',
+  guard,
+  timed(async (req) => {
+    const photo = dataUrlToBuffer(req.body?.photoDataUrl);
+    if (!photo) throw new Error('Take or pick a photo first');
+    useLimit('check');
+    const { data, info } = await sharp(photo.buffer).rotate().resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer({ resolveWithObject: true });
+    const m = await measureProblem({ dataUrl: `data:image/jpeg;base64,${data.toString('base64')}`, width: info.width, height: info.height });
+    return { measure: { ...m, model: MODELS.sam } };
   })
 );
 

@@ -1224,6 +1224,29 @@ await checkAsync('Yards: own farm only, demo yards in the demo farm, read only w
   delete process.env.ADMIN_EMAILS;
 });
 
+// ---------- v0.16.0: a crop problem photo, measured, never diagnosed ----------
+await checkAsync('Problem photo: share of the leaf covered by patches (outside the leaf does not count), and SAM down', async () => {
+  const pb = await import('../lib/problem.js');
+  // Fake masks: rectangles in image pixels, painted on the grid by the same scale rule.
+  const rect = (grid, gw, gh, scale, raw) => {
+    for (let y = Math.floor(raw.y0 * scale); y < Math.floor(raw.y1 * scale); y++) for (let x = Math.floor(raw.x0 * scale); x < Math.floor(raw.x1 * scale); x++) if (x < gw && y < gh) grid[y * gw + x] = 1;
+  };
+  const leaf = { raw: { x0: 0, y0: 0, x1: 800, y1: 800 } };
+  const inside = { raw: { x0: 0, y0: 0, x1: 400, y1: 400 } };
+  const outside = { raw: { x0: 800, y0: 0, x1: 1000, y1: 800 } };
+  assert.equal(pb.patchShare({ width: 1000, height: 800, leaf, patches: [inside, outside] }, (g, gw, gh, s, raw) => rect(g, gw, gh, s, raw)), 25);
+  const down = await pb.measureProblem({ dataUrl: 'x', width: 10, height: 10 }, { segment: async () => { throw new Error('model_not_found: The requested model was not found.'); } });
+  assert.equal(down.share, null);
+  assert.match(down.error, /model_not_found/);
+  const noLeaf = await pb.measureProblem({ dataUrl: 'x', width: 10, height: 10 }, { segment: async () => ({ objects: [] }) });
+  assert.match(noLeaf.error, /no leaf/);
+  let n = 0;
+  const clean = await pb.measureProblem({ dataUrl: 'x', width: 100, height: 100 }, { segment: async () => (n++ ? { objects: [] } : { objects: [{ id: 1, box: { left: 0, top: 0, right: 100, bottom: 100 }, areaPx: 5000, containsPoint: true, raw: {}, mask: { width: 4, height: 4, bounds: { left: 0, top: 0, right: 100, bottom: 100 }, svgPath: 'M0 0Z' } }] }) });
+  assert.equal(clean.share, 0, 'a leaf with no patches is 0%, not unknown');
+  assert.equal(clean.leaf.svgPath, 'M0 0Z');
+  assert.ok(!('raw' in clean.leaf), 'masks are not sent to the browser');
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);
