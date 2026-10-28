@@ -19,7 +19,9 @@
 
   // ---------- loading ----------
   async function loadYards() {
+    const view = K.viewParam();
     const r = await api('/api/yards').catch(() => null);
+    if (view !== K.viewParam()) return S.yards; // v0.19.0: the farm changed while loading
     S.yards = r?.ok ? r.yards || [] : [];
     return S.yards;
   }
@@ -91,6 +93,7 @@
       ['clock', t('ydMonth'), d?.month ? monthName(d.month) : '—'],
     ];
     $('#ydStats').innerHTML = stats.map(([ic, k, v]) => `<div class="kpi"><div class="lab"><span>${I[ic] || ''}</span><span>${esc(k)}</span></div><div class="kv ydkv">${esc(v)}</div></div>`).join('');
+    queueMicrotask(() => K.applyStale?.());
     $('#ydTip').textContent = !w ? '' : w.rainDate ? fmt('ydRainTip', { date: K.fd(w.rainDate, { weekday: 'long', day: 'numeric', month: 'short' }) }) : w.hot ? t('ydHotTip') : t('ydWaterTip');
     const picks = d?.picks || [];
     $('#ydPicks').innerHTML = !y?.size_m2

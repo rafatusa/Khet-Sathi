@@ -13,7 +13,7 @@ import { shedFacts, shedAnswer } from './lib/shedchat.js';
 import { collectSegments } from './lib/segment.js';
 import { fetchSatelliteImage, zoomCenter } from './lib/tile.js';
 import { scanLand } from './lib/scan.js';
-import { buildPlan, localToday, placeForLand } from './lib/plan.js';
+import { buildPlan, localToday, placeForLand, wxKey } from './lib/plan.js';
 import { aezFor, calendarRecords, calendarFor } from './lib/calendar.js';
 import { createEngine } from './lib/engine.js';
 import { fieldDevice, SHED_DEVICE, latestByDevice, FIELD_METRICS, SHED_METRICS, isNight, eggsPerDay } from './lib/sensors.js';
@@ -38,6 +38,8 @@ import { unitsFor, sizeToM2, sizeWords, sizeClass, pickPlants, shoppingList, wat
 import { officeHelp } from './lib/office.js';
 import { measureProblem } from './lib/problem.js';
 import { fetchWeather } from './lib/weather.js';
+import { withKeep, recall, remember } from './lib/keep.js';
+import { checkNumbers, factsFrom } from './lib/numcheck.js';
 import { reverseGeocode } from './lib/place.js';
 import { runAs, currentOwner, currentScope, scopeFor, isAdmin, userFromToken, sendCode, verifyCode, refreshSession, signOut, useLimit, LIMITS, usageToday, listUsers, seenUsers } from './lib/auth.js';
 import { runChecks } from './lib/checks.js';
@@ -45,7 +47,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.18.1';
+const VERSION = '0.19.0';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -406,8 +408,15 @@ async function healthFor(land, fresh = false) {
   const hit = healthCache.get(key);
   let health = hit && Date.now() - hit.at < 6 * 3600 * 1000 ? hit.health : null;
   if (!health || fresh) {
-    health = await fieldHealth({ lat: land.lat, lon: land.lon, rings, today: localToday('Asia/Dhaka') });
-    healthCache.set(key, { at: Date.now(), health });
+    // v0.19.0: if Sentinel-2 does not answer, the last good reading for this field is shown, marked with its time.
+    const k = await withKeep(`ndvi|${key}`, () => fieldHealth({ lat: land.lat, lon: land.lon, rings, today: localToday('Asia/Dhaka') }), {
+      persist: land.location_source === 'demo',
+      // Good: a clear reading, or every pass read without an error (a field can just be cloudy).
+      ok: (h) => Boolean(h && (h.passes || []).length && (h.latest || h.passes.every((p) => !p.error))),
+      maxAgeMs: 10 * 864e5,
+    }).catch((err) => (hit ? { value: hit.health, staleAt: new Date(hit.at).toISOString() } : Promise.reject(err)));
+    health = k.staleAt ? { ...k.value, staleAt: k.staleAt } : k.value;
+    if (!k.staleAt) healthCache.set(key, { at: Date.now(), health });
   }
   return { outline, rings, health };
 }
@@ -705,7 +714,9 @@ function yardView(y) {
 }
 async function yardDetails(y) {
   const cc = y.place_info?.cc || null;
-  const wx = await fetchWeather(y.lat, y.lon).catch(() => null);
+  // v0.19.0: the yard shares the field's kept forecast, so a quiet Open-Meteo shows earlier weather, marked.
+  const k = await withKeep(wxKey(y.lat, y.lon), () => fetchWeather(y.lat, y.lon), { persist: Boolean(y.demo) }).catch(() => null);
+  const wx = k?.value || null;
   const today = wx?.days?.[0]?.date || new Date().toISOString().slice(0, 10);
   const month = Number(today.slice(5, 7));
   const tMean = meanTemp(wx);
@@ -717,7 +728,7 @@ async function yardDetails(y) {
     picks,
     list: picks.length ? shoppingList(picks, cc) : null,
     size: sizeWords(y.size_m2, cc),
-    weather: wx ? { ...waterTip(wx), tMean: tMean == null ? null : Math.round(tMean) } : null,
+    weather: wx ? { ...waterTip(wx), tMean: tMean == null ? null : Math.round(tMean), staleAt: k?.staleAt || null } : null,
     southAsia: SOUTH_ASIA.includes(String(cc || '').toUpperCase()),
   };
 }
@@ -935,7 +946,25 @@ app.get('/api/lands/:id/image/:which', guard, async (req, res) => {
 // ---------- farmer app: ask the agent (text from voice or a chip) ----------
 // v0.17.0: one function answers Sathi questions; onStep reports each step as it happens (the live
 // "Sathi at work" list). /api/ask answers at the end as before; /api/ask/stream sends the steps as they come.
+// v0.19.0: on the demo farm, a question Sathi answered before is kept; if both Meta models then fail, that
+// answer comes back marked with its time instead of an error. Real farms are never answered from a copy.
 async function askCore(body, onStep = null) {
+  const demo = currentScope()?.mode === 'demo';
+  if (!demo) return askLive(body, onStep);
+  const { text, landId, shedId, yardId, lang } = body || {};
+  const key = `ask|${landId || shedId || yardId || 'none'}|${pickLang(lang)}|${String(text || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 200)}`;
+  try {
+    const r = await askLive(body, onStep);
+    if (r?.answer) remember(key, r, { persist: true });
+    return r;
+  } catch (err) {
+    if (!text || err.limit) throw err;
+    const kept = await recall(key, { persist: true, maxAgeMs: 14 * 864e5 });
+    if (!kept) throw err;
+    return { ...kept.value, staleAt: new Date(kept.at).toISOString(), staleReason: err.message };
+  }
+}
+async function askLive(body, onStep = null) {
   const step = (s) => {
     try {
       onStep?.({ ...s, at: Date.now() });
@@ -961,7 +990,13 @@ async function askCore(body, onStep = null) {
       d?.weather?.rainDate ? `rain expected ${d.weather.rainDate}, so skip watering that day` : '',
       d?.weather?.hot ? 'very hot today: water in the evening and shade young plants' : '',
     ].filter(Boolean).join('; ');
-    return runAgent({ userText: String(text).slice(0, 2000), lat: yard.lat, lon: yard.lon, context, cc: yard.place_info?.cc || null, lang: pickLang(lang), onStep });
+    // v0.19.0: the same facts with their sources, for the number check.
+    const parts = [
+      { text: yard.size_m2 ? `${yard.size_m2} square metres` : '', source: yard.size?.estimate ? 'SAM 3.1' : 'yard' },
+      { text: (d?.picks || []).map((p) => `${p.count || ''} ${p.bedM2 || ''} ${p.days?.[0] ?? ''} ${p.days?.[1] ?? ''}`).join(' '), source: 'plants' },
+      { text: d?.weather ? `${d.weather.rainDate || ''} ${d.weather.tMax ?? ''} ${d.weather.tMin ?? ''} ${d.weather.tMean ?? ''}` : '', source: 'Open-Meteo' },
+    ];
+    return runAgent({ userText: String(text).slice(0, 2000), lat: yard.lat, lon: yard.lon, context, parts, cc: yard.place_info?.cc || null, lang: pickLang(lang), onStep });
   }
   // No land picked yet: answer for the Bogura demo plot (the Scenario 1 plot with full data).
   let lat = DEMO_PLACES.bogura.lat;
@@ -969,6 +1004,7 @@ async function askCore(body, onStep = null) {
   let context = 'no plot added yet';
   let noField = false;
   let plan = null;
+  const parts = [];
   if (landId) {
     const land = await getLand(landId);
     if (land && !(land.objects || []).length) {
@@ -987,11 +1023,25 @@ async function askCore(body, onStep = null) {
         land.kind === 'empty' ? 'the land is empty, nothing planted yet' : `there is a standing crop${land.crop ? ` (${land.crop})` : ''}`,
         land.acres ? `plot size about ${land.acres} acres (measured from satellite)` : 'plot size unknown',
       ].join('; ');
+      parts.push({ text: land.acres ? String(land.acres) : '', source: 'SAM 3.1' });
+      // v0.19.0: the latest clear Sentinel-2 greenness, so Sathi can say how the crop looks from space.
+      const g = await healthFor(land).then((h) => greenLine(h.health)).catch(() => null);
+      if (g) {
+        context += `; ${g.text}`;
+        parts.push({ text: g.text, source: 'Sentinel-2' });
+      }
       // v0.12.0: a standing crop: its sowing date, harvest window and expected amount.
       if (land.kind === 'crop' && land.crop) {
         const s = await harvestState(land).catch(() => null);
-        if (s?.ready) context += `; sown ${s.sownOn}${s.estimated ? ' (estimated from satellite greenness)' : ''}; harvest window ${s.ready.harvestStart} to ${s.ready.harvestEnd}; stage ${s.ready.stage}, ${s.ready.pct}% of the way to harvest`;
-        if (s?.amount) context += `; expected harvest about ${s.amount.units} ${s.unit.key === 'mon' ? 'maund (40 kg)' : s.unit.key === 'quintal' ? 'quintal' : 'x 100 kg'} (country average yield, FAOSTAT)`;
+        if (s?.ready) {
+          const line = `sown ${s.sownOn}${s.estimated ? ' (estimated from satellite greenness)' : ''}; harvest window ${s.ready.harvestStart} to ${s.ready.harvestEnd}; stage ${s.ready.stage}, ${s.ready.pct}% of the way to harvest; ${daysBetweenIso(plan?.today || localToday('Asia/Dhaka'), s.ready.harvestStart)} days until the harvest window opens`;
+          context += `; ${line}`;
+          parts.push({ text: line, source: 'MIRCA-OS' });
+        }
+        if (s?.amount) {
+          context += `; expected harvest about ${s.amount.units} ${s.unit.key === 'mon' ? 'maund (40 kg)' : s.unit.key === 'quintal' ? 'quintal' : 'x 100 kg'} (country average yield, FAOSTAT)`;
+          parts.push({ text: String(s.amount.units), source: 'FAOSTAT' });
+        }
         context += plan?.demoLand ? '; the harvest booking and buyer calls in the Market tab are a demo' : '; no live crop prices yet, and calling buyers is coming soon';
       }
       step({ type: 'context', kind: 'field', phase: 'done' });
@@ -1004,7 +1054,7 @@ async function askCore(body, onStep = null) {
   }
   if (!landId && plan) plan.demoLand = true;
   const landCc = landId ? (await getLand(landId).catch(() => null))?.place_info?.cc : null;
-  return runAgent({ userText: String(text).slice(0, 2000), lat, lon, context, noField, plan, cc: landCc || plan?.place?.cc || (landId ? null : 'BD'), lang: pickLang(lang), onStep });
+  return runAgent({ userText: String(text).slice(0, 2000), lat, lon, context, parts, noField, plan, cc: landCc || plan?.place?.cc || (landId ? null : 'BD'), lang: pickLang(lang), onStep });
 }
 app.post('/api/ask', guard, timed(async (req) => askCore(req.body)));
 app.post('/api/ask/stream', guard, async (req, res) => {
@@ -1025,6 +1075,17 @@ app.post('/api/ask/stream', guard, async (req, res) => {
   }
 });
 
+// v0.19.0: "greenness (NDVI) 0.77 on 2026-10-25, 0.03 less than the clear picture before".
+function greenLine(health) {
+  const clear = (health?.passes || []).filter((p) => !p.cloudy && p.ndvi?.mean != null);
+  if (!clear.length) return null;
+  const [a, b] = clear;
+  const r = (x) => Math.round(x * 100) / 100;
+  const diff = b ? r(a.ndvi.mean - b.ndvi.mean) : null;
+  return { text: `crop greenness (NDVI, Sentinel-2) ${r(a.ndvi.mean)} on ${a.date}${diff == null ? '' : diff === 0 ? ', the same as the clear picture before' : `, ${Math.abs(diff)} ${diff > 0 ? 'more' : 'less'} than the clear picture before (${b.date})`}` };
+}
+const daysBetweenIso = (a, b) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 864e5);
+
 async function askShed(text, shedId, lang, onStep = null) {
   onStep?.({ type: 'context', kind: 'shed', phase: 'start', at: Date.now() });
   const sheds = await listSheds();
@@ -1035,12 +1096,17 @@ async function askShed(text, shedId, lang, onStep = null) {
   const mine = index.clips.filter((c) => (demo ? !c.shedId : c.shedId === shed?.id) && c.result?.count);
   const last = mine.sort((a, b) => String(b.result.checkedAt).localeCompare(String(a.result.checkedAt)))[0]?.result;
   const check = last ? { when: last.checkedAt, count: last.count.count, still: last.count.still?.length || 0, resting: Boolean(last.count.resting), unusualSound: Boolean(last.observation?.unusualSound) } : null;
-  const facts = shedFacts({ shed, kit: latest, stock: await eggStock().catch(() => null), tray: TRAY, rule: await loadRule().catch(() => null), check, night: isNight(shedHour()) });
+  const cur = (await shedCurrency(shed).catch(() => null)) || (await listLands().catch(() => [])).find((l) => l.place_info?.currency)?.place_info.currency || currencyFor('IN');
+  const facts = shedFacts({ shed, kit: latest, stock: await eggStock().catch(() => null), tray: TRAY, rule: await loadRule().catch(() => null), check, night: isNight(shedHour()), money: cur.code });
   onStep?.({ type: 'context', kind: 'shed', phase: 'done', at: Date.now() });
   onStep?.({ type: 'think', phase: 'start', step: 1, at: Date.now() });
   const out = await shedAnswer({ text, lang: pickLang(lang), facts });
   onStep?.({ type: 'think', phase: 'done', step: 1, tools: 0, label: out.brain?.label || null, at: Date.now() });
-  return { ...out, trace: [], mode: 'shed' };
+  // v0.19.0: each line of the shed facts has one source, for the number check.
+  const SRC = [[/^Sensor kit/, 'kit'], [/^Comfortable/, 'ranges'], [/^Eggs in stock/, 'eggs'], [/^Farmer's sell rule/, 'rule'], [/^Last camera check/, 'SAM 3.1'], [/^Shed:/, 'shed']];
+  const parts = facts.split('\n').map((line) => ({ text: line, source: (SRC.find(([re]) => re.test(line)) || [])[1] || 'shed' }));
+  const checks = out.answer ? checkNumbers(out.answer, factsFrom({ parts })) : null;
+  return { ...out, trace: [], mode: 'shed', checks };
 }
 
 // ---------- alerts + simulated village sensor kit ----------
@@ -1497,7 +1563,38 @@ app.post(
 );
 
 // Money tab: confirmed and draft deals, newest first (simulated money).
-app.get('/api/deals', guard, timed(async () => ({ deals: await listDeals(), simulated: true })));
+// v0.19.0: on the demo farm, a demo field with a crop in the ground and no deal yet shows the season's sample
+// inputs (seed, fertilizer, ploughing from the fictional demo shop and crew), so its Money tab is not empty.
+// Built in, never saved; marked simulated like every demo deal. The sale itself comes after the harvest.
+async function sampleDeals(deals, L) {
+  const lands = (await listLands().catch(() => [])).filter((l) => l.location_source === 'demo' && l.crop && !deals.some((d) => d.land_id === l.id));
+  const full = await Promise.all(lands.map((l) => getLand(l.id).catch(() => l)));
+  return full.map((land) => {
+    const currency = land.place_info?.currency || currencyFor(land.place_info?.cc);
+    const lines = needsFor({ crop: land.crop, acres: land.acres || 1, currency });
+    const sown = land.sown_on || addDaysIso(localToday('Asia/Dhaka'), -95);
+    return {
+      id: `sample-${land.id}`,
+      sample: true,
+      land_id: land.id,
+      direction: 'buy',
+      created_at: `${addDaysIso(sown, -3)}T10:00:00Z`,
+      items: lines.map((l) => ({ item: l.id, crop: l.crop || null, qty: l.qty, unit: l.unit, price: l.price, currency: currency.code, symbol: currency.symbol, shop: l.id === 'plough' ? DEMO_CREW.name[L] : DEMO_SHOP.name[L], shopReal: false, simulated: true })),
+      total_inr: lines.reduce((a, l) => a + l.price, 0),
+      status: 'confirmed',
+    };
+  });
+}
+const addDaysIso = (iso, n) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+app.get(
+  '/api/deals',
+  guard,
+  timed(async (req) => {
+    const deals = await listDeals();
+    if (currentScope()?.mode === 'demo') deals.push(...(await sampleDeals(deals, pickLang(req.query.lang))));
+    return { deals, simulated: true };
+  })
+);
 
 app.post('/api/sell/run', guard, demoCallCap, timed(async (req) => ({ run: await runSale(pickLang(req.body?.lang || req.query.lang)) })));
 
@@ -1705,4 +1802,31 @@ app.post(
 
 app.listen(PORT, () => {
   console.log(`Khet Sathi v${VERSION} on :${PORT} (meta key: ${hasKey()}, db: ${dbConfigured() ? 'supabase' : 'memory'})`);
+  // v0.19.0: shortly after start and every 3 hours, read the demo farm's weather and satellite once, so a
+  // kept copy is ready before anyone opens it (judges see earlier data, marked, if a source is down).
+  if (process.env.NODE_ENV !== 'test') {
+    setTimeout(warmDemo, 20000).unref?.();
+    setInterval(warmDemo, 3 * 3600 * 1000).unref?.();
+  }
 });
+async function warmDemo() {
+  const t0 = Date.now();
+  const scope = { mode: 'demo', owner: null, readOnly: true, admin: false };
+  const done = await runAs({ id: 'warm-up', email: 'warm-up' }, async () => {
+    let n = 0;
+    // The list leaves out the field outline, so each land is read in full first.
+    for (const row of await listLands().catch(() => [])) {
+      const land = await getLand(row.id).catch(() => null);
+      if (!(land?.objects || []).length) continue;
+      await planForLand(land).catch(() => null);
+      await healthFor(land).catch(() => null);
+      n++;
+    }
+    for (const y of (await listYards().catch(() => [])).filter((x) => x.size_m2)) {
+      await yardDetails(y).catch(() => null);
+      n++;
+    }
+    return n;
+  }, scope).catch(() => 0);
+  console.log(`demo warm-up: ${done} places in ${Math.round((Date.now() - t0) / 1000)} s`);
+}

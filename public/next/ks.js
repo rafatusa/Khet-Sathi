@@ -385,7 +385,9 @@
   // v0.12.0: a crop is growing on this land (the farmer said so); Home and Market follow it to harvest and sale.
   const growingNow = () => Boolean(S.cur && S.cur.kind === 'crop' && S.cur.crop);
   async function loadLands() {
+    const view = viewParam();
     const r = await api('/api/lands');
+    if (view !== viewParam()) return; // v0.19.0: the farm changed while loading
     S.lands = r.ok ? r.lands || [] : [];
   }
   async function openLand(id) {
@@ -449,11 +451,16 @@
     window.KSShed?.load();
   }
   async function loadSheds() {
+    const view = viewParam();
     const r = await api('/api/sheds').catch(() => null);
+    if (view !== viewParam()) return;
     S.sheds = r?.ok ? r.sheds || [] : [];
   }
   async function loadSide() {
-    const [d, a, s] = await Promise.all([api('/api/deals').catch(() => null), api('/api/alerts').catch(() => null), api('/api/sell').catch(() => null)]);
+    const view = viewParam();
+    const [d, a, s] = await Promise.all([api(`/api/deals?lang=${lang}`).catch(() => null), api('/api/alerts').catch(() => null), api('/api/sell').catch(() => null)]);
+    // v0.19.0: the farm changed while these were loading (own farm to the demo farm): drop the old answers.
+    if (view !== viewParam()) return;
     S.sale = s?.ok ? s : null;
     S.deals = d?.ok ? d.deals || [] : [];
     S.alerts = a?.ok ? a.alerts || [] : [];
@@ -476,9 +483,45 @@
     const l = S.cur;
     $('#farmLine').textContent = S.mode === 'yard' ? window.KSYard?.headerLine() || '' : S.mode === 'shed' ? shedLine(S.shed) : l ? `${landTitle(l)} · ${l.acres ? `${num(l.acres, 2)} ${t('acShort')}` : t('noOutlineShort')}${growingNow() ? ` · ${cropName(l.crop)}` : ''}` : t('noLandYet');
   }
+  // v0.19.0: a card whose outside source did not answer shows the kept data with a short note and its time.
+  function staleWhen(at) {
+    const d = new Date(at);
+    // Bangla and Hindi read better as 24-hour time (the 12-hour form adds an English AM/PM).
+    const time = digits(d.toLocaleTimeString(loc(), { hour: 'numeric', minute: '2-digit', hour12: lang === 'en' }));
+    return new Date().toDateString() === d.toDateString() ? fmt('staleToday', { t: time }) : `${fd(d.toISOString().slice(0, 10))} ${time}`;
+  }
+  function applyStale() {
+    const wx = S.mode === 'yard' ? window.KSYard?.details?.()?.weather?.staleAt : S.mode === 'field' ? S.plan?.weatherStaleAt : null;
+    const s2 = S.mode === 'field' ? S.field?.health?.staleAt : null;
+    const marks = [
+      [['#chRain', '#ydTip'], wx, 'Open-Meteo'],
+      [['#chNdvi', '#zinfo', '#passes', '#scoreV'], s2, 'Sentinel-2'],
+    ];
+    for (const [sels, at, src] of marks) {
+      for (const sel of sels) {
+        const card = document.querySelector(sel)?.closest('.card');
+        if (!card) continue;
+        let n = card.querySelector(':scope > .stale-note');
+        if (!at) {
+          n?.remove();
+          continue;
+        }
+        if (!n) {
+          n = document.createElement('div');
+          n.className = 'stale-note';
+          n.setAttribute('role', 'status');
+          const lab = card.querySelector(':scope > .lab');
+          if (lab) lab.after(n);
+          else card.prepend(n);
+        }
+        n.innerHTML = `<i aria-hidden="true"></i><span><b>${esc(fmt('staleAt', { when: staleWhen(at) }))}</b> ${esc(fmt('staleWhy', { src }))}</span>`;
+      }
+    }
+  }
   function renderAll() {
     renderHeader();
     document.querySelectorAll('[data-icon="rupee"]').forEach((e) => (e.innerHTML = I.rupee));
+    queueMicrotask(applyStale);
     applyMode();
     if (S.tab === 'home') renderHome();
     if (S.tab === 'field') renderField();
@@ -1298,6 +1341,46 @@
     return answer;
   }
 
+  // v0.19.0: numbers in Sathi's answer, checked against her data on the server. Green: found in the data
+  // (tap for the source); amber: not in the data, Sathi's own figure.
+  const SRC_KEY = { farm: 'srcFarm', field: 'srcFarm', calendar: 'srcCal', 'sample prices': 'srcSample', kit: 'srcKit', ranges: 'srcRanges', eggs: 'srcEggs', rule: 'srcRule', shed: 'srcShed', yard: 'srcYard', plants: 'srcPlants' };
+  const srcName = (src) => (SRC_KEY[src] ? t(SRC_KEY[src]) : src);
+  function markNumbers(m, said, answer, checks) {
+    if (said.textContent !== answer) return;
+    const list = [...checks.numbers].sort((a, b) => a.i - b.i);
+    let html = '';
+    let at = 0;
+    list.forEach((n, k) => {
+      if (n.i < at) return;
+      html += esc(answer.slice(at, n.i));
+      html += `<button type="button" class="numchk ${n.source ? 'ok' : 'own'}" data-k="${k}" aria-label="${esc(n.raw)}: ${esc(n.source ? fmt('numFrom', { src: srcName(n.source) }) : t('numOwn'))}">${esc(n.raw)}</button>`;
+      at = n.i + n.len;
+    });
+    html += esc(answer.slice(at));
+    said.innerHTML = html;
+    const own = list.filter((n) => !n.source);
+    const row = document.createElement('div');
+    row.className = 'numsrc';
+    row.innerHTML = `<b>${esc(fmt('numSummary', { m: num(checks.matched), n: num(checks.total) }))}</b>${checks.sources.map((x) => `<span class="numchip">✓ ${esc(srcName(x))}</span>`).join('')}${own.length ? `<span class="numchip own">≈ ${esc(own.map((n) => n.raw).join(', '))}: ${esc(t('numOwn'))}</span>` : ''}`;
+    const meta = m.querySelector(':scope > .meta');
+    if (meta) meta.before(row);
+    else m.appendChild(row);
+    said.addEventListener('click', (e) => {
+      const b = e.target.closest('.numchk');
+      if (!b) return;
+      const n = list[Number(b.dataset.k)];
+      let pop = m.querySelector(':scope > .numpop');
+      if (pop && pop.dataset.k === b.dataset.k) return pop.remove();
+      pop?.remove();
+      pop = document.createElement('div');
+      pop.className = `numpop ${n.source ? '' : 'own'}`;
+      pop.dataset.k = b.dataset.k;
+      pop.setAttribute('role', 'status');
+      pop.innerHTML = `<b>${esc(n.raw)}</b> · ${esc(n.source ? fmt('numFrom', { src: srcName(n.source) }) : t('numOwnLong'))}`;
+      said.after(pop);
+    });
+  }
+
   let busy = false;
   async function ask(text) {
     if (S.tab !== 'saathi') show('saathi');
@@ -1319,10 +1402,11 @@
       work.finish(r);
       const tools = (r.trace || []).filter((s) => s.type === 'tool').map((s) => s.name.replace(/_/g, ' '));
       // The answer is written sentence by sentence as Sathi speaks it (v0.17.0).
-      const m = bubble('', 'bot', [r.brain?.label ? fmt('answeredBy', { model: r.brain.label }) : '', tools.length ? `✓ ${tools.join(' · ')}` : ''].filter(Boolean).join('  '));
+      const m = bubble('', 'bot', [r.staleAt ? fmt('staleAnswer', { when: staleWhen(r.staleAt) }) : '', r.brain?.label && !r.staleAt ? fmt('answeredBy', { model: r.brain.label }) : '', tools.length ? `✓ ${tools.join(' · ')}` : ''].filter(Boolean).join('  '));
       const said = document.createElement('span');
       said.className = 'said';
       m.prepend(said);
+      if (r.answer && r.checks?.total) said.addEventListener('ks-revealed', () => markNumbers(m, said, r.answer, r.checks), { once: true });
       $('#brainLine').textContent = r.brain?.label ? `${t('online')} · ${r.brain.label}` : t('online');
       // v0.15.0: the agriculture offices Sathi found, with Call (the farmer's own phone) and Directions.
       const help = (r.trace || []).find((s) => s.type === 'tool' && s.name === 'find_agri_office')?.output;
@@ -1360,8 +1444,10 @@
     $('#sathiAv')?.classList.remove('talking');
     // Any answer still being written out is shown in full.
     if (revealing) {
-      revealing.el.textContent = revealing.text;
+      const el = revealing.el;
+      el.textContent = revealing.text;
       revealing = null;
+      el.dispatchEvent(new CustomEvent('ks-revealed'));
     }
   }
   let revealing = null;
@@ -1413,6 +1499,7 @@
       if (revealing?.el === reveal && reveal) {
         reveal.textContent = text;
         revealing = null;
+        reveal.dispatchEvent(new CustomEvent('ks-revealed'));
       }
     };
     if (!parts.length) return showAll();
@@ -1958,6 +2045,7 @@
     else renderAll();
     show('home');
     loadSide();
+    if (v === 'demo') window.KSTour?.maybeStart();
   }
   $('#viewBack').addEventListener('click', () => enterView(null));
   $('#meDemo').addEventListener('click', () => {
@@ -1985,7 +2073,7 @@
 
   // Shared with ks-shed.js (poultry, egg sale, buying for a field, demo calls).
   window.KS = {
-    S, $, $$, I, t, fmt, num, esc, fd, loc, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, skelBox, shedSym, curSym, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store, shrink, exifGPS,
+    S, $, $$, I, t, fmt, num, esc, fd, loc, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, skelBox, shedSym, curSym, applyStale, viewParam, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store, shrink, exifGPS,
     lang: () => lang, show, ask, speak, toWav, renderAll, renderHeader, loadSide, loadSheds, openShed, openFarm, bubble, count, mini, lineChart,
     playUrl: (url) =>
       new Promise((done) => {

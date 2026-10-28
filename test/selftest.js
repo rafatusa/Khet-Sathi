@@ -1264,6 +1264,59 @@ await checkAsync('Sathi at work: model turns and tools are reported in order, wi
   assert.equal(r2.answer, 'The office can look at it.');
 });
 
+// ---------- v0.19.0: earlier data when a source is down ----------
+await checkAsync('Kept answers: a failing source returns the last good answer with its time; nothing kept passes the error on', async () => {
+  const keep = await import('../lib/keep.js');
+  keep._resetKeep();
+  await assert.rejects(keep.withKeep('t|a', async () => { throw new Error('down'); }), /down/);
+  const good = await keep.withKeep('t|a', async () => ({ rain: 12 }));
+  assert.equal(good.staleAt, null);
+  const bad = await keep.withKeep('t|a', async () => { throw new Error('Open-Meteo HTTP 503'); });
+  assert.deepEqual(bad.value, { rain: 12 });
+  assert.ok(bad.staleAt && !Number.isNaN(Date.parse(bad.staleAt)));
+  assert.match(bad.reason, /503/);
+  // An answer the check rejects counts as a failure too.
+  const rejected = await keep.withKeep('t|a', async () => ({ rain: null }), { ok: (v) => v.rain != null });
+  assert.deepEqual(rejected.value, { rain: 12 });
+  // Too old: not served.
+  keep.remember('t|b', 1, { now: Date.now() - 5 * 864e5 });
+  await assert.rejects(keep.withKeep('t|b', async () => { throw new Error('down'); }), /down/);
+});
+
+await checkAsync('Number check: Bangla and Hindi digits, Indian thousands, rounding; figures not in the data are marked as Sathi\'s own', async () => {
+  const nc = await import('../lib/numcheck.js');
+  const facts = nc.factsFrom({ parts: [{ text: 'greenness 0.774 on 2026-10-25, 0.03 less', source: 'Sentinel-2' }, { text: 'rain chance 70', source: 'Open-Meteo' }, { text: '62.6', source: 'FAOSTAT' }] });
+  const r = nc.checkNumbers('সবুজ ভাব ০.৭৭, ০.০৩ কম। ৭০% বৃষ্টি। প্রায় ৬৩ মণ। দাম ১,৮৫,০০০ টাকা। 1. ঠিক আছে। ২০২৬ সালে।', facts);
+  assert.deepEqual(r.numbers.map((n) => [n.raw, n.source]), [['০.৭৭', 'Sentinel-2'], ['০.০৩', 'Sentinel-2'], ['৭০', 'Open-Meteo'], ['৬৩', 'FAOSTAT'], ['১,৮৫,০০০', null]]);
+  assert.equal(r.matched, 4);
+  assert.equal(r.total, 5);
+  const hi = nc.checkNumbers('हरियाली ०.७७ है', facts);
+  assert.equal(hi.numbers[0].source, 'Sentinel-2');
+  // Positions point at the number in the original text, so the app can mark it.
+  const ans = 'NDVI is 0.77 now';
+  const one = nc.checkNumbers(ans, facts).numbers[0];
+  assert.equal(ans.slice(one.i, one.i + one.len), '0.77');
+  // Tool results: keys say where a number came from; coordinates are never used.
+  const f2 = nc.factsFrom({ tools: [{ output: { lat: 24.85, soil: { ph: 6.4 }, rain_next_10_days_mm: 36 }, source: 'field' }], sourceForKey: (p) => (/soil/.test(p.join('.')) ? 'ISRIC SoilGrids' : /rain/.test(p.join('.')) ? 'Open-Meteo' : null) });
+  assert.deepEqual(f2.map((f) => [f.value, f.source]), [[6.4, 'ISRIC SoilGrids'], [36, 'Open-Meteo']]);
+});
+
+await checkAsync('Earlier weather: when Open-Meteo fails, the plan keeps the last good forecast for the spot and says when it is from', async () => {
+  (await import('../lib/keep.js'))._resetKeep();
+  const land = { place: 'bogura', lat: 24.881, lon: 89.331 };
+  const good = await buildPlan(land, { fetchImpl: fakeFetch(['fao']), today: TODAY, placeDeps: fakePlace('BD', 'Bangladesh'), think: noThink });
+  assert.equal(good.weatherStaleAt, null);
+  (await import('../lib/weather.js'))._resetWeatherCache(); // the 1-hour store has run out
+  const down = await buildPlan(land, { fetchImpl: fakeFetch(['fao', 'weather']), today: TODAY, placeDeps: fakePlace('BD', 'Bangladesh'), think: noThink });
+  assert.ok(down.weatherStaleAt, 'marked as earlier data');
+  assert.equal(down.weatherError, null);
+  assert.equal(down.rain.rainDate, good.rain.rainDate);
+  // Another spot with nothing kept: no forecast, the error is shown as before.
+  const other = await buildPlan({ ...land, lat: 22.1, lon: 88.2 }, { fetchImpl: fakeFetch(['fao', 'weather']), today: TODAY, placeDeps: fakePlace('BD', 'Bangladesh'), think: noThink });
+  assert.equal(other.weather, null);
+  assert.ok(other.weatherError);
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);
