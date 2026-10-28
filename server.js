@@ -44,12 +44,14 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.15.0';
+const VERSION = '0.15.1';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
 const PUB = path.join(__dirname, 'public');
 app.get(['/', '/index.html'], (req, res) => res.sendFile(path.join(PUB, 'app.html')));
+// v0.15.1: each tab has its own address; they all open the same app, which shows that tab.
+app.get(['/home', '/sathi', '/field', '/shed', '/market', '/money', '/settings'], (req, res) => res.sendFile(path.join(PUB, 'app.html')));
 app.get(['/next', '/next/', '/next/index.html'], (req, res) => res.redirect(302, '/'));
 // Express matches /classic and /classic/ alike, so one route tells them apart (relative links need the slash).
 // v0.14.0: the model bench page is retired; the checks live in the admin Settings tab.

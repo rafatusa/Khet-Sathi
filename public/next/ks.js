@@ -134,7 +134,20 @@
   );
 
   // ---------- tabs ----------
-  function show(tab) {
+  // v0.15.1: every tab has its own address, so back and forward work, a refresh stays on the tab,
+  // and a link like /sathi opens that tab (after signing in).
+  const TAB_PATH = { home: '/home', field: '/field', shed: '/shed', saathi: '/sathi', market: '/market', money: '/money', settings: '/settings' };
+  const tabFromPath = (p = location.pathname) => Object.keys(TAB_PATH).find((k) => TAB_PATH[k] === p.replace(/\/+$/, '')) || null;
+  window.addEventListener('popstate', () => {
+    if (document.body.dataset.auth !== 'in') return;
+    show(tabFromPath() || 'home', { route: 'none' });
+  });
+  let routeQuiet = false; // while the app starts up, tab changes do not add history entries
+  function show(tab, { route = 'push' } = {}) {
+    if (routeQuiet) route = 'none';
+    // v0.15.1: leaving a tab ends Sathi's voice.
+    if (tab !== S.tab) stopVoice();
+    if (tab === 'settings' && !S.admin) tab = 'home';
     // v0.15.0: a home yard has Home, Sathi and Money (no satellite field, shed or market).
     if (S.mode === 'yard' && ['field', 'shed', 'market'].includes(tab)) tab = 'home';
     if (tab === 'field' && S.mode === 'shed') tab = 'shed';
@@ -151,6 +164,8 @@
       } else p.hidden = !on;
     });
     $$('#tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+    const path = TAB_PATH[tab];
+    if (path && route !== 'none' && document.body.dataset.auth === 'in' && location.pathname !== path) history[route === 'replace' ? 'replaceState' : 'pushState']({ tab }, '', path);
     $('nav.bottom').hidden = tab === 'pass';
     if (tab === 'home') renderHome();
     if (tab === 'field') renderField();
@@ -303,9 +318,11 @@
   });
   $('#meOut').addEventListener('click', async () => {
     $('#meMenu').hidden = true;
+    stopVoice();
     const tok = sess?.access_token;
     saveSess(null);
     fetch('/api/auth/signout', { method: 'POST', headers: tok ? { Authorization: `Bearer ${tok}` } : {} }).catch(() => null);
+    history.replaceState(null, '', '/');
     Object.assign(S, { view: null, admin: false, lands: [], sheds: [], yards: [], yard: null, cur: null, shed: null, plan: null, field: null, deals: [], alerts: [], chat: [] });
     renderViewBar();
     showLanding();
@@ -321,6 +338,7 @@
   }
   async function openLand(id) {
     stopPlay();
+    stopVoice();
     const r = await api(`/api/lands/${id}`);
     if (!r.ok) throw new Error(r.error);
     S.cur = r.land;
@@ -367,6 +385,7 @@
   // A shed is picked: Home, Shed and Market switch to poultry (ks-shed.js draws them).
   function openShed(id) {
     stopPlay();
+    stopVoice();
     S.shed = S.sheds.find((s) => s.id === id) || S.sheds[0] || null;
     S.mode = 'shed';
     store.set('ks_shed', S.shed?.id || '');
@@ -1096,6 +1115,7 @@
   async function ask(text) {
     if (S.tab !== 'saathi') show('saathi');
     if (busy) return;
+    stopVoice();
     busy = true;
     bubble(text, 'me');
     const tp = typing();
@@ -1124,24 +1144,77 @@
     }
   }
 
+  // v0.15.1: Sathi speaks sentence by sentence. The first sentence's voice is asked for first and plays as soon as
+  // it arrives while the next one is being made, so she starts talking quickly instead of after the whole reply.
+  // stopVoice() ends any speech (and any reply still being prepared) when the farmer leaves or asks again.
   let player = null;
+  let voiceGen = 0;
   const audioCache = new Map();
-  async function speak(text, el) {
-    try {
-      let url = audioCache.get(text);
-      if (!url) {
-        const r = await postJson('/api/speak', { text });
-        if (!r.ok) throw new Error(r.error);
-        url = r.audioDataUrl;
-        audioCache.set(text, url);
-      }
-      if (player) player.pause();
+  function stopVoice() {
+    voiceGen++;
+    if (player) {
+      player.onended = null;
+      player.pause();
+      player = null;
+    }
+    $$('.msg.speaking').forEach((m) => m.classList.remove('speaking'));
+  }
+  // Short sentences are joined (one request per piece); very long ones are split at a comma.
+  function speechParts(text) {
+    const raw = String(text || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .split(/(?<=[.!?।॥])\s+/)
+      .flatMap((s) => (s.length > 220 ? s.split(/(?<=[,،;:])\s+/) : [s]))
+      .filter(Boolean);
+    const out = [];
+    for (const s of raw) {
+      if (out.length && (out[out.length - 1].length < 40 || s.length < 25) && out[out.length - 1].length + s.length < 220) out[out.length - 1] += ` ${s}`;
+      else out.push(s);
+    }
+    return out;
+  }
+  function voiceFor(s) {
+    if (audioCache.has(s)) return audioCache.get(s);
+    const job = postJson('/api/speak', { text: s }).then((r) => {
+      if (!r.ok) throw new Error(r.error);
+      return r.audioDataUrl;
+    });
+    audioCache.set(s, job);
+    job.catch(() => audioCache.delete(s));
+    return job;
+  }
+  function playOne(url, gen) {
+    return new Promise((done) => {
+      if (gen !== voiceGen) return done(false);
       player = new Audio(url);
-      el?.classList.add('speaking');
-      player.onended = () => el?.classList.remove('speaking');
-      await player.play();
+      player.onended = () => done(true);
+      player.onerror = () => done(false);
+      player.play().catch(() => done(false));
+    });
+  }
+  async function speak(text, el) {
+    stopVoice();
+    const gen = voiceGen;
+    const parts = speechParts(text);
+    if (!parts.length) return;
+    el?.classList.add('speaking');
+    try {
+      // The first two pieces are asked for at once; after that, always one piece ahead of the voice.
+      voiceFor(parts[0]);
+      if (parts[1]) voiceFor(parts[1]);
+      for (let i = 0; i < parts.length; i++) {
+        const url = await voiceFor(parts[i]);
+        if (gen !== voiceGen) return;
+        if (parts[i + 1]) voiceFor(parts[i + 1]);
+        if (parts[i + 2]) voiceFor(parts[i + 2]);
+        const ok = await playOne(url, gen);
+        if (!ok) return;
+      }
     } catch {
-      el?.classList.remove('speaking');
+      // No voice (no key, or the voice service failed): the written answer stays on screen.
+    } finally {
+      if (gen === voiceGen) el?.classList.remove('speaking');
     }
   }
 
@@ -1565,6 +1638,7 @@
   async function boot() {
     applyLang();
     icons();
+    const wantTab = tabFromPath();
     if (!sess) return showLanding();
     const me = await api('/api/auth/me').catch(() => null);
     if (!me?.ok) return showPass();
@@ -1579,6 +1653,7 @@
     $('#landing').hidden = true;
     delete document.body.dataset.page;
     document.body.dataset.auth = 'in';
+    routeQuiet = true;
     document.body.dataset.admin = S.admin ? '1' : '';
     $$('[data-tab="settings"]').forEach((b) => (b.hidden = !S.admin));
     $('#meSettings').hidden = !S.admin;
@@ -1586,7 +1661,7 @@
     $('#meBtn').hidden = false;
     $('#meBtn').textContent = (sess.email || '?').slice(0, 1).toUpperCase();
     $('#meEmail').textContent = sess.email || '';
-    show('home');
+    show('home', { route: 'none' });
     const want = store.get('ks_land');
     const pick = S.lands.find((l) => l.id === want) || S.lands[0];
     S.shed = S.sheds.find((s) => s.id === store.get('ks_shed')) || S.sheds[0] || null;
@@ -1598,6 +1673,9 @@
     else renderAll();
     loadSide();
     welcome();
+    // The address the app was opened at (/sathi, /money …), else Home; the mode can still move /field to /shed.
+    routeQuiet = false;
+    show(wantTab || 'home', { route: 'replace' });
   }
   // First sign-in on this browser: the demo places, ready to try, and adding one's own field.
   // First sign-in on this browser, with an empty farm: add a field or a shed, or watch the demo farm.
@@ -1678,9 +1756,10 @@
         player = new Audio(url);
         player.onended = done;
         player.onerror = done;
+        player.onpause = done; // stopped by leaving the page: the call moves on instead of waiting forever
         player.play().catch(done);
       }),
-    stopAudio: () => player && player.pause(),
+    stopAudio: stopVoice,
   };
   // ks-shed.js loads after this file; boot once both are in.
   window.addEventListener('DOMContentLoaded', boot);
