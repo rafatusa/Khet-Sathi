@@ -55,7 +55,7 @@
       const sy = (o.bounds.bottom - o.bounds.top) / (o.mh || 1);
       svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><g transform="translate(${o.bounds.left} ${o.bounds.top}) scale(${sx} ${sy})"><path d="${esc(o.svgPath)}" class="ydmask"/></g></svg>`;
     }
-    return `<div class="ydframe" style="aspect-ratio:${W}/${H}"><img src="${esc(imgUrl(y.photoUrl))}" alt="${esc(t('ydPhotoH'))}">${svg}${o ? `<span class="ydbadge">${esc(t('ydSamBadge'))}</span>` : ''}</div>`;
+    return `<div class="ydframe" style="aspect-ratio:${W}/${H};width:min(100%, ${Math.round((360 * W) / H)}px)"><img src="${esc(imgUrl(y.photoUrl))}" alt="${esc(t('ydPhotoH'))}">${svg}${o ? `<span class="ydbadge">${esc(t('ydSamBadge'))}</span>` : ''}</div>`;
   }
   // v0.20.1: no outline says which it was: SAM answered and found no open ground, or SAM did not answer.
   const samLine = (y) => (y?.outline ? fmt('ydSamOk', { n: num(y.outline.share || 0) }) : t(y?.sam?.answered ? 'ydSamNone' : 'ydSamNo'));

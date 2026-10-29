@@ -27,10 +27,10 @@
     const m = l.measure || {};
     if (l.motion) {
       const boxes = (l.animals || []).map((a) => `<g><rect x="${a.box.left}" y="${a.box.top}" width="${a.box.right - a.box.left}" height="${a.box.bottom - a.box.top}" class="fcbox"/><text x="${a.box.left + 6}" y="${Math.max(18, a.box.top - 6)}" class="fcboxt">${esc(t(`fcKind_${a.kind}`))}</text></g>`).join('');
-      return `<div class="ydframe" style="aspect-ratio:${W}/${H}"><img src="${esc(imgUrl(l))}" alt="${esc(t('fcMotionH'))}" loading="lazy">${boxes ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${boxes}</svg>` : ''}</div>`;
+      return `<div class="ydframe" style="aspect-ratio:${W}/${H};width:min(100%, ${Math.round((360 * W) / H)}px)"><img src="${esc(imgUrl(l))}" alt="${esc(t('fcMotionH'))}" loading="lazy">${boxes ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${boxes}</svg>` : ''}</div>`;
     }
     const svg = (m.plants || []).length ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${(m.plants || []).map((p) => maskPath(p, 'pbleaf')).join('')}${(m.patches || []).map((p) => maskPath(p, 'pbpatch')).join('')}</svg>` : '';
-    return `<div class="ydframe" style="aspect-ratio:${W}/${H}"><img src="${esc(imgUrl(l))}" alt="${esc(t('fcH'))}" loading="lazy">${svg}${badge && svg ? `<span class="ydbadge">${esc(t('fcSamBadge'))}</span>` : ''}</div>`;
+    return `<div class="ydframe" style="aspect-ratio:${W}/${H};width:min(100%, ${Math.round((360 * W) / H)}px)"><img src="${esc(imgUrl(l))}" alt="${esc(t('fcH'))}" loading="lazy">${svg}${badge && svg ? `<span class="ydbadge">${esc(t('fcSamBadge'))}</span>` : ''}</div>`;
   }
   // The share over the looks: one line, a dot per look, the last one labelled.
   function chartHtml(looks) {

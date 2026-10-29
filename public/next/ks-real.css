@@ -242,7 +242,7 @@ body[data-view="farm"] .viewbar{background:var(--turmeric-soft);color:#5c4400}bo
 #settings .panel{margin-bottom:16px}#settings .lab{display:flex;align-items:center;gap:8px}
 body[data-page="landing"]>header,body[data-page="landing"]>main,body[data-page="landing"] nav.bottom{display:none!important}
 /* v0.15.0: home yard and agriculture office help */
-.ydframe{position:relative;width:100%;max-height:360px;border-radius:14px;overflow:hidden;background:var(--bg)}
+.ydframe{position:relative;width:100%;max-height:360px;margin-left:auto;margin-right:auto;border-radius:14px;overflow:hidden;background:var(--bg)}
 .ydframe img{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block}
 .ydframe svg{position:absolute;inset:0;width:100%;height:100%}
 .ydmask{fill:rgba(47,122,42,.32);stroke:#f3e7b5;stroke-width:3;vector-effect:non-scaling-stroke}
