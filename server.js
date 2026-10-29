@@ -53,7 +53,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.26.1';
+const VERSION = '0.26.2';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -672,7 +672,7 @@ app.post(
 
 // ---------- sheds (v0.11.0) ----------
 // v0.18.1: each shed carries its own currency, from the country at its location (the same address lookup the
-// yard uses, done once per spot and kept in memory). Since v0.26.1 the demo shed sits near Bogura, Bangladesh,
+// yard uses, done once per spot and kept in memory). Since v0.26.2 the demo shed sits near Bogura, Bangladesh,
 // so it is in taka. A shed with no location gets none and the app uses the farm's field currency.
 const shedCur = new Map();
 async function shedCurrency(s) {
@@ -1371,7 +1371,7 @@ app.get(
     const placeKind = ['field', 'shed', 'yard'].includes(req.query.kind) ? req.query.kind : null;
     const placeId = isId(req.query.id) ? req.query.id : null;
     const missions = await listMissions({ placeKind, placeId, limit: 5 });
-    // v0.26.1: a step still in English only (its translation failed) is translated now, in the background.
+    // v0.26.2: a step still in English only (its translation failed) is translated now, in the background.
     for (const m of missions.filter(needsTranslation).slice(0, 2)) fillTranslations(m);
     const sc = currentScope();
     return { mode: (await getWatchMode(sc?.mode === 'demo' ? 'demo' : sc?.owner || 'demo').catch(() => null)) || DEFAULT_WATCH_MODE, missions: missions.map(missionView) };
@@ -1448,13 +1448,13 @@ async function cameraCheck(land, looks, { demo = false } = {}) {
   const kind = camClassify({ look: last, stage: season.stage, heatPct: season.heat?.pct ?? null });
   const title = kind === 'ripening' ? 'crop_ripening' : 'patch_rising';
   const recent = await recentAlerts(12).catch(() => []);
-  // v0.26.1: a demo story always raises its alert (a retake for the video must wake Sathi again).
+  // v0.26.2: a demo story always raises its alert (a retake for the video must wake Sathi again).
   if (!demo && recent.some((a) => a.land_id === land.id && a.title === title)) return { ...tr, kind };
   const saved = await runAs(null, () => insertAlerts([{ land_id: land.id, owner_id: land.owner_id || null, area: 'field', severity: kind === 'ripening' ? 'info' : 'warn', title, source: 'camera', body: JSON.stringify({ from: tr.from, to: tr.to, looks: tr.looks, stage: season.stage, heat: season.heat?.pct ?? null, heads: last?.heads ?? null, even: last?.even ?? null }) }])).catch(() => null);
   if (saved?.length) wakeSathi(saved).catch(() => null);
   return { ...tr, kind };
 }
-// v0.26.1: a new demo story closes what Sathi was still waiting on from the camera's last story on this field.
+// v0.26.2: a new demo story closes what Sathi was still waiting on from the camera's last story on this field.
 const CAMERA_TRIGGERS = ['patch_rising', 'crop_ripening', 'animal_in_field'];
 async function closeCameraMissions(land, triggers = CAMERA_TRIGGERS) {
   for (const trigger of triggers) {
@@ -1903,7 +1903,7 @@ app.post(
 );
 
 // ---------- egg sale (v0.8.0): the farmer's rule, simulated shop calls, one-tap deal ----------
-// v0.26.1: the egg sale speaks and prices in the shed's currency (the demo shed is in Bangladesh, in taka).
+// v0.26.2: the egg sale speaks and prices in the shed's currency (the demo shed is in Bangladesh, in taka).
 async function saleCurrency() {
   const s = (await listSheds().catch(() => []))[0] || DEFAULT_SHED;
   return shedCurrency(s).catch(() => null);

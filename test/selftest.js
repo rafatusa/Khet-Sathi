@@ -1742,6 +1742,18 @@ check('v0.26.1: asked what she can do, Sathi also says the farmer\'s own AI assi
   assert.match(ag, /never say an AI assistant has already done something/);
 });
 
+check('v0.26.2: Sathi\'s voice can be muted and stays muted on the phone; Listen plays one answer; product-name numbers are not checked', async () => {
+  const ks = readFileSync(new URL('../public/next/ks.js', import.meta.url), 'utf8');
+  const html = readFileSync(new URL('../public/app.html', import.meta.url), 'utf8');
+  assert.match(html, /id="voiceBtn" aria-pressed="true"/);
+  assert.match(ks, /store\.set\('ks_voice', voiceOn \? 'on' : 'off'\)/);
+  assert.match(ks, /if \(!parts\.length \|\| \(!voiceOn && !force\)\) return showAll\(\);/);
+  assert.match(ks, /speak\(r\.answer, m, \{ force: true \}\)/);
+  const nc = await import('../lib/numcheck.js');
+  const t = 'SAM 3.1, Muse Spark 1.2, Zavora 360, Sentinel-2, 77% আর 32 দিন';
+  assert.deepEqual(nc.numbersIn(t).filter((n) => nc.worthChecking(n, t)).map((n) => n.raw), ['77', '32']);
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);

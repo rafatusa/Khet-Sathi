@@ -536,6 +536,9 @@
   }
   function renderAll() {
     renderHeader();
+    try {
+      renderVoice(); // v0.26.2 (defined further down; safe before it runs)
+    } catch {}
     document.querySelectorAll('[data-icon="rupee"]').forEach((e) => (e.innerHTML = I.rupee));
     queueMicrotask(applyStale);
     applyMode();
@@ -1475,8 +1478,16 @@
         $('#thread').appendChild(box);
         $('#thread').scrollTop = 1e9;
       }
-      if (r.answer) speak(r.answer, m, { reveal: said });
-      else said.textContent = t('noAnswer');
+      if (r.answer) {
+        speak(r.answer, m, { reveal: said });
+        // v0.26.2: Listen plays just this answer, also when the voice is muted.
+        const hear = document.createElement('button');
+        hear.type = 'button';
+        hear.className = 'linkbtn hearbtn';
+        hear.textContent = t('hearIt');
+        hear.addEventListener('click', () => speak(r.answer, m, { force: true }));
+        m.appendChild(hear);
+      } else said.textContent = t('noAnswer');
     } catch (err) {
       work.fail();
       bubble(`${t('error')}: ${err.message}`);
@@ -1490,6 +1501,24 @@
   // stopVoice() ends any speech (and any reply still being prepared) when the farmer leaves or asks again.
   let player = null;
   let voiceGen = 0;
+  // v0.26.2: the farmer can mute Sathi's voice; the choice stays on this phone. Muted, answers appear in full
+  // at once, and each answer has Listen to hear just that one.
+  let voiceOn = store.get('ks_voice') !== 'off';
+  function renderVoice() {
+    const b = $('#voiceBtn');
+    if (!b) return;
+    b.textContent = t(voiceOn ? 'voiceOn' : 'voiceOff');
+    b.setAttribute('aria-pressed', String(voiceOn));
+    b.setAttribute('aria-label', `${t('voiceL')}: ${t(voiceOn ? 'voiceOn' : 'voiceOff')}`);
+    b.classList.toggle('off', !voiceOn);
+  }
+  $('#voiceBtn')?.addEventListener('click', () => {
+    voiceOn = !voiceOn;
+    store.set('ks_voice', voiceOn ? 'on' : 'off');
+    if (!voiceOn) stopVoice();
+    renderVoice();
+  });
+  renderVoice();
   const audioCache = new Map();
   function stopVoice() {
     voiceGen++;
@@ -1545,22 +1574,23 @@
   }
   // reveal (v0.17.0): an element that shows each sentence as its voice starts. If the voice is slow (4 s),
   // fails, is blocked by the browser or is stopped, the whole answer is shown at once: text is never held back.
-  async function speak(text, el, { reveal = null } = {}) {
+  async function speak(text, el, { reveal = null, force = false } = {}) {
     stopVoice();
     const gen = voiceGen;
     const parts = speechParts(text);
+    const shown = (s) => (lang === 'bn' ? digits(s) : s); // v0.26.1: Bangla digits in her Bangla answers
     if (reveal) {
       reveal.textContent = '';
-      revealing = { el: reveal, text };
+      revealing = { el: reveal, text: shown(text) };
     }
     const showAll = () => {
       if (revealing?.el === reveal && reveal) {
-        reveal.textContent = text;
+        reveal.textContent = shown(text);
         revealing = null;
         reveal.dispatchEvent(new CustomEvent('ks-revealed'));
       }
     };
-    if (!parts.length) return showAll();
+    if (!parts.length || (!voiceOn && !force)) return showAll();
     const slow = reveal ? setTimeout(showAll, 4000) : null;
     el?.classList.add('speaking');
     try {
@@ -1572,7 +1602,7 @@
         if (gen !== voiceGen) return;
         if (parts[i + 1]) voiceFor(parts[i + 1]);
         if (parts[i + 2]) voiceFor(parts[i + 2]);
-        if (revealing?.el === reveal && reveal) reveal.textContent = parts.slice(0, i + 1).join(' ');
+        if (revealing?.el === reveal && reveal) reveal.textContent = shown(parts.slice(0, i + 1).join(' '));
         $('#sathiAv')?.classList.add('talking');
         const ok = await playOne(url, gen);
         if (!ok) return;
