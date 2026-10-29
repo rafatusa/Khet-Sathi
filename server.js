@@ -53,7 +53,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.25.1';
+const VERSION = '0.25.2';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -1425,7 +1425,7 @@ async function seasonFor(land) {
 }
 // Rising yellow: ripening (late in the season and even, or grain heads) wakes Sathi for the harvest; anything
 // else for the agriculture office. One alert of each kind per field in 12 hours.
-async function cameraCheck(land, looks) {
+async function cameraCheck(land, looks, { demo = false } = {}) {
   const tr = camTrend(looks);
   if (!tr.rising) return tr;
   const season = await seasonFor(land);
@@ -1433,10 +1433,20 @@ async function cameraCheck(land, looks) {
   const kind = camClassify({ look: last, stage: season.stage, heatPct: season.heat?.pct ?? null });
   const title = kind === 'ripening' ? 'crop_ripening' : 'patch_rising';
   const recent = await recentAlerts(12).catch(() => []);
-  if (recent.some((a) => a.land_id === land.id && a.title === title)) return { ...tr, kind };
+  // v0.25.2: a demo story always raises its alert (a retake for the video must wake Sathi again).
+  if (!demo && recent.some((a) => a.land_id === land.id && a.title === title)) return { ...tr, kind };
   const saved = await runAs(null, () => insertAlerts([{ land_id: land.id, owner_id: land.owner_id || null, area: 'field', severity: kind === 'ripening' ? 'info' : 'warn', title, source: 'camera', body: JSON.stringify({ from: tr.from, to: tr.to, looks: tr.looks, stage: season.stage, heat: season.heat?.pct ?? null, heads: last?.heads ?? null, even: last?.even ?? null }) }])).catch(() => null);
   if (saved?.length) wakeSathi(saved).catch(() => null);
   return { ...tr, kind };
+}
+// v0.25.2: a new demo story closes what Sathi was still waiting on from the camera's last story on this field.
+const CAMERA_TRIGGERS = ['patch_rising', 'crop_ripening', 'animal_in_field'];
+async function closeCameraMissions(land, triggers = CAMERA_TRIGGERS) {
+  for (const trigger of triggers) {
+    const open = await openMissionFor({ ownerId: land.owner_id || null, placeKind: 'field', placeId: land.id, trigger }).catch(() => null);
+    const m = open ? await getMission(open.id).catch(() => null) : null;
+    if (m) await saveMission({ ...m, status: 'done', due_at: null, steps: [...(m.steps || []), { at: new Date().toISOString(), kind: 'did', key: 'wtDidDemoClosed' }] });
+  }
 }
 async function animalCheck(land, look) {
   const n = (look.animals || []).length;
@@ -1484,6 +1494,7 @@ app.post(
     const { data, image } = await imageFor(photo.buffer);
     const { look, looks } = await addLook(land.id, { photo: data, image, crop: land.crop, motion, demo: sc?.mode === 'demo' });
     if (motion) {
+      if (sc?.mode === 'demo' && sc.admin) await closeCameraMissions(land, ['animal_in_field']).catch(() => null);
       await animalCheck(land, look);
       return { look: lookView(land.id, look), trend: camTrend(looks) };
     }
@@ -1504,10 +1515,13 @@ app.post(
     const index = Math.max(0, Math.min(total - 1, Number(req.body?.index) || 0));
     const photo = dataUrlToBuffer(req.body?.photoDataUrl);
     if (!photo) throw new Error('Send a frame');
-    if (index === 0) await saveLooks(land.id, () => []);
+    if (index === 0) {
+      await saveLooks(land.id, () => []);
+      await closeCameraMissions(land).catch(() => null);
+    }
     const { data, image } = await imageFor(photo.buffer);
     const { look, looks } = await addLook(land.id, { photo: data, image, at: demoDates(total)[index], demo: true, crop: land.crop });
-    const tr = index === total - 1 ? await cameraCheck(land, looks) : camTrend(looks);
+    const tr = index === total - 1 ? await cameraCheck(land, looks, { demo: true }) : camTrend(looks);
     return { look: lookView(land.id, look), trend: tr, done: index === total - 1 };
   })
 );

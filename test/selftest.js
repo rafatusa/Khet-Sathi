@@ -1662,6 +1662,25 @@ await checkAsync('Sathi on watch (v0.25.1): times reach her as local clock times
   assert.doesNotMatch(first, /T12:30|Z"/);
 });
 
+await checkAsync('v0.25.2: an older copy of the looks from storage never wins over the one just written; a long question ends at a full sentence', async () => {
+  const fc = await import('../lib/fieldcam.js');
+  const land = '22222222-2222-4222-8222-222222222222';
+  let stale = null;
+  const files = new Map();
+  const deps = { getFileImpl: async (p) => (stale ? { buffer: stale } : files.has(p) ? { buffer: files.get(p) } : null), putFileImpl: async (p, b) => files.set(p, Buffer.from(b)) };
+  await fc.saveLooks(land, () => [{ id: 'a', at: '2026-10-27T00:00:00Z', share: 1 }], deps);
+  stale = Buffer.from(JSON.stringify({ looks: [], rev: 1 })); // what the storage cache may hand back right after a write
+  await fc.saveLooks(land, (ls) => [...ls, { id: 'b', at: '2026-10-28T00:00:00Z', share: 2 }], deps);
+  assert.deepEqual((await fc.readLooks(land, deps)).map((l) => l.id), ['a', 'b'], 'no frame lost to a stale read');
+  stale = Buffer.from(JSON.stringify({ looks: [{ id: 'z', at: '2026-10-29T00:00:00Z' }], rev: Date.now() + 60000 }));
+  assert.deepEqual((await fc.readLooks(land, deps)).map((l) => l.id), ['z'], 'a newer copy (another server) still wins');
+  const w = await import('../lib/watch.js');
+  const long = 'I saw the share rise from 9% to 17% over two days. It is patchy with no grain heads. ' + 'More detail here. '.repeat(20);
+  const q = w.cleanLine(long, 120);
+  assert.ok(q.length <= 120 && /\.$/.test(q), `ends at a sentence: ${q}`);
+  assert.match(JSON.stringify(w.watchTools('field', 'ask')), /at most 25 words/);
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);
