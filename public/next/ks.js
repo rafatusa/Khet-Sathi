@@ -26,6 +26,14 @@
   const t = (k) => TX[lang]?.[k] ?? CL[lang]?.[k] ?? TX.en?.[k] ?? CL.en?.[k] ?? k;
   // v0.25.4: a count of one picks the singular text when the language has one (key_1), e.g. "1 chicken not moving".
   const isOne = (x) => x === 1 || x === '1' || x === '১' || x === '१';
+  // v0.26.1: a country's name in the language on screen (বাংলাদেশ, बांग्लादेश), from its two-letter code.
+  const countryName = (cc) => {
+    try {
+      return cc ? new Intl.DisplayNames([loc()], { type: 'region' }).of(String(cc).toUpperCase()) : '';
+    } catch {
+      return '';
+    }
+  };
   const fmt = (k, v = {}) => {
     const k1 = `${k}_1`;
     const key = ['n', 'value', 'still', 'looks', 'count', 'days'].some((a) => isOne(v[a])) && (TX[lang]?.[k1] ?? CL[lang]?.[k1]) != null ? k1 : k;
@@ -1212,7 +1220,8 @@
   function bubble(text, who = 'bot', meta = '') {
     const m = document.createElement('div');
     m.className = `msg ${who}`;
-    m.textContent = text;
+    // v0.26.1: Sathi's own words in Bangla show Bangla digits, like the rest of the screen.
+    m.textContent = who === 'bot' && lang === 'bn' ? digits(text) : text;
     if (meta) {
       const s = document.createElement('div');
       s.className = 'meta';
@@ -1989,7 +1998,7 @@
     const today = AD.plan?.today || new Date().toISOString().slice(0, 10);
     $('#planH').textContent = fmt('seasonOf', { crop: cropName(c.key) });
     const steps = seasonSteps(c, today);
-    $('#money3').innerHTML = [[t('sowWindow'), `${fd(c.windowStart)} – ${fd(c.windowEnd)}`], [t('harvestL'), fmt('harvestIn', { a: num(c.growDays?.min), b: num(c.growDays?.max) })], ...(profitText(c, AD.plan) ? [[t('perAcreSample'), profitText(c, AD.plan)]] : [[t('cropSrcL'), cropSrc(AD.plan)]])].map(([k, v]) => `<div class="tile"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join('');
+    $('#money3').innerHTML = [[t('sowWindow'), `${fd(c.windowStart)} - ${fd(c.windowEnd)}`], [t('harvestL'), fmt('harvestIn', { a: num(c.growDays?.min), b: num(c.growDays?.max) })], ...(profitText(c, AD.plan) ? [[t('perAcreSample'), profitText(c, AD.plan)]] : [[t('cropSrcL'), cropSrc(AD.plan)]])].map(([k, v]) => `<div class="tile"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join('');
     $('#tl').innerHTML = steps.map((s, i) => `<div class="tli" style="animation-delay:${i * 110}ms"><span class="ic">${I[s.icon]}</span><div><b>${esc(t(`step_${s.id}`))}</b><div class="d">${esc(fd(s.date))}</div></div><span class="a">${s.date === steps[0].date && i === 0 ? esc(t('next')) : ''}</span></div>`).join('');
   }
   $('#startBtn').addEventListener('click', async () => {
@@ -2126,7 +2135,7 @@
 
   // Shared with ks-shed.js (poultry, egg sale, buying for a field, demo calls).
   window.KS = {
-    S, $, $$, I, t, fmt, num, esc, fd, loc, alertText, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, skelBox, shedSym, curSym, applyStale, viewParam, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store, shrink, exifGPS,
+    S, $, $$, I, t, fmt, countryName, num, esc, fd, loc, alertText, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, skelBox, shedSym, curSym, applyStale, viewParam, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store, shrink, exifGPS,
     lang: () => lang, show, ask, speak, toWav, renderAll, renderHeader, loadSide, loadSheds, openShed, openFarm, bubble, count, mini, lineChart,
     playUrl: (url) =>
       new Promise((done) => {

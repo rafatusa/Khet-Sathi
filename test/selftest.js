@@ -1723,6 +1723,17 @@ await checkAsync('v0.26.0: natural Bangla and Hindi, taka for the Bangladesh dem
   assert.match(ag, /Write numbers as digits/);
 });
 
+check('v0.26.1: country in the language on screen, transactions wording, plain range dashes, Bangla digits for Sathi', () => {
+  const tx = readFileSync(new URL('../public/next/ks-text.js', import.meta.url), 'utf8');
+  const ks = readFileSync(new URL('../public/next/ks.js', import.meta.url), 'utf8');
+  assert.match(tx, /qtyHow: "\{ac\} একর × গড় ফলন: \{crop\}, \{country\} \(FAOSTAT\)"/);
+  assert.match(tx, /dealsN: "\{n\}টি লেনদেন নিশ্চিত হয়েছে"/);
+  assert.match(ks, /new Intl\.DisplayNames\(\[loc\(\)\], \{ type: 'region' \}\)/);
+  assert.equal(new Intl.DisplayNames(['bn-BD'], { type: 'region' }).of('BD'), 'বাংলাদেশ');
+  for (const f of ['ks.js', 'ks-harvest.js', 'ks-report.js']) assert.doesNotMatch(readFileSync(new URL(`../public/next/${f}`, import.meta.url), 'utf8'), / – /, `${f}: no long dash in ranges`);
+  assert.match(readFileSync(new URL('../public/next/ks-watch.js', import.meta.url), 'utf8'), /K\.digits\(s\.text\.bn\)/);
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);

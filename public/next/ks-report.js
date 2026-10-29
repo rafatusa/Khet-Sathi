@@ -125,7 +125,7 @@
 
   function build() {
     const r = S.mode === 'shed' ? shedReport() : S.mode === 'yard' ? yardReport() : fieldReport();
-    r.range = `${fd(addDays(today(), -6))} – ${fd(today())}`;
+    r.range = `${fd(addDays(today(), -6))} - ${fd(today())}`;
     r.note = isDemo() || S.mode === 'shed' ? t('repDemoNote') : '';
     return r;
   }

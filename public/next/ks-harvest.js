@@ -100,7 +100,7 @@
         .join('') + `<p class="muted small">${esc(t(isDemo() ? 'bookNoteDemo' : 'bookNoteReal'))}</p>`;
     $('#hvSellTag').hidden = !isDemo();
     $('#hvSell').innerHTML = q
-      ? `<div class="bigstat"><b>${esc(fmt('aboutQty', { q: num(q, 1), u: unitT(d.unit) }))}</b></div><div class="muted small">${esc(fmt('qtyHow', { ac: num(ac, 2), crop: cropName(S.cur.crop), country: S.plan?.place?.country || '' }))}${d.samplePrice ? ` · ${esc(fmt('samplePriceLine', { p: m(d.samplePrice), u: unitT(d.unit) }))}` : ''}</div><div class="btns"><button class="btn" type="button" data-hv="rule">${esc(t('setRule'))}</button><button class="btn ghost" type="button" data-hv="buyers">${esc(t('seeBuyers'))}</button></div>`
+      ? `<div class="bigstat"><b>${esc(fmt('aboutQty', { q: num(q, 1), u: unitT(d.unit) }))}</b></div><div class="muted small">${esc(fmt('qtyHow', { ac: num(ac, 2), crop: cropName(S.cur.crop), country: K.countryName(S.cur?.place_info?.cc) || S.plan?.place?.country || '' }))}${d.samplePrice ? ` · ${esc(fmt('samplePriceLine', { p: m(d.samplePrice), u: unitT(d.unit) }))}` : ''}</div><div class="btns"><button class="btn" type="button" data-hv="rule">${esc(t('setRule'))}</button><button class="btn ghost" type="button" data-hv="buyers">${esc(t('seeBuyers'))}</button></div>`
       : `${emptyBox(t('noYield'))}<div class="btns"><button class="btn ghost" type="button" data-hv="buyers">${esc(t('seeBuyers'))}</button></div>`;
   }
   // Greenness this season (Sentinel-2 NDVI), from the sowing date.
@@ -111,7 +111,7 @@
     const x = (i) => 6 + (i / (curve.length - 1)) * (W - 12);
     const y = (v) => Hh - 6 - Math.max(0, Math.min(1, v)) * (Hh - 14);
     const d = curve.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.ndvi).toFixed(1)}`).join(' ');
-    return `<svg class="chart hvcurve" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="NDVI"><path class="ln draw" pathLength="1" d="${d}" stroke="var(--leaf)"/><circle class="end" cx="${x(curve.length - 1)}" cy="${y(curve.at(-1).ndvi)}" r="4" fill="var(--turmeric)"/><text x="6" y="10">NDVI · ${esc(fd(curve[0].date))} – ${esc(fd(curve.at(-1).date))}</text></svg>`;
+    return `<svg class="chart hvcurve" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="NDVI"><path class="ln draw" pathLength="1" d="${d}" stroke="var(--leaf)"/><circle class="end" cx="${x(curve.length - 1)}" cy="${y(curve.at(-1).ndvi)}" r="4" fill="var(--turmeric)"/><text x="6" y="10">NDVI · ${esc(fd(curve[0].date))} - ${esc(fd(curve.at(-1).date))}</text></svg>`;
   }
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-hv],[data-book]');

@@ -15,7 +15,8 @@
       return String(iso).slice(11, 16);
     }
   };
-  const textOf = (s) => (s.text ? s.text[L()] || s.text.en || '' : '');
+  // v0.26.1: Bangla digits in her Bangla lines (the model writes 0-9).
+  const textOf = (s) => (s.text ? (L() === 'bn' && s.text.bn ? K.digits(s.text.bn) : s.text[L()] || s.text.en || '') : '');
   const KIND = { saw: ['S', 'wtSaw'], thought: ['T', 'wtThought'], did: ['D', 'wtDid'], wait: ['?', 'wtWait'] };
 
   function stepLine(s) {
