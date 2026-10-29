@@ -1626,6 +1626,19 @@ await checkAsync('Storage file types: JSON records go to shed-clips, as land-ima
   }
 });
 
+check('Demo stories (v0.25.0): every frame the field camera card asks for ships in public/demo/fieldcam, same size, labelled as demo in the agent docs', () => {
+  const card = readFileSync(new URL('../public/next/ks-fieldcam.js', import.meta.url), 'utf8');
+  assert.match(card, /frames\('problem', 6\)/);
+  assert.match(card, /frames\('ripe', 6\)/);
+  const names = [...[1, 2, 3, 4, 5, 6].flatMap((i) => [`problem-${i}.jpg`, `ripe-${i}.jpg`]), 'goats.jpg'];
+  for (const n of names) {
+    const b = readFileSync(new URL(`../public/demo/fieldcam/${n}`, import.meta.url));
+    assert.equal(b[0], 0xff, `${n} is a JPEG`);
+    assert.ok(b.length > 50000 && b.length < 1500000, `${n} size ${b.length}`);
+  }
+  for (const doc of ['../public/llms.txt', '../public/for-agents.html']) assert.match(readFileSync(new URL(doc, import.meta.url), 'utf8'), /fcStory_patch/);
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);

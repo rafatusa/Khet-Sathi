@@ -513,6 +513,10 @@ nav.bottom [data-tab="guide"]{display:none}
 .fcl{fill:none;stroke:#94600a;stroke-width:2;stroke-linejoin:round}
 .fcd{fill:#94600a;stroke:var(--surface);stroke-width:2}.fcv{font:700 13px var(--f-body);fill:var(--ink)}
 .fcbtns{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+.fcstories{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);display:grid;gap:8px}
+.fcstories>b{font-size:13px}
+.fcstories .btns{display:flex;gap:8px;flex-wrap:wrap}
+.fcstories .btn{min-height:44px}
 .fcfile{cursor:pointer;min-height:44px;display:inline-flex;align-items:center}
 .camlist{display:flex;flex-direction:column;gap:10px}
 .camrow{display:grid;grid-template-columns:160px minmax(0,1fr);gap:12px;align-items:center}

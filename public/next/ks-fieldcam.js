@@ -1,6 +1,7 @@
 // v0.23.0: the field camera card on a field's Home. Shows the latest look at the watched patch with SAM 3.1's
 // outlines (plants dashed, yellow or brown parts in red), how the share has moved, and every look in a popup.
-// A farm can add a look (a photo of the same patch); an admin can load saved demo frames into the demo field.
+// A farm can add a look (a photo of the same patch); an admin can load saved demo frames into the demo field,
+// or (v0.25.0) play a demo story whose frames ship with the site.
 // When the share keeps rising, the server raises patch_rising and Sathi takes it from there (ks-watch.js).
 (() => {
   const K = window.KS;
@@ -21,6 +22,9 @@
     return `<g transform="translate(${o.bounds.left} ${o.bounds.top}) scale(${sx} ${sy})"><path d="${esc(o.svgPath)}" class="${cls}"/></g>`;
   };
   const imgUrl = (l) => K.imgUrl(l.photoUrl);
+  // v0.25.0: the demo stories. AI-generated frames of one fixed camera on the demo rice field (public/demo/fieldcam).
+  const frames = (name, n) => Array.from({ length: n }, (_, i) => `/demo/fieldcam/${name}-${i + 1}.jpg`);
+  const STORIES = { patch: { files: frames('problem', 6) }, ripe: { files: frames('ripe', 6) }, goats: { files: ['/demo/fieldcam/goats.jpg'], motion: true } };
   function frameHtml(l, { badge = true } = {}) {
     const W = l.width || 1024;
     const H = l.height || 768;
@@ -59,7 +63,9 @@
     const canDemo = S.view === 'demo' && S.admin;
     const measured = C.looks.filter((l) => !l.motion);
     const moves = C.looks.filter((l) => l.motion);
-    const tools = `<div class="btns fcbtns">${C.looks.length ? `<button class="btn ghost" type="button" id="fcHist">${esc(t('fcHistory'))}</button>` : ''}${canAdd ? `<label class="btn ghost fcfile">${esc(t('fcAdd'))}<input type="file" accept="image/*" id="fcIn" hidden></label>` : ''}${canDemo ? `<label class="btn ghost fcfile">${esc(t('fcDemoLoad'))}<input type="file" accept="image/*" multiple id="fcDemoIn" hidden></label><label class="btn ghost fcfile">${esc(t('fcMotionLoad'))}<input type="file" accept="image/*" id="fcMotionIn" hidden></label>` : ''}</div>${canDemo ? `<p class="muted small">${esc(t('fcDemoHint'))}</p>` : ''}`;
+    // v0.25.0: demo stories, frames that ship with the site, so one press (by a person or an agent) runs a story.
+    const stories = canDemo ? `<div class="fcstories" role="group" aria-label="${esc(t('fcStoriesH'))}"><b>${esc(t('fcStoriesH'))}</b><div class="btns">${Object.keys(STORIES).map((k) => `<button class="btn" type="button" id="fcStory_${k}" data-story="${k}">${esc(t(`fcStory_${k}`))}</button>`).join('')}</div></div>` : '';
+    const tools = `${stories}<div class="btns fcbtns">${C.looks.length ? `<button class="btn ghost" type="button" id="fcHist">${esc(t('fcHistory'))}</button>` : ''}${canAdd ? `<label class="btn ghost fcfile">${esc(t('fcAdd'))}<input type="file" accept="image/*" id="fcIn" hidden></label>` : ''}${canDemo ? `<label class="btn ghost fcfile">${esc(t('fcDemoLoad'))}<input type="file" accept="image/*" multiple id="fcDemoIn" hidden></label><label class="btn ghost fcfile">${esc(t('fcMotionLoad'))}<input type="file" accept="image/*" id="fcMotionIn" hidden></label>` : ''}</div>${canDemo ? `<p class="muted small">${esc(t('fcDemoHint'))}</p>` : ''}`;
     if (C.busy) {
       card.innerHTML = `<div class="lab"><span data-icon="camera"></span><span>${esc(t('fcH'))}</span>${tag}</div><div class="maploading" style="position:static;margin:8px 0"><span class="spin"></span><span>${esc(C.busy)}</span></div>`;
       return K.icons?.(card);
@@ -105,8 +111,57 @@
     $('#camSheet').hidden = false;
   }
   $('#camClose')?.addEventListener('click', () => ($('#camSheet').hidden = true));
+  // A series of demo frames, oldest first: the first one starts a fresh series; the rise check runs after the last.
+  async function runDemo(landId, files) {
+    for (let i = 0; i < files.length; i++) {
+      C.busy = fmt('fcMeasuring', { i: num(i + 1), n: num(files.length) });
+      render();
+      const photo = await K.shrink(files[i], 1280);
+      const r = await postJson(`/api/lands/${landId}/camera/demo`, { photoDataUrl: photo, index: i, total: files.length }).catch((err) => ({ ok: false, error: err.message }));
+      if (!r.ok) {
+        C.busy = '';
+        toast(`${t('error')}: ${r.error}`);
+        return load(landId, true);
+      }
+    }
+    C.busy = '';
+    await load(landId, true);
+    window.KSWatch?.load(true);
+  }
+  // One frame where the camera noticed movement: checked for animals only.
+  async function runMotion(landId, file) {
+    const photo = await K.shrink(file, 1280);
+    C.busy = t('fcLookingAnimals');
+    render();
+    const r = await postJson(`/api/lands/${landId}/camera/look`, { photoDataUrl: photo, motion: true }).catch((err) => ({ ok: false, error: err.message }));
+    C.busy = '';
+    if (!r.ok) toast(`${t('error')}: ${r.error}`);
+    await load(landId, true);
+    return window.KSWatch?.load(true);
+  }
+  async function playStory(key) {
+    const st = STORIES[key];
+    const landId = C.landId;
+    if (!st || !landId || C.busy) return;
+    C.busy = t('fcStoryFetch');
+    render();
+    try {
+      const files = await Promise.all(st.files.map(async (u) => {
+        const res = await fetch(u);
+        if (!res.ok) throw new Error(`${u}: HTTP ${res.status}`);
+        return res.blob();
+      }));
+      return st.motion ? runMotion(landId, files[0]) : runDemo(landId, files);
+    } catch (err) {
+      C.busy = '';
+      toast(`${t('error')}: ${err.message}`);
+      return render();
+    }
+  }
   $('#fcCard')?.addEventListener('click', (e) => {
     if (e.target.closest('#fcHist')) history();
+    const story = e.target.closest('[data-story]');
+    if (story) playStory(story.dataset.story);
   });
   $('#fcCard')?.addEventListener('change', async (e) => {
     const landId = C.landId;
@@ -119,33 +174,11 @@
       if (!r.ok) toast(`${t('error')}: ${r.error}`);
       return load(landId, true);
     }
-    if (e.target.id === 'fcMotionIn' && e.target.files[0]) {
-      const photo = await K.shrink(e.target.files[0], 1280);
-      C.busy = t('fcLookingAnimals');
-      render();
-      const r = await postJson(`/api/lands/${landId}/camera/look`, { photoDataUrl: photo, motion: true }).catch((err) => ({ ok: false, error: err.message }));
-      C.busy = '';
-      if (!r.ok) toast(`${t('error')}: ${r.error}`);
-      await load(landId, true);
-      return window.KSWatch?.load(true);
-    }
+    if (e.target.id === 'fcMotionIn' && e.target.files[0]) return runMotion(landId, e.target.files[0]);
     if (e.target.id === 'fcDemoIn' && e.target.files.length) {
       const files = [...e.target.files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).slice(0, 12);
       if (files.length < 2) return toast(t('fcDemoHint'));
-      for (let i = 0; i < files.length; i++) {
-        C.busy = fmt('fcMeasuring', { i: num(i + 1), n: num(files.length) });
-        render();
-        const photo = await K.shrink(files[i], 1280);
-        const r = await postJson(`/api/lands/${landId}/camera/demo`, { photoDataUrl: photo, index: i, total: files.length }).catch((err) => ({ ok: false, error: err.message }));
-        if (!r.ok) {
-          C.busy = '';
-          toast(`${t('error')}: ${r.error}`);
-          return load(landId, true);
-        }
-      }
-      C.busy = '';
-      await load(landId, true);
-      window.KSWatch?.load(true);
+      return runDemo(landId, files);
     }
   });
   document.querySelectorAll('.lang [data-lang]').forEach((b) => b.addEventListener('click', () => setTimeout(render, 0)));
@@ -165,5 +198,5 @@
     return { photo, measure: { width: l.width, height: l.height, plants: l.measure?.plants || [], patches: l.measure?.patches || [], share: l.share, error: l.error } };
   }
 
-  window.KSFieldCam = { load, render, latestForProblem, count: () => (S.mode === 'field' ? C.looks.length : 0) };
+  window.KSFieldCam = { load, render, latestForProblem, play: playStory, count: () => (S.mode === 'field' ? C.looks.length : 0) };
 })();
