@@ -25,12 +25,16 @@
     const W = l.width || 1024;
     const H = l.height || 768;
     const m = l.measure || {};
+    if (l.motion) {
+      const boxes = (l.animals || []).map((a) => `<g><rect x="${a.box.left}" y="${a.box.top}" width="${a.box.right - a.box.left}" height="${a.box.bottom - a.box.top}" class="fcbox"/><text x="${a.box.left + 6}" y="${Math.max(18, a.box.top - 6)}" class="fcboxt">${esc(t(`fcKind_${a.kind}`))}</text></g>`).join('');
+      return `<div class="ydframe" style="aspect-ratio:${W}/${H}"><img src="${esc(imgUrl(l))}" alt="${esc(t('fcMotionH'))}" loading="lazy">${boxes ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${boxes}</svg>` : ''}</div>`;
+    }
     const svg = (m.plants || []).length ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${(m.plants || []).map((p) => maskPath(p, 'pbleaf')).join('')}${(m.patches || []).map((p) => maskPath(p, 'pbpatch')).join('')}</svg>` : '';
     return `<div class="ydframe" style="aspect-ratio:${W}/${H}"><img src="${esc(imgUrl(l))}" alt="${esc(t('fcH'))}" loading="lazy">${svg}${badge && svg ? `<span class="ydbadge">${esc(t('fcSamBadge'))}</span>` : ''}</div>`;
   }
   // The share over the looks: one line, a dot per look, the last one labelled.
   function chartHtml(looks) {
-    const pts = looks.filter((l) => Number.isFinite(l.share));
+    const pts = looks.filter((l) => !l.motion && Number.isFinite(l.share));
     if (pts.length < 2) return '';
     const W = 520;
     const H = 150;
@@ -53,23 +57,28 @@
     const tag = demo ? `<span class="src-tag sim">${esc(t('fcDemoTag'))}</span>` : `<span class="src-tag">SAM 3.1</span>`;
     const canAdd = !S.view;
     const canDemo = S.view === 'demo' && S.admin;
-    const tools = `<div class="btns fcbtns">${C.looks.length ? `<button class="btn ghost" type="button" id="fcHist">${esc(t('fcHistory'))}</button>` : ''}${canAdd ? `<label class="btn ghost fcfile">${esc(t('fcAdd'))}<input type="file" accept="image/*" id="fcIn" hidden></label>` : ''}${canDemo ? `<label class="btn ghost fcfile">${esc(t('fcDemoLoad'))}<input type="file" accept="image/*" multiple id="fcDemoIn" hidden></label>` : ''}</div>${canDemo ? `<p class="muted small">${esc(t('fcDemoHint'))}</p>` : ''}`;
+    const measured = C.looks.filter((l) => !l.motion);
+    const moves = C.looks.filter((l) => l.motion);
+    const tools = `<div class="btns fcbtns">${C.looks.length ? `<button class="btn ghost" type="button" id="fcHist">${esc(t('fcHistory'))}</button>` : ''}${canAdd ? `<label class="btn ghost fcfile">${esc(t('fcAdd'))}<input type="file" accept="image/*" id="fcIn" hidden></label>` : ''}${canDemo ? `<label class="btn ghost fcfile">${esc(t('fcDemoLoad'))}<input type="file" accept="image/*" multiple id="fcDemoIn" hidden></label><label class="btn ghost fcfile">${esc(t('fcMotionLoad'))}<input type="file" accept="image/*" id="fcMotionIn" hidden></label>` : ''}</div>${canDemo ? `<p class="muted small">${esc(t('fcDemoHint'))}</p>` : ''}`;
     if (C.busy) {
       card.innerHTML = `<div class="lab"><span data-icon="camera"></span><span>${esc(t('fcH'))}</span>${tag}</div><div class="maploading" style="position:static;margin:8px 0"><span class="spin"></span><span>${esc(C.busy)}</span></div>`;
       return K.icons?.(card);
     }
-    const last = C.looks.at(-1);
+    const last = measured.at(-1);
+    const move = moves.at(-1);
+    const moveHtml = move ? `<div class="fcmove"><b>${esc((move.animals || []).length ? fmt('fcAnimals', { list: animalList(move.animals), time: hhmm(move.at) }) : fmt('fcNoAnimals', { time: hhmm(move.at) }))}</b>${frameHtml(move)}</div>` : '';
     if (!last) {
-      card.innerHTML = `<div class="lab"><span data-icon="camera"></span><span>${esc(t('fcH'))}</span>${tag}</div><p class="muted small">${esc(t('fcNone'))}</p>${tools}`;
+      card.innerHTML = `<div class="lab"><span data-icon="camera"></span><span>${esc(t('fcH'))}</span>${tag}</div>${moveHtml || `<p class="muted small">${esc(t('fcNone'))}</p>`}${tools}`;
       return K.icons?.(card);
     }
     const tr = C.trend || {};
     const change = Number.isFinite(tr.from) && Number.isFinite(last.share) ? last.share - tr.from : null;
     card.innerHTML = `<div class="lab"><span data-icon="camera"></span><span>${esc(t('fcH'))}</span>${tag}</div>
       ${frameHtml(last)}
-      <div class="zinfo">${esc(last.error ? t('fcNoPlants') : fmt('fcLast', { time: hhmm(last.at) }))}${tr.rising ? ` · <b>${esc(t('fcRising'))}</b>` : ''}</div>
-      <div class="kpis fckpis"><div class="kpi"><div class="lab"><span>${esc(t('fcNow'))}</span></div><div class="kv">${Number.isFinite(last.share) ? `${num(last.share)}%` : '-'}</div></div><div class="kpi"><div class="lab"><span>${esc(t('fcSince'))}</span></div><div class="kv">${change == null ? '-' : `${change > 0 ? '+' : ''}${esc(fmt('fcPts', { n: num(Math.round(change)) }))}`}</div></div><div class="kpi"><div class="lab"><span>${esc(t('fcLooks'))}</span></div><div class="kv">${num(C.looks.length)}</div></div></div>
+      <div class="zinfo">${esc(last.error ? t('fcNoPlants') : fmt('fcLast', { time: hhmm(last.at) }))}${tr.rising ? ` · <b>${esc(t(tr.kind === 'ripening' ? 'fcRipening' : 'fcRising'))}</b>` : ''}</div>
+      <div class="kpis fckpis"><div class="kpi"><div class="lab"><span>${esc(t('fcNow'))}</span></div><div class="kv">${Number.isFinite(last.share) ? `${num(last.share)}%` : '-'}</div></div><div class="kpi"><div class="lab"><span>${esc(t('fcSince'))}</span></div><div class="kv">${change == null ? '-' : `${change > 0 ? '+' : ''}${esc(fmt('fcPts', { n: num(Math.round(change)) }))}`}</div></div><div class="kpi"><div class="lab"><span>${esc(t('fcLooks'))}</span></div><div class="kv">${num(measured.length)}</div></div></div>
       ${chartHtml(C.looks)}
+      ${moveHtml}
       ${tools}`;
     K.icons?.(card);
   }
@@ -90,8 +99,9 @@
     render();
     window.KSWatch?.render();
   }
+  const animalList = (as) => Object.entries(as.reduce((m, a) => ((m[a.kind] = (m[a.kind] || 0) + 1), m), {})).map(([k, n]) => `${num(n)} ${t(n > 1 ? `fcKinds_${k}` : `fcKind_${k}`)}`).join(', ');
   function history() {
-    $('#camList').innerHTML = [...C.looks].reverse().map((l) => `<div class="camrow">${frameHtml(l, { badge: false })}<div><b>${Number.isFinite(l.share) ? `${num(l.share)}%` : '-'}</b><small>${esc(hhmm(l.at))}${l.demo ? ` · ${esc(t('fcDemoTag'))}` : ''}</small></div></div>`).join('');
+    $('#camList').innerHTML = [...C.looks].reverse().map((l) => `<div class="camrow">${frameHtml(l, { badge: false })}<div><b>${l.motion ? esc((l.animals || []).length ? animalList(l.animals) : t('fcMotionH')) : Number.isFinite(l.share) ? `${num(l.share)}%` : '-'}</b><small>${esc(hhmm(l.at))}${l.demo ? ` · ${esc(t('fcDemoTag'))}` : ''}</small></div></div>`).join('');
     $('#camSheet').hidden = false;
   }
   $('#camClose')?.addEventListener('click', () => ($('#camSheet').hidden = true));
@@ -108,6 +118,16 @@
       C.busy = '';
       if (!r.ok) toast(`${t('error')}: ${r.error}`);
       return load(landId, true);
+    }
+    if (e.target.id === 'fcMotionIn' && e.target.files[0]) {
+      const photo = await K.shrink(e.target.files[0], 1280);
+      C.busy = t('fcLookingAnimals');
+      render();
+      const r = await postJson(`/api/lands/${landId}/camera/look`, { photoDataUrl: photo, motion: true }).catch((err) => ({ ok: false, error: err.message }));
+      C.busy = '';
+      if (!r.ok) toast(`${t('error')}: ${r.error}`);
+      await load(landId, true);
+      return window.KSWatch?.load(true);
     }
     if (e.target.id === 'fcDemoIn' && e.target.files.length) {
       const files = [...e.target.files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).slice(0, 12);
@@ -132,7 +152,7 @@
 
   // Sathi's "Make the office summary" opens the crop problem with the camera's latest look.
   async function latestForProblem() {
-    const l = C.looks.at(-1);
+    const l = C.looks.filter((x) => !x.motion).at(-1);
     if (!l) return null;
     const res = await fetch(imgUrl(l)).catch(() => null);
     if (!res?.ok) return null;

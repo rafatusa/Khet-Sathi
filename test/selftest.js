@@ -1546,6 +1546,37 @@ await checkAsync('v0.23.0 field camera: SAM 3.1 measures plants and yellow parts
   assert.ok(w.watchTools('field', 'ask').some((x) => x.function.name === 'look_at_field_camera'));
 });
 
+await checkAsync('v0.24.0 ripening or a problem: warmth since sowing (NASA POWER), evenness, grain heads; animals in the field', async () => {
+  const ag = await import('../lib/agroclimate.js');
+  let asked = '';
+  const fake = async (url) => { asked = url; return { ok: true, json: async () => ({ properties: { parameter: { T2M_MAX: { 20260701: 34, 20260702: 40, 20260703: -999 }, T2M_MIN: { 20260701: 26, 20260702: 8, 20260703: 25 } } } }) }; };
+  const days = await ag.powerDaily({ lat: 24.85, lon: 89.37, start: '2026-07-01', end: '2026-07-03', fetchImpl: fake });
+  assert.match(asked, /power\.larc\.nasa\.gov.*T2M_MAX,T2M_MIN.*start=20260701&end=20260703/);
+  assert.equal(days.length, 2, 'missing days (-999) are left out');
+  assert.equal(ag.gddFrom(days, ag.GDD_CROPS.rice), 33, 'rice: (34+26)/2-10 = 20, then high capped at 35 and low floored at 10: 12.5; 32.5 rounds to 33');
+  const h = ag.heatStage({ crop: 'rice', days: Array.from({ length: 90 }, (_, i) => ({ date: `2026-07-${i}`, tMax: 33, tMin: 25 })) });
+  assert.equal(h.gdd, 1710);
+  assert.equal(h.stage, 'ripening', '86% of 2000');
+  assert.equal(ag.heatStage({ crop: 'unknown', days }), null);
+  const fc = await import('../lib/fieldcam.js');
+  const rect = (g, gw, gh, sc, raw) => { for (let yy = Math.floor(raw.t * sc); yy < Math.floor(raw.b * sc); yy++) for (let xx = Math.floor(raw.l * sc); xx < Math.floor(raw.r * sc); xx++) if (xx < gw && yy < gh) g[yy * gw + xx] = 1; };
+  const plants = [{ raw: { l: 0, t: 0, r: 100, b: 100 } }];
+  assert.equal(fc.evenness({ width: 100, height: 100, plants, patches: [{ raw: { l: 0, t: 0, r: 100, b: 100 } }] }, rect), 1, 'all over: even');
+  assert.equal(fc.evenness({ width: 100, height: 100, plants, patches: [{ raw: { l: 0, t: 0, r: 25, b: 25 } }] }, rect), 0.06, 'one corner: patchy');
+  assert.equal(fc.classify({ look: { even: 0.9, heads: 0 }, stage: 'ripening' }), 'ripening');
+  assert.equal(fc.classify({ look: { even: 0.2, heads: 6 }, stage: 'ready' }), 'ripening', 'grain heads');
+  assert.equal(fc.classify({ look: { even: 0.9, heads: 0 }, stage: 'growing', heatPct: 85 }), 'ripening', 'warmth says late');
+  assert.equal(fc.classify({ look: { even: 0.9, heads: 8 }, stage: 'growing', heatPct: 40 }), 'problem', 'yellow while it should be green');
+  assert.equal(fc.classify({ look: { even: 0.2, heads: 0 }, stage: 'ripening' }), 'problem', 'patchy late in the season still goes to the office');
+  const animals = await fc.findAnimals({ dataUrl: 'x', width: 100, height: 100 }, { segment: async (img, p) => (p === 'goat' ? { objects: [{ box: { left: 1, top: 2, right: 30, bottom: 40 }, confidence: 0.9 }, { box: { left: 50, top: 2, right: 80, bottom: 40 }, confidence: 0.2 }] } : { objects: [] }) });
+  assert.deepEqual(animals.map((a) => a.kind), ['goat'], 'unsure boxes are left out');
+  const w = await import('../lib/watch.js');
+  assert.equal(w.TRIGGERS.crop_ripening, 'field');
+  assert.equal(w.TRIGGERS.animal_in_field, 'field');
+  assert.ok(w.ACTIONS.includes('plan_harvest'));
+  assert.match(w.watchSystem('ask'), /ripening, not a problem/);
+});
+
 await checkAsync('Meta relay: with the two Railway variables set, calls go to the relay with the key in X-Meta-Key and the secret; without them, direct', async () => {
   const meta = await import('../lib/meta.js');
   const keep = { u: process.env.META_RELAY_URL, s: process.env.META_RELAY_SECRET };

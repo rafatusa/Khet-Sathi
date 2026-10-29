@@ -24,6 +24,7 @@
     if (s.key === 'wtDidLater' && vars.at) vars.at = hhmm(vars.at);
     if (vars.action) vars.action = t(`wtAct_${vars.action}`);
     if (vars.what) vars.what = t(`wtTool_${vars.what}`);
+    if (vars.stage) vars.stage = t(`wtStage_${vars.stage}`);
     for (const k of ['temp', 'humidity', 'birds', 'still', 'max', 'min', 'rain']) if (typeof vars[k] === 'number') vars[k] = num(vars[k]);
     const head = s.key ? fmt(s.key, vars) : '';
     const body = textOf(s);
@@ -103,6 +104,11 @@
       render();
       // What Sathi asked for opens with the farmer's tap: the vet call, or the summary for the office.
       if (r.open === 'call_vet') window.KSShed?.openVet();
+      // v0.24.0: ripening: the harvest steps (when the harvest is near, booking and selling) on Home.
+      if (r.open === 'plan_harvest') {
+        K.show('home');
+        setTimeout(() => $('#dashCrop')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+      }
       if (r.open === 'send_office_summary') {
         const cam = S.mode === 'field' ? await window.KSFieldCam?.latestForProblem().catch(() => null) : null;
         if (cam) window.KSProblem?.openWith(cam);

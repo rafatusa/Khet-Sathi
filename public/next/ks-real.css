@@ -520,3 +520,8 @@ nav.bottom [data-tab="guide"]{display:none}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .fcl{stroke:#efb94c}:root:not([data-theme="light"]) .fcd{fill:#efb94c}}
 .fckpis{height:auto;grid-template-columns:repeat(3,minmax(0,1fr))!important}
 .fckpis .kv{font-size:1.2rem}
+
+/* v0.24.0: animals seen by the field camera */
+.fcmove{margin-top:12px}.fcmove b{display:block;margin-bottom:6px}
+.fcbox{fill:none;stroke:#c0392b;stroke-width:4}
+.fcboxt{font:700 20px var(--f-body);fill:#fff;paint-order:stroke;stroke:#c0392b;stroke-width:6px}
