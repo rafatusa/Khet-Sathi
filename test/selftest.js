@@ -1515,17 +1515,27 @@ await checkAsync('v0.22.0 Sathi on watch: an alert wakes her, she looks with too
   assert.ok(!('messages' in v), 'the browser never gets the model conversation');
 });
 
-await checkAsync('v0.23.0 field camera: SAM 3.1 measures plants and yellow parts; a rise that holds is found, one odd look is not; demo frames are dated in order', async () => {
+await checkAsync('v0.23.0 field camera: SAM 3.1 outlines the crop, yellow counted by colour (v0.25.1); a rise that holds is found, one odd look is not; demo frames are dated in order', async () => {
   const fc = await import('../lib/fieldcam.js');
   const rect = (g, gw, gh, sc, raw) => { for (let yy = Math.floor(raw.t * sc); yy < Math.floor(raw.b * sc); yy++) for (let xx = Math.floor(raw.l * sc); xx < Math.floor(raw.r * sc); xx++) if (xx < gw && yy < gh) g[yy * gw + xx] = 1; };
   const obj = (l, t, r, b) => ({ id: 1, box: { left: l, top: t, right: r, bottom: b }, areaPx: (r - l) * (b - t), containsPoint: true, raw: { l, t, r, b }, mask: { width: 4, height: 4, bounds: { left: l, top: t, right: r, bottom: b }, svgPath: 'M0 0Z' } });
   const asked = [];
-  const seg = async (img, p) => { asked.push(p); if (p === 'rice plant') return { objects: [] }; if (p === 'plant') return { objects: [obj(0, 0, 100, 50), obj(0, 50, 100, 100)] }; if (p === 'brown spot') return { objects: [obj(0, 0, 50, 20)] }; return { objects: [] }; };
-  const m = await fc.measureLook({ dataUrl: 'x', width: 100, height: 100 }, { segment: seg, paint: rect });
+  const seg = async (img, p) => { asked.push(p); if (p === 'rice plant') return { objects: [] }; if (p === 'plant') return { objects: [obj(0, 0, 100, 50), obj(0, 50, 100, 100)] }; return { objects: [] }; };
+  // v0.25.1: the yellow share is counted by colour inside SAM's outline: here the top-left 50 x 20 is straw yellow, the rest green.
+  const pixels = async (img, gw, gh) => { const px = new Uint8Array(gw * gh * 3); for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) { const i = (y * gw + x) * 3; const yel = x < gw / 2 && y < gh / 5; px.set(yel ? [214, 178, 60] : [70, 150, 50], i); } return px; };
+  const m = await fc.measureLook({ dataUrl: 'x', width: 100, height: 100 }, { segment: seg, paint: rect, pixels });
   assert.equal(m.error, null);
   assert.equal(asked[0], 'rice plant', 'tries the plant phrases in order');
+  assert.ok(!asked.includes('brown spot'), 'no leaf spot phrases on a field (live they found only the bare bund)');
   assert.equal(m.plants.length, 2);
   assert.equal(m.share, 10, '50x20 of a 100x100 plant area');
+  assert.equal(m.method, 'colour');
+  assert.ok(m.cells.length > 0 && m.cells.every((c) => c.x < 50 && c.y < 20), 'the yellow squares sit where the yellow is');
+  assert.equal(fc.isYellow(214, 178, 60), true, 'straw gold');
+  assert.equal(fc.isYellow(150, 100, 50), true, 'brown');
+  assert.equal(fc.isYellow(70, 150, 50), false, 'green rice');
+  assert.equal(fc.isYellow(120, 120, 110), false, 'grey stalk or haze');
+  assert.equal(fc.isYellow(30, 25, 10), false, 'deep shadow');
   const none = await fc.measureLook({ dataUrl: 'x', width: 10, height: 10 }, { segment: async () => ({ objects: [] }), paint: rect });
   assert.match(none.error, /no plants/);
   const now = Date.parse('2026-10-29T08:00:00Z');
@@ -1637,6 +1647,19 @@ check('Demo stories (v0.25.0): every frame the field camera card asks for ships 
     assert.ok(b.length > 50000 && b.length < 1500000, `${n} size ${b.length}`);
   }
   for (const doc of ['../public/llms.txt', '../public/for-agents.html']) assert.match(readFileSync(new URL(doc, import.meta.url), 'utf8'), /fcStory_patch/);
+});
+
+await checkAsync('Sathi on watch (v0.25.1): times reach her as local clock times, never UTC; long dashes leave her lines', async () => {
+  const w = await import('../lib/watch.js');
+  assert.equal(w.localStamp('2026-10-29T12:30:00Z'), '2026-10-29 18:30', 'Asia/Dhaka is UTC+6');
+  assert.equal(w.cleanLine('Camera saw 2 goats \u2014 please check'), 'Camera saw 2 goats, please check');
+  const seen = [];
+  const think = async ({ messages }) => { seen.push(...messages.map((x) => (typeof x.content === 'string' ? x.content : ''))); return { resp: { choices: [{ message: { role: 'assistant', content: 'done' } }] }, provider: 'baseten', label: 'x' }; };
+  await w.runMission({ id: 'm', trigger: 'animal_in_field', place_kind: 'field', mode: 'ask', facts: { value: 2, at: '2026-10-29T12:30:00.000Z' }, steps: [] }, { tools: {}, think, now: () => Date.parse('2026-10-29T12:31:00Z') });
+  const first = seen.find((x) => x.startsWith('What woke you'));
+  assert.match(first, /18:30/);
+  assert.match(first, /Local time now 2026-10-29 18:31/);
+  assert.doesNotMatch(first, /T12:30|Z"/);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

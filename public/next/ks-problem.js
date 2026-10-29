@@ -68,12 +68,12 @@
     const W = m?.width || 1024;
     const H = m?.height || 768;
     const base = m?.leaf ? [m.leaf] : m?.plants || []; // v0.23.0: a field camera look outlines the plants, not one leaf
-    const svg = base.length ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${base.map((b) => maskPath(b, 'pbleaf')).join('')}${(m.patches || []).map((p) => maskPath(p, 'pbpatch')).join('')}</svg>` : '';
+    const svg = base.length ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${base.map((b) => maskPath(b, 'pbleaf')).join('')}${(m.cells || []).map((c) => `<rect x="${c.x}" y="${c.y}" width="${c.w}" height="${c.h}" class="fccell"/>`).join('')}${(m.patches || []).map((p) => maskPath(p, 'pbpatch')).join('')}</svg>` : '';
     return `<div class="ydframe" style="aspect-ratio:${W}/${H};width:min(100%, ${Math.round((360 * W) / H)}px)"><img src="${esc(P.photo)}" alt="${esc(t('pbPhotoAlt'))}">${svg}${base.length ? `<span class="ydbadge">${esc(t('pbSamBadge'))}</span>` : ''}</div>`;
   }
   const measured = () => P.m && (P.m.leaf || (P.m.plants || []).length) && Number.isFinite(P.m.share);
   // v0.20.1: a leaf where SAM found no patch says so, instead of "about 0%".
-  const noPatch = () => measured() && !(P.m.patches || []).length;
+  const noPatch = () => measured() && !P.m.share && !(P.m.patches || []).length;
 
   // ---------- steps ----------
   function step(n) {

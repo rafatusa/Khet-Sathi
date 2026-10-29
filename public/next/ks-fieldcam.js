@@ -1,5 +1,5 @@
 // v0.23.0: the field camera card on a field's Home. Shows the latest look at the watched patch with SAM 3.1's
-// outlines (plants dashed, yellow or brown parts in red), how the share has moved, and every look in a popup.
+// crop outline (dashed) and, since v0.25.1, the squares that are mostly yellow or brown (counted by colour), how the share has moved, and every look in a popup.
 // A farm can add a look (a photo of the same patch); an admin can load saved demo frames into the demo field,
 // or (v0.25.0) play a demo story whose frames ship with the site.
 // When the share keeps rising, the server raises patch_rising and Sathi takes it from there (ks-watch.js).
@@ -33,7 +33,9 @@
       const boxes = (l.animals || []).map((a) => `<g><rect x="${a.box.left}" y="${a.box.top}" width="${a.box.right - a.box.left}" height="${a.box.bottom - a.box.top}" class="fcbox"/><text x="${a.box.left + 6}" y="${Math.max(18, a.box.top - 6)}" class="fcboxt">${esc(t(`fcKind_${a.kind}`))}</text></g>`).join('');
       return `<div class="ydframe" style="aspect-ratio:${W}/${H};width:min(100%, ${Math.round((360 * W) / H)}px)"><img src="${esc(imgUrl(l))}" alt="${esc(t('fcMotionH'))}" loading="lazy">${boxes ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${boxes}</svg>` : ''}</div>`;
     }
-    const svg = (m.plants || []).length ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${(m.plants || []).map((p) => maskPath(p, 'pbleaf')).join('')}${(m.patches || []).map((p) => maskPath(p, 'pbpatch')).join('')}</svg>` : '';
+    // v0.25.1: the yellow parts are counted by colour; the squares that are mostly yellow are drawn on the photo.
+    const cells = (m.cells || []).map((c) => `<rect x="${c.x}" y="${c.y}" width="${c.w}" height="${c.h}" class="fccell"/>`).join('');
+    const svg = (m.plants || []).length ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${(m.plants || []).map((p) => maskPath(p, 'pbleaf')).join('')}${cells}${(m.patches || []).map((p) => maskPath(p, 'pbpatch')).join('')}</svg>` : '';
     return `<div class="ydframe" style="aspect-ratio:${W}/${H};width:min(100%, ${Math.round((360 * W) / H)}px)"><img src="${esc(imgUrl(l))}" alt="${esc(t('fcH'))}" loading="lazy">${svg}${badge && svg ? `<span class="ydbadge">${esc(t('fcSamBadge'))}</span>` : ''}</div>`;
   }
   // The share over the looks: one line, a dot per look, the last one labelled.
@@ -195,7 +197,7 @@
       fr.onload = () => done(fr.result);
       fr.readAsDataURL(blob);
     });
-    return { photo, measure: { width: l.width, height: l.height, plants: l.measure?.plants || [], patches: l.measure?.patches || [], share: l.share, error: l.error } };
+    return { photo, measure: { width: l.width, height: l.height, plants: l.measure?.plants || [], patches: l.measure?.patches || [], cells: l.measure?.cells || [], share: l.share, error: l.error } };
   }
 
   window.KSFieldCam = { load, render, latestForProblem, play: playStory, count: () => (S.mode === 'field' ? C.looks.length : 0) };

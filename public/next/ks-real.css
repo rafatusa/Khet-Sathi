@@ -278,6 +278,7 @@ body[data-page="landing"]>header,body[data-page="landing"]>main,body[data-page="
 /* v0.16.0: a crop problem photo, measured */
 .pbleaf{fill:none;stroke:#f3e7b5;stroke-width:3;stroke-dasharray:8 6;vector-effect:non-scaling-stroke}
 .pbpatch{fill:rgba(192,57,43,.18);stroke:#c0392b;stroke-width:3;vector-effect:non-scaling-stroke}
+.fccell{fill:rgba(192,57,43,.22);stroke:#c0392b;stroke-width:1.5;vector-effect:non-scaling-stroke}
 .pbstats{grid-template-columns:repeat(2,minmax(0,1fr));height:auto;margin:8px 0}
 .pbsay{max-width:100%}
 .pbnotdx{background:var(--turmeric-soft);border-radius:10px;padding:8px 10px}
