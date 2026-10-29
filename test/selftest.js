@@ -1683,6 +1683,16 @@ await checkAsync('v0.25.2: an older copy of the looks from storage never wins ov
   assert.match(w.watchSystem('ask'), /Demo camera frames stand in for a real camera/);
 });
 
+check('v0.25.4: a count of one reads singular ("1 chicken not moving"), in English and Hindi; Bangla has no plural', () => {
+  const i18n = readFileSync(new URL('../public/i18n.js', import.meta.url), 'utf8');
+  const tx = readFileSync(new URL('../public/next/ks-text.js', import.meta.url), 'utf8');
+  const ks = readFileSync(new URL('../public/next/ks.js', import.meta.url), 'utf8');
+  assert.match(i18n, /a_birds_still_1: '\{value\} chicken not moving'/);
+  assert.match(i18n, /a_birds_still_1: '\{value\} मुर्गी हिल नहीं रही'/);
+  assert.match(tx, /b_animal_in_field_1: "The field camera saw \{value\} animal"/);
+  assert.match(ks, /const k1 = `\$\{k\}_1`/, 'fmt picks key_1 for a count of one, only in the language on screen');
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);

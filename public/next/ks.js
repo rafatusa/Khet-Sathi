@@ -23,7 +23,13 @@
   const digits = (s) => (DIG[lang] ? String(s).replace(/[0-9]/g, (c) => DIG[lang][c]) : String(s));
   const num = (n, dp = 0) => (n == null || !Number.isFinite(Number(n)) ? '—' : digits(Number(n).toFixed(dp).replace(/\.0+$/, '')));
   const t = (k) => TX[lang]?.[k] ?? CL[lang]?.[k] ?? TX.en?.[k] ?? CL.en?.[k] ?? k;
-  const fmt = (k, v = {}) => Object.entries(v).reduce((s, [a, b]) => s.split(`{${a}}`).join(b), t(k));
+  // v0.25.4: a count of one picks the singular text when the language has one (key_1), e.g. "1 chicken not moving".
+  const isOne = (x) => x === 1 || x === '1' || x === '১' || x === '१';
+  const fmt = (k, v = {}) => {
+    const k1 = `${k}_1`;
+    const key = ['n', 'value', 'still', 'looks', 'count'].some((a) => isOne(v[a])) && (TX[lang]?.[k1] ?? CL[lang]?.[k1]) != null ? k1 : k;
+    return Object.entries(v).reduce((s, [a, b]) => s.split(`{${a}}`).join(b), t(key));
+  };
   const dateOf = (iso) => new Date(`${iso}T12:00:00`); // local noon: no day shift in any time zone
   const fd = (iso, o = { day: 'numeric', month: 'short' }) => (iso ? digits(dateOf(iso).toLocaleDateString(loc(), o)) : '—');
   const addDays = (iso, n) => new Date(new Date(`${iso}T12:00:00Z`).getTime() + n * 864e5).toISOString().slice(0, 10);

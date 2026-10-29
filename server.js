@@ -53,7 +53,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.25.3';
+const VERSION = '0.25.4';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -1433,13 +1433,13 @@ async function cameraCheck(land, looks, { demo = false } = {}) {
   const kind = camClassify({ look: last, stage: season.stage, heatPct: season.heat?.pct ?? null });
   const title = kind === 'ripening' ? 'crop_ripening' : 'patch_rising';
   const recent = await recentAlerts(12).catch(() => []);
-  // v0.25.3: a demo story always raises its alert (a retake for the video must wake Sathi again).
+  // v0.25.4: a demo story always raises its alert (a retake for the video must wake Sathi again).
   if (!demo && recent.some((a) => a.land_id === land.id && a.title === title)) return { ...tr, kind };
   const saved = await runAs(null, () => insertAlerts([{ land_id: land.id, owner_id: land.owner_id || null, area: 'field', severity: kind === 'ripening' ? 'info' : 'warn', title, source: 'camera', body: JSON.stringify({ from: tr.from, to: tr.to, looks: tr.looks, stage: season.stage, heat: season.heat?.pct ?? null, heads: last?.heads ?? null, even: last?.even ?? null }) }])).catch(() => null);
   if (saved?.length) wakeSathi(saved).catch(() => null);
   return { ...tr, kind };
 }
-// v0.25.3: a new demo story closes what Sathi was still waiting on from the camera's last story on this field.
+// v0.25.4: a new demo story closes what Sathi was still waiting on from the camera's last story on this field.
 const CAMERA_TRIGGERS = ['patch_rising', 'crop_ripening', 'animal_in_field'];
 async function closeCameraMissions(land, triggers = CAMERA_TRIGGERS) {
   for (const trigger of triggers) {
