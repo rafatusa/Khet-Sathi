@@ -36,7 +36,8 @@
     return `<li class="wl-${esc(s.kind)}"><span class="wk" aria-hidden="true">${mark}</span><span class="sr-only">${esc(t(label))}: </span><span class="wt">${esc(stepLine(s))}${sim}</span><span class="wm">${esc(hhmm(s.at))}</span></li>`;
   }
   function eyes() {
-    const list = S.mode === 'shed' ? [['wtEyeCam', true], ['wtEyeKit', false], ['wtEyeWx', false]] : [['wtEyeSat', false], ['wtEyeWx', false]];
+    const cam = (window.KSFieldCam?.count?.() || 0) > 0; // v0.23.0: the field camera, when the field has looks
+    const list = S.mode === 'shed' ? [['wtEyeCam', true], ['wtEyeKit', false], ['wtEyeWx', false]] : [...(cam ? [['fcH', true]] : []), ['wtEyeSat', false], ['wtEyeWx', false]];
     return list.map(([k, live]) => `<span class="eye"><span class="wdot${live ? ' live' : ''}" aria-hidden="true"></span>${esc(t(k))}</span>`).join('');
   }
   function askHtml(m) {
@@ -102,7 +103,11 @@
       render();
       // What Sathi asked for opens with the farmer's tap: the vet call, or the summary for the office.
       if (r.open === 'call_vet') window.KSShed?.openVet();
-      if (r.open === 'send_office_summary') window.KSProblem?.open();
+      if (r.open === 'send_office_summary') {
+        const cam = S.mode === 'field' ? await window.KSFieldCam?.latestForProblem().catch(() => null) : null;
+        if (cam) window.KSProblem?.openWith(cam);
+        else window.KSProblem?.open();
+      }
       return;
     }
     if (e.target.closest('#wWake') && !W.busy) {

@@ -503,3 +503,20 @@ nav.bottom [data-tab="guide"]{display:none}
 #wWake{margin-top:10px}
 @media (max-width:640px){.wseg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%}.wseg button{padding:4px 6px;font-size:.78rem;line-height:1.2}}
 .wall summary{cursor:pointer;font-weight:600;color:var(--leaf);min-height:36px;display:flex;align-items:center}
+
+/* v0.23.0: the field camera card and its history */
+.fc-card .ydframe{margin-top:4px}
+.fckpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}
+.fcchart{margin-top:10px}.fcchart b{font-size:.88rem}
+.fcchart svg{width:100%;height:auto;display:block;margin-top:4px;overflow:visible}
+.fcg{stroke:var(--line);stroke-width:1}.fct{font:500 11px var(--f-mono);fill:var(--muted)}
+.fcl{fill:none;stroke:#94600a;stroke-width:2;stroke-linejoin:round}
+.fcd{fill:#94600a;stroke:var(--surface);stroke-width:2}.fcv{font:700 13px var(--f-body);fill:var(--ink)}
+.fcbtns{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+.fcfile{cursor:pointer;min-height:44px;display:inline-flex;align-items:center}
+.camlist{display:flex;flex-direction:column;gap:10px}
+.camrow{display:grid;grid-template-columns:160px minmax(0,1fr);gap:12px;align-items:center}
+.camrow small{display:block;color:var(--muted)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .fcl{stroke:#efb94c}:root:not([data-theme="light"]) .fcd{fill:#efb94c}}
+.fckpis{height:auto;grid-template-columns:repeat(3,minmax(0,1fr))!important}
+.fckpis .kv{font-size:1.2rem}

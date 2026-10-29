@@ -67,10 +67,11 @@
     const m = P.m;
     const W = m?.width || 1024;
     const H = m?.height || 768;
-    const svg = m?.leaf ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${maskPath(m.leaf, 'pbleaf')}${(m.patches || []).map((p) => maskPath(p, 'pbpatch')).join('')}</svg>` : '';
-    return `<div class="ydframe" style="aspect-ratio:${W}/${H}"><img src="${esc(P.photo)}" alt="${esc(t('pbPhotoAlt'))}">${svg}${m?.leaf ? `<span class="ydbadge">${esc(t('pbSamBadge'))}</span>` : ''}</div>`;
+    const base = m?.leaf ? [m.leaf] : m?.plants || []; // v0.23.0: a field camera look outlines the plants, not one leaf
+    const svg = base.length ? `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${base.map((b) => maskPath(b, 'pbleaf')).join('')}${(m.patches || []).map((p) => maskPath(p, 'pbpatch')).join('')}</svg>` : '';
+    return `<div class="ydframe" style="aspect-ratio:${W}/${H}"><img src="${esc(P.photo)}" alt="${esc(t('pbPhotoAlt'))}">${svg}${base.length ? `<span class="ydbadge">${esc(t('pbSamBadge'))}</span>` : ''}</div>`;
   }
-  const measured = () => P.m && P.m.leaf && Number.isFinite(P.m.share);
+  const measured = () => P.m && (P.m.leaf || (P.m.plants || []).length) && Number.isFinite(P.m.share);
   // v0.20.1: a leaf where SAM found no patch says so, instead of "about 0%".
   const noPatch = () => measured() && !(P.m.patches || []).length;
 
@@ -135,7 +136,7 @@
     P.m = m;
     $('#pbPic').innerHTML = picHtml();
     $('#pbMeasure').innerHTML = measured()
-      ? `<div class="kpis pbstats"><div class="kpi"><div class="lab"><span>${esc(t('pbLeaf'))}</span></div><div class="kv ydkv">${esc(t('pbLeafOk'))}</div></div><div class="kpi"><div class="lab"><span>${esc(t('pbPatch'))}</span></div><div class="kv ydkv">${esc(noPatch() ? t('pbPatchNone') : `≈ ${num(P.m.share)}%`)}</div></div></div><div class="msg bot pbsay">${esc(P.m.share ? fmt('pbSays', { n: num(P.m.share), k: num(P.m.patches.length) }) : t('pbSaysNone'))}</div>`
+      ? `<div class="kpis pbstats"><div class="kpi"><div class="lab"><span>${esc(t(P.m.plants ? 'pbPlants' : 'pbLeaf'))}</span></div><div class="kv ydkv">${esc(t(P.m.plants ? 'pbPlantsOk' : 'pbLeafOk'))}</div></div><div class="kpi"><div class="lab"><span>${esc(t('pbPatch'))}</span></div><div class="kv ydkv">${esc(noPatch() ? t('pbPatchNone') : `≈ ${num(P.m.share)}%`)}</div></div></div><div class="msg bot pbsay">${esc(P.m.share ? fmt(P.m.plants ? 'pbSaysCam' : 'pbSays', { n: num(P.m.share), k: num(P.m.patches.length) }) : t('pbSaysNone'))}</div>`
       : `<p class="note">${esc(t(P.demo ? 'pbDemoNotYetLong' : 'pbNoMeasure'))}</p>`;
     // v0.20.1: the admin, inside the demo farm, can have SAM 3.1 measure the demo leaf again.
     if (P.demo && S.view === 'demo' && S.admin) $('#pbMeasure').insertAdjacentHTML('beforeend', `<div class="dsave"><button class="btn ghost" type="button" id="pbRemeasure">${esc(t('pbRemeasure'))}</button><small>${esc(t('pbRemeasureS'))}</small></div>`);
@@ -245,5 +246,12 @@
     if (s) share(decodeURIComponent(s.dataset.sharetext));
   });
 
-  window.KSProblem = { open, share, copy };
+  // v0.23.0: Sathi asked to send the field camera's look to the office: the sheet opens on that look, measured.
+  function openWith({ photo, measure }) {
+    open();
+    P.photo = photo;
+    step(2);
+    showMeasure(measure);
+  }
+  window.KSProblem = { open, openWith, share, copy };
 })();

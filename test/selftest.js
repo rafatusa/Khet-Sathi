@@ -1511,6 +1511,41 @@ await checkAsync('v0.22.0 Sathi on watch: an alert wakes her, she looks with too
   assert.ok(!('messages' in v), 'the browser never gets the model conversation');
 });
 
+await checkAsync('v0.23.0 field camera: SAM 3.1 measures plants and yellow parts; a rise that holds is found, one odd look is not; demo frames are dated in order', async () => {
+  const fc = await import('../lib/fieldcam.js');
+  const rect = (g, gw, gh, sc, raw) => { for (let yy = Math.floor(raw.t * sc); yy < Math.floor(raw.b * sc); yy++) for (let xx = Math.floor(raw.l * sc); xx < Math.floor(raw.r * sc); xx++) if (xx < gw && yy < gh) g[yy * gw + xx] = 1; };
+  const obj = (l, t, r, b) => ({ id: 1, box: { left: l, top: t, right: r, bottom: b }, areaPx: (r - l) * (b - t), containsPoint: true, raw: { l, t, r, b }, mask: { width: 4, height: 4, bounds: { left: l, top: t, right: r, bottom: b }, svgPath: 'M0 0Z' } });
+  const asked = [];
+  const seg = async (img, p) => { asked.push(p); if (p === 'rice plant') return { objects: [] }; if (p === 'plant') return { objects: [obj(0, 0, 100, 50), obj(0, 50, 100, 100)] }; if (p === 'brown spot') return { objects: [obj(0, 0, 50, 20)] }; return { objects: [] }; };
+  const m = await fc.measureLook({ dataUrl: 'x', width: 100, height: 100 }, { segment: seg, paint: rect });
+  assert.equal(m.error, null);
+  assert.equal(asked[0], 'rice plant', 'tries the plant phrases in order');
+  assert.equal(m.plants.length, 2);
+  assert.equal(m.share, 10, '50x20 of a 100x100 plant area');
+  const none = await fc.measureLook({ dataUrl: 'x', width: 10, height: 10 }, { segment: async () => ({ objects: [] }), paint: rect });
+  assert.match(none.error, /no plants/);
+  const now = Date.parse('2026-10-29T08:00:00Z');
+  const at = (h) => new Date(now - h * 3600e3).toISOString();
+  const rising = [5, 6, 5, 12, 15, 18].map((share, i) => ({ at: at(60 - i * 10), share }));
+  assert.equal(fc.trend(rising, { now }).rising, true);
+  assert.equal(fc.trend(rising, { now }).to, 15);
+  const blip = [5, 6, 5, 5, 20, 6].map((share, i) => ({ at: at(60 - i * 10), share }));
+  assert.equal(fc.trend(blip, { now }).rising, false, 'one odd look (a shadow) does not count');
+  assert.equal(fc.trend(rising.slice(0, 2), { now }).rising, false, 'two looks are not enough');
+  const d = fc.demoDates(4, { now });
+  assert.equal(d.length, 4);
+  assert.ok(d[0] < d[1] && d[3] === new Date(now).toISOString(), 'oldest first, the last one now');
+  // Stored per field; a second save waits for the first.
+  const files = new Map();
+  const deps = { getFileImpl: async (p) => (files.has(p) ? { buffer: files.get(p) } : null), putFileImpl: async (p, b) => files.set(p, Buffer.from(b)) };
+  const land = '11111111-1111-4111-8111-111111111111';
+  await Promise.all([fc.saveLooks(land, (ls) => [...ls, { id: 'a', at: at(2), share: 5 }], deps), fc.saveLooks(land, (ls) => [...ls, { id: 'b', at: at(1), share: 7 }], deps)]);
+  assert.deepEqual((await fc.readLooks(land, deps)).map((l) => l.id), ['a', 'b']);
+  const w = await import('../lib/watch.js');
+  assert.equal(w.TRIGGERS.patch_rising, 'field', 'a rising patch wakes Sathi');
+  assert.ok(w.watchTools('field', 'ask').some((x) => x.function.name === 'look_at_field_camera'));
+});
+
 await checkAsync('Meta relay: with the two Railway variables set, calls go to the relay with the key in X-Meta-Key and the secret; without them, direct', async () => {
   const meta = await import('../lib/meta.js');
   const keep = { u: process.env.META_RELAY_URL, s: process.env.META_RELAY_SECRET };

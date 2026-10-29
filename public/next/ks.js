@@ -625,6 +625,7 @@
       return;
     }
     window.KSWatch?.load(); // v0.22.0: Sathi on watch
+    if (S.mode === 'field' && S.cur) window.KSFieldCam?.load(S.cur.id); // v0.23.0: the field camera
     const h = hero();
     heroGo = h.go;
     $('#heroBig').textContent = h.big;
@@ -1639,7 +1640,7 @@
     try {
       v = JSON.parse(a.body || '{}');
     } catch {}
-    const vars = { shop: v.shop || '', total: v.total != null ? money(v.total, v.symbol || '') : '', when: v.when || '', land: landTitle(S.cur), chance: num(v.chance ?? 0), mm: num(v.mm ?? 0), humidity: num(v.humidity ?? 0), value: num(v.value ?? 0, a.title === 'soil_dry' || a.title.startsWith('sell_') ? 0 : 1), days: num(v.days ?? 0), crop: v.crop ? cropName(v.crop) : '', date: v.date ? fd(v.date) : '' };
+    const vars = { shop: v.shop || '', total: v.total != null ? money(v.total, v.symbol || '') : '', when: v.when || '', land: landTitle(S.cur), chance: num(v.chance ?? 0), mm: num(v.mm ?? 0), humidity: num(v.humidity ?? 0), value: num(v.value ?? 0, a.title === 'soil_dry' || a.title.startsWith('sell_') ? 0 : 1), days: num(v.days ?? 0), crop: v.crop ? cropName(v.crop) : '', date: v.date ? fd(v.date) : '', from: num(v.from ?? 0), to: num(v.to ?? 0), looks: num(v.looks ?? 0) };
     return { title: fmt(`a_${a.title}`, vars), body: fmt(`b_${a.title}`, vars) };
   }
   // Alerts for the place that is picked: the shed's (camera, sensors, egg sale) or this field's (v0.11.3).

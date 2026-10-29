@@ -185,6 +185,8 @@
         <div class="minis"><span class="pill ok" id="scoreTag"></span></div>
       </div>
       <div class="card c-kpi"><div class="kpis" id="kpis"></div></div>
+      <!-- v0.23.0: the field camera (ks-fieldcam.js) -->
+      <div class="card span2 fc-card" id="fcCard" hidden></div>
       <div class="card span2"><div class="lab"><span data-icon="sat"></span><span data-t="ndviH"></span><span class="src-tag" data-t="srcS2"></span></div><div id="chNdvi"></div></div>
       <div class="card span2"><div class="lab"><span data-icon="eye"></span><span data-t="zonesH"></span><span class="pill warn" style="margin-left:auto" id="zoneTag"></span></div><div class="zones" id="zones"></div><div class="zinfo mono" id="zinfo"></div></div>
       <div class="card span2"><div class="lab"><span data-icon="sprout"></span><span data-t="growH"></span><span class="src-tag" id="growSrc"></span></div><div class="growlist" id="grow"></div></div>
@@ -558,6 +560,13 @@
 </div>
 
 <!-- v0.15.0: ADD YARD (photo -> SAM 3.1 outline -> size in the farmer's units and sun -> picks) -->
+<div class="sheet" id="camSheet" hidden>
+  <div class="wrap sh narrowsh">
+    <div class="shtop"><button class="iconbtn" id="camClose" data-tl="close">×</button><h2 style="margin:0" data-t="fcHistH"></h2></div>
+    <div id="camList" class="camlist"></div>
+  </div>
+</div>
+
 <div class="sheet" id="yardSheet" hidden>
   <div class="wrap sh narrowsh">
     <div class="shtop"><button class="iconbtn" id="yardClose" data-tl="close">×</button><h2 style="margin:0" data-t="addYard"></h2></div>
@@ -615,6 +624,7 @@
 <script src="/next/ks-install.js"></script>
 <script src="/next/ks-report.js"></script>
 <script src="/next/ks-tour.js"></script>
+<script src="/next/ks-fieldcam.js"></script>
 <script src="/next/ks-watch.js"></script>
 <script src="/next/ks-guide.js"></script>
 <script src="/next/ks-agent.js"></script>

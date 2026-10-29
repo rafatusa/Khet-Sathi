@@ -34,6 +34,7 @@ import {
   listYards, getYard, createYard, updateYard, deleteYard,
   listMissions, getMission, dueMissions, openMissionFor, saveMission, getWatchMode, setWatchMode, DEFAULT_SHED,
 } from './lib/store.js';
+import { measureLook, trend as camTrend, readLooks, saveLooks, addLook, lookPhoto, lookView, demoDates } from './lib/fieldcam.js';
 import { missionFrom, runMission, translateSteps, decide as decideWatch, missionView, TRIGGERS as WATCH_TRIGGERS, MODES as WATCH_MODES, DEFAULT_MODE as DEFAULT_WATCH_MODE } from './lib/watch.js';
 import sharp from 'sharp';
 import { unitsFor, sizeToM2, sizeWords, sizeClass, pickPlants, shoppingList, waterTip, meanTemp, outlineYard, SOUTH_ASIA } from './lib/yard.js';
@@ -51,7 +52,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.22.0';
+const VERSION = '0.23.0';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -1262,6 +1263,13 @@ const watchToolsFor = (m) => ({
     const k = await withKeep(wxKey(p.lat, p.lon), () => fetchWeather(p.lat, p.lon), { persist: true });
     return { days: (k.value?.days || []).slice(0, 3).map((d) => ({ date: d.date, tMax: d.tMax, tMin: d.tMin, rainChance: d.rainChance, rainMm: d.rainMm, humidity: d.humidity })), staleAt: k.staleAt || null };
   },
+  look_at_field_camera: async () => {
+    if (!m.place_id) return { error: 'Field not found' };
+    const looks = await readLooks(m.place_id);
+    const tr = camTrend(looks);
+    const last = looks.filter((l) => Number.isFinite(l.share)).slice(-6);
+    return { looks: tr.looks, from: tr.from, now: last.at(-1)?.share ?? null, rising: tr.rising, recent: last.map((l) => ({ at: l.at, share: l.share })), demo: last.some((l) => l.demo) };
+  },
   look_at_field: async () => {
     const p = await placeOf(m);
     if (!p?.land) return { error: 'Field not found' };
@@ -1378,6 +1386,79 @@ app.post(
     const mission = missionFrom(alert, { mode: await modeFor(null), id: newId() });
     const done = await runAs(null, () => runAndSave(mission));
     return { mission: missionView(done) };
+  })
+);
+
+// ---------- the field camera (v0.23.0, lib/fieldcam.js) ----------
+// Looks at one patch of a field, measured by SAM 3.1. A farm can add looks to its own fields; the demo field's
+// looks are saved demo frames, loaded by an admin and labelled. A rise that holds raises patch_rising, which
+// wakes Sathi.
+async function fieldForCamera(id) {
+  const land = await getLand(id).catch(() => null);
+  if (!land) throw new Error('Field not found');
+  return land;
+}
+async function cameraCheck(land, looks) {
+  const tr = camTrend(looks);
+  if (!tr.rising) return tr;
+  const recent = await recentAlerts(12).catch(() => []);
+  if (recent.some((a) => a.land_id === land.id && a.title === 'patch_rising')) return tr;
+  const saved = await runAs(null, () => insertAlerts([{ land_id: land.id, owner_id: land.owner_id || null, area: 'field', severity: 'warn', title: 'patch_rising', source: 'camera', body: JSON.stringify({ from: tr.from, to: tr.to, looks: tr.looks }) }])).catch(() => null);
+  if (saved?.length) wakeSathi(saved).catch(() => null);
+  return tr;
+}
+app.get(
+  '/api/lands/:id/camera',
+  guard,
+  timed(async (req) => {
+    const land = await fieldForCamera(req.params.id);
+    const looks = await readLooks(land.id);
+    return { looks: looks.map((l) => lookView(land.id, l)), trend: camTrend(looks) };
+  })
+);
+app.get('/api/lands/:id/camera/:look/photo', guard, async (req, res) => {
+  try {
+    const land = await fieldForCamera(req.params.id);
+    const f = await lookPhoto(land.id, req.params.look);
+    if (!f) return res.status(404).end();
+    res.set('Content-Type', 'image/jpeg').set('Cache-Control', 'private, max-age=86400').send(Buffer.from(f.buffer));
+  } catch {
+    res.status(404).end();
+  }
+});
+app.post(
+  '/api/lands/:id/camera/look',
+  guard,
+  timed(async (req) => {
+    const land = await fieldForCamera(req.params.id);
+    if (currentScope()?.readOnly) throw new Error('This is the demo farm, so nothing is saved');
+    const photo = dataUrlToBuffer(req.body?.photoDataUrl);
+    if (!photo) throw new Error('Send a photo');
+    useLimit('check');
+    const { data, image } = await imageFor(photo.buffer);
+    const { look, looks } = await addLook(land.id, { photo: data, image });
+    const tr = await cameraCheck(land, looks);
+    return { look: lookView(land.id, look), trend: tr };
+  })
+);
+// Admin, demo farm: saved demo frames, sent one at a time (index 0 starts a fresh series), oldest first, dated
+// across the last 3 days. After the last frame the rise check runs and may wake Sathi.
+app.post(
+  '/api/lands/:id/camera/demo',
+  guard,
+  timed(async (req) => {
+    const sc = currentScope();
+    if (sc?.mode !== 'demo' || !sc.admin || sc.readOnly) throw new Error('Only an admin can load demo frames, inside the demo farm');
+    const land = await fieldForCamera(req.params.id);
+    const total = Math.max(2, Math.min(12, Number(req.body?.total) || 0));
+    const index = Math.max(0, Math.min(total - 1, Number(req.body?.index) || 0));
+    const photo = dataUrlToBuffer(req.body?.photoDataUrl);
+    if (!photo) throw new Error('Send a frame');
+    if (index === 0) await saveLooks(land.id, () => []);
+    const { data, image } = await imageFor(photo.buffer);
+    const { look, looks } = await addLook(land.id, { photo: data, image, at: demoDates(total)[index], demo: true });
+    const tr = index === total - 1 ? await cameraCheck(land, looks) : camTrend(looks);
+    return { look: lookView(land.id, look), trend: tr, done: index === total - 1 };
   })
 );
 
