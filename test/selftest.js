@@ -1679,6 +1679,8 @@ await checkAsync('v0.25.2: an older copy of the looks from storage never wins ov
   const q = w.cleanLine(long, 120);
   assert.ok(q.length <= 120 && /\.$/.test(q), `ends at a sentence: ${q}`);
   assert.match(JSON.stringify(w.watchTools('field', 'ask')), /at most 25 words/);
+  assert.match(w.watchSystem('ask'), /trust the camera and the warmth over the regional calendar/);
+  assert.match(w.watchSystem('ask'), /Demo camera frames stand in for a real camera/);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);
