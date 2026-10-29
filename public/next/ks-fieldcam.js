@@ -6,8 +6,9 @@
 (() => {
   const K = window.KS;
   if (!K) return;
-  const { $, t, fmt, esc, num, S, api, postJson, toast } = K;
-  const C = { landId: null, looks: [], trend: null, busy: '' };
+  const { $, t, fmt, esc, num, S, api, postJson, toast, fd } = K;
+  const C = { landId: null, looks: [], trend: null, busy: '', show: null };
+  let P = null; // v0.27.0: the story being played
   const L = () => K.lang();
   const hhmm = (iso) => {
     try {
@@ -63,16 +64,19 @@
     const tag = demo ? `<span class="src-tag sim">${esc(t('fcDemoTag'))}</span>` : `<span class="src-tag">SAM 3.1</span>`;
     const canAdd = !S.view;
     const canDemo = S.view === 'demo' && S.admin;
+    const canStory = S.view === 'demo' && S.cur?.location_source === 'demo'; // v0.27.0: every visitor of the demo farm
     const measured = C.looks.filter((l) => !l.motion);
     const moves = C.looks.filter((l) => l.motion);
     // v0.25.0: demo stories, frames that ship with the site, so one press (by a person or an agent) runs a story.
-    const stories = canDemo ? `<div class="fcstories" role="group" aria-label="${esc(t('fcStoriesH'))}"><b>${esc(t('fcStoriesH'))}</b><div class="btns">${Object.keys(STORIES).map((k) => `<button class="btn" type="button" id="fcStory_${k}" data-story="${k}">${esc(t(`fcStory_${k}`))}</button>`).join('')}</div></div>` : '';
+    const stories = canStory ? `<div class="fcstories" role="group" aria-label="${esc(t('fcStoriesH'))}"><b>${esc(t(S.admin ? 'fcStoriesH' : 'fcStoriesMine'))}</b><div class="btns">${Object.keys(STORIES).map((k) => `<button class="btn" type="button" id="fcStory_${k}" data-story="${k}"${P ? ' disabled' : ''}>${esc(t(`fcStory_${k}`))}</button>`).join('')}</div></div>` : '';
     const tools = `${stories}<div class="btns fcbtns">${C.looks.length ? `<button class="btn ghost" type="button" id="fcHist">${esc(t('fcHistory'))}</button>` : ''}${canAdd ? `<label class="btn ghost fcfile">${esc(t('fcAdd'))}<input type="file" accept="image/*" id="fcIn" hidden></label>` : ''}${canDemo ? `<label class="btn ghost fcfile">${esc(t('fcDemoLoad'))}<input type="file" accept="image/*" multiple id="fcDemoIn" hidden></label><label class="btn ghost fcfile">${esc(t('fcMotionLoad'))}<input type="file" accept="image/*" id="fcMotionIn" hidden></label>` : ''}</div>${canDemo ? `<p class="muted small">${esc(t('fcDemoHint'))}</p>` : ''}`;
     if (C.busy) {
       card.innerHTML = `<div class="lab"><span data-icon="camera"></span><span>${esc(t('fcH'))}</span>${tag}</div><div class="maploading" style="position:static;margin:8px 0"><span class="spin"></span><span>${esc(C.busy)}</span></div>`;
       return K.icons?.(card);
     }
-    const last = measured.at(-1);
+    // v0.27.0: while a story plays, or when the farmer steps back, the photo on screen can be an earlier one.
+    const at = C.show == null ? measured.length - 1 : Math.max(0, Math.min(measured.length - 1, C.show));
+    const last = measured[at];
     const move = moves.at(-1);
     const moveHtml = move ? `<div class="fcmove"><b>${esc((move.animals || []).length ? fmt('fcAnimals', { list: animalList(move.animals), time: hhmm(move.at) }) : fmt('fcNoAnimals', { time: hhmm(move.at) }))}</b>${frameHtml(move)}</div>` : '';
     if (!last) {
@@ -83,12 +87,25 @@
     const change = Number.isFinite(tr.from) && Number.isFinite(last.share) ? last.share - tr.from : null;
     card.innerHTML = `<div class="lab"><span data-icon="camera"></span><span>${esc(t('fcH'))}</span>${tag}</div>
       ${frameHtml(last)}
+      ${playerHtml(measured, at)}
       <div class="zinfo">${esc(last.error ? t('fcNoPlants') : fmt('fcLast', { time: hhmm(last.at) }))}${tr.rising ? ` · <b>${esc(t(tr.kind === 'ripening' ? 'fcRipening' : 'fcRising'))}</b>` : ''}</div>
       <div class="kpis fckpis"><div class="kpi"><div class="lab"><span>${esc(t('fcNow'))}</span></div><div class="kv">${Number.isFinite(last.share) ? `${num(last.share)}%` : '-'}</div></div><div class="kpi"><div class="lab"><span>${esc(t('fcSince'))}</span></div><div class="kv">${change == null ? '-' : `${change > 0 ? '+' : ''}${esc(fmt('fcPts', { n: num(Math.round(change)) }))}`}</div></div><div class="kpi"><div class="lab"><span>${esc(t('fcLooks'))}</span></div><div class="kv">${num(measured.length)}</div></div></div>
       ${chartHtml(C.looks)}
       ${moveHtml}
       ${tools}`;
     K.icons?.(card);
+  }
+  // v0.27.0: the story player: which photo of how many, back, pause or play, next; and when SAM measured them.
+  function playerHtml(measured, at) {
+    const story = measured[at]?.story;
+    if (!story || STORIES[story]?.motion) return '';
+    const n = STORIES[story].files.length;
+    const dots = Array.from({ length: n }, (_, i) => `<i class="${i < measured.length ? (i === at ? 'on' : 'done') : ''}"></i>`).join('');
+    const playing = P && !P.paused && !P.done;
+    const when = measured[at].measuredAt ? fmt('fcMeasuredAt', { date: fd(new Date(measured[at].measuredAt).toLocaleDateString('en-CA')) }) : '';
+    return `<div class="fcplayer"><div class="fcdots" aria-hidden="true">${dots}</div><span class="fcpos">${esc(fmt('fcFrameOf', { i: num(at + 1), n: num(n), p: num(measured[at].share ?? 0) }))}</span>${P?.loading ? `<span class="spin"></span>` : ''}
+      <div class="btns fcctl"><button class="btn ghost" type="button" id="fcPrev"${at === 0 ? ' disabled' : ''}>${esc(t('fcPrev'))}</button>${P && !P.done ? `<button class="btn ghost" type="button" id="fcPause">${esc(t(playing ? 'fcPause' : 'fcPlay'))}</button>` : ''}<button class="btn ghost" type="button" id="fcNext"${at >= measured.length - 1 && !(P && !P.done) ? ' disabled' : ''}>${esc(t('fcNext'))}</button></div>
+      ${when ? `<small class="muted">${esc(when)}</small>` : ''}</div>`;
   }
   async function load(landId, force = false) {
     if (!landId) return render();
@@ -141,29 +158,94 @@
     await load(landId, true);
     return window.KSWatch?.load(true);
   }
-  async function playStory(key) {
-    const st = STORIES[key];
+  // v0.27.0: a story plays frame by frame from the server (each frame measured by SAM 3.1 once and kept), a new
+  // photo every 5 seconds. Back, pause and next work by hand. A visitor's story is kept for that visitor.
+  const STEP_MS = 5000;
+  async function stepStory() {
+    if (!P || P.paused || P.done || P.loading) return;
     const landId = C.landId;
-    if (!st || !landId || C.busy) return;
-    C.busy = t('fcStoryFetch');
+    P.loading = true;
+    const t0 = Date.now();
     render();
-    try {
-      const files = await Promise.all(st.files.map(async (u) => {
-        const res = await fetch(u);
-        if (!res.ok) throw new Error(`${u}: HTTP ${res.status}`);
-        return res.blob();
-      }));
-      return st.motion ? runMotion(landId, files[0]) : runDemo(landId, files);
-    } catch (err) {
-      C.busy = '';
-      toast(`${t('error')}: ${err.message}`);
+    const r = await postJson(`/api/lands/${landId}/camera/story`, { story: P.story, index: P.next }).catch((err) => ({ ok: false, error: err.message }));
+    if (!P) return;
+    P.loading = false;
+    if (!r.ok) {
+      toast(r.error === 'story_limit' ? t('fcStoryLimit') : `${t('error')}: ${r.error}`);
+      P = null;
+      return load(landId, true);
+    }
+    P.next = r.index + 1;
+    await load(landId, true);
+    C.show = null;
+    if (r.done) {
+      P.done = true;
+      render();
+      // Sathi looks closer by herself (about half a minute); her log on Home picks it up.
+      [8000, 20000, 35000, 50000].forEach((ms) => setTimeout(() => window.KSWatch?.load(true), ms));
+      setTimeout(() => {
+        P = null;
+        render();
+      }, 1500);
+      return;
+    }
+    render();
+    P.timer = setTimeout(stepStory, Math.max(0, STEP_MS - (Date.now() - t0)));
+  }
+  function playStory(key) {
+    const st = STORIES[key];
+    if (!st || !C.landId || P) return;
+    C.show = null;
+    P = { story: key, next: 0, paused: false, done: false, loading: false, timer: null };
+    stepStory();
+  }
+  function storyControl(id) {
+    const measured = C.looks.filter((l) => !l.motion);
+    const at = C.show == null ? measured.length - 1 : C.show;
+    if (id === 'fcPrev') {
+      if (P) {
+        P.paused = true;
+        clearTimeout(P.timer);
+      }
+      C.show = Math.max(0, at - 1);
       return render();
+    }
+    if (id === 'fcNext') {
+      if (at < measured.length - 1) {
+        C.show = at + 1 === measured.length - 1 ? null : at + 1;
+        return render();
+      }
+      if (P && !P.done) {
+        P.paused = true;
+        clearTimeout(P.timer);
+        P.paused = false;
+        P.once = true;
+        stepStory().then(() => {
+          if (P && P.once) {
+            P.paused = true;
+            P.once = false;
+            clearTimeout(P.timer);
+            render();
+          }
+        });
+      }
+      return;
+    }
+    if (id === 'fcPause' && P) {
+      P.paused = !P.paused;
+      clearTimeout(P.timer);
+      if (!P.paused) {
+        C.show = null;
+        stepStory();
+      } else render();
     }
   }
   $('#fcCard')?.addEventListener('click', (e) => {
     if (e.target.closest('#fcHist')) history();
     const story = e.target.closest('[data-story]');
     if (story) playStory(story.dataset.story);
+    const ctl = e.target.closest('#fcPrev, #fcNext, #fcPause');
+    if (ctl) storyControl(ctl.id);
   });
   $('#fcCard')?.addEventListener('change', async (e) => {
     const landId = C.landId;

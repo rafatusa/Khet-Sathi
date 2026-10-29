@@ -44,10 +44,10 @@ The button under the app name in the header (data-action="farmBtn") switches bet
 - After sign-in, open the account button and press Watch the demo farm. A bar at the top says it is the demo farm; press My farm to go back.
 - The demo farm cannot be changed by visitors; anything saved there is refused with a notice.
 
-### Run a field camera demo story (admin, in the demo farm)
+### Run a field camera demo story (anyone signed in, in the demo farm)
 
 - Open the demo field. On Home, the Field camera card has Demo stories: Play: patch spreading (fcStory_patch), Play: field ripening (fcStory_ripe) and Play: goats walk in (fcStory_goats).
-- Press one and wait while SAM 3.1 measures each frame. The frames are AI-generated and marked as demo. A new story replaces the one before.
+- Press one. A new photo appears every 5 seconds (each was measured by SAM 3.1 once); Back (fcPrev), Pause (fcPause) and Next (fcNext) step by hand. The photos are AI-generated and marked as demo. A story you play is kept for your account only; you can start 3 a day.
 - Then read Sathi on watch on the same page: what she saw, what she thought and what she asks the person. Do not answer her question for the person.
 
 ### Ask Sathi

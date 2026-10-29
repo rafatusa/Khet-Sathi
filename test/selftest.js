@@ -1754,6 +1754,30 @@ check('v0.26.2: Sathi\'s voice can be muted and stays muted on the phone; Listen
   assert.deepEqual(nc.numbersIn(t).filter((n) => nc.worthChecking(n, t)).map((n) => n.raw), ['77', '32']);
 });
 
+await checkAsync('v0.27.0: demo stories for every visitor: each frame measured by SAM once and kept; a visitor\'s story is private', async () => {
+  const fc = await import('../lib/fieldcam.js');
+  const files = new Map();
+  const deps = { getFileImpl: async (p) => (files.has(p) ? { buffer: files.get(p) } : null), putFileImpl: async (p, b) => files.set(p, Buffer.from(b)) };
+  let measured = 0;
+  const measure = async () => ({ share: 12, even: 0.25, heads: 0, plants: [], cells: [{ x: 1, y: 2, w: 3, h: 4 }], error: null });
+  const loadImage = async () => ({ width: 1024, height: 576, dataUrl: 'x' });
+  const m1 = await fc.storyMeasure('problem-3.jpg', { crop: 'rice', loadImage, measure: async (...a) => (measured++, measure(...a)), ...deps });
+  const m2 = await fc.storyMeasure('problem-3.jpg', { crop: 'rice', loadImage, measure: async (...a) => (measured++, measure(...a)), ...deps });
+  assert.equal(measured, 1, 'SAM measures a frame once');
+  assert.equal(m2.share, 12);
+  assert.ok(m1.measuredAt);
+  const look = fc.storyLook('patch', 2, m1, { id: 'a', at: '2026-10-28T00:00:00Z' });
+  assert.equal(look.src, '/demo/fieldcam/problem-3.jpg');
+  assert.equal(fc.lookView('11111111-1111-4111-8111-111111111111', look).photoUrl, '/demo/fieldcam/problem-3.jpg');
+  const land = '33333333-3333-4333-8333-333333333333';
+  await fc.saveLooks(land, () => [look], { ...deps, viewer: 'v1' });
+  assert.equal((await fc.readLooks(land, { ...deps, viewer: 'v1' })).length, 1, 'the visitor sees their story');
+  assert.equal((await fc.readLooks(land, deps)).length, 0, 'the demo field itself is unchanged');
+  const srv = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  assert.match(srv, /camera\\\/story\)\|watch/, 'visitors may call the story route in the read-only demo');
+  assert.match(srv, /throw new Error\('story_limit'\)/);
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);

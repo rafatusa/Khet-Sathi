@@ -535,3 +535,10 @@ nav.bottom [data-tab="guide"]{display:none}
 .voicebtn{margin-left:auto;min-height:44px;font-size:.9rem;white-space:nowrap;flex:none;padding:0 14px}
 .voicebtn.off{color:var(--muted)}
 .hearbtn{display:inline-block;margin-top:6px;min-height:32px;font-size:.85rem}
+.fcplayer{display:grid;gap:6px;margin:8px 0 4px}
+.fcdots{display:flex;gap:6px}
+.fcdots i{width:22px;height:6px;border-radius:3px;background:var(--line)}
+.fcdots i.done{background:var(--leaf-soft)}
+.fcdots i.on{background:var(--leaf)}
+.fcpos{font-weight:600;font-variant-numeric:tabular-nums;display:inline-flex;gap:8px;align-items:center}
+.fcctl .btn{min-height:44px}

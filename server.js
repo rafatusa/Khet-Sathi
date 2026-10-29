@@ -2,6 +2,7 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readFile } from 'node:fs/promises';
 import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptText, segmentStream, uploadFile, deleteFile, respond, responseText } from './lib/meta.js';
 import { analyseFrames, framesFromSegments, observePrompt, parseObservation, MAX_FRAMES, SAFE_VET_LINE, safeText } from './lib/poultry.js';
 import { autoSigns, vetMessage, vetScript, withNames, cleanCall, parseDeaths, parseSince, SIGN_CODES } from './lib/vetcall.js';
@@ -35,7 +36,7 @@ import {
   listMissions, getMission, dueMissions, openMissionFor, saveMission, getWatchMode, setWatchMode, DEFAULT_SHED,
 } from './lib/store.js';
 import { powerDaily, heatStage, GDD_CROPS } from './lib/agroclimate.js';
-import { classify as camClassify, measureLook, trend as camTrend, readLooks, saveLooks, addLook, lookPhoto, lookView, demoDates } from './lib/fieldcam.js';
+import { classify as camClassify, measureLook, trend as camTrend, readLooks, saveLooks, addLook, lookPhoto, lookView, demoDates, STORIES, storyMeasure, storyLook } from './lib/fieldcam.js';
 import { missionFrom, runMission, translateSteps, needsTranslation, decide as decideWatch, missionView, TRIGGERS as WATCH_TRIGGERS, MODES as WATCH_MODES, DEFAULT_MODE as DEFAULT_WATCH_MODE } from './lib/watch.js';
 import sharp from 'sharp';
 import { unitsFor, sizeToM2, sizeWords, sizeClass, pickPlants, shoppingList, waterTip, meanTemp, outlineYard, SOUTH_ASIA } from './lib/yard.js';
@@ -47,13 +48,13 @@ import { withKeep, recall, remember } from './lib/keep.js';
 import { relayInfo } from './lib/meta.js';
 import { checkNumbers, factsFrom } from './lib/numcheck.js';
 import { reverseGeocode } from './lib/place.js';
-import { runAs, currentOwner, currentScope, scopeFor, isAdmin, userFromToken, sendCode, verifyCode, refreshSession, signOut, useLimit, LIMITS, usageToday, listUsers, seenUsers } from './lib/auth.js';
+import { runAs, currentOwner, currentScope, currentUser, scopeFor, isAdmin, userFromToken, sendCode, verifyCode, refreshSession, signOut, useLimit, LIMITS, usageToday, listUsers, seenUsers } from './lib/auth.js';
 import { runChecks } from './lib/checks.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.26.2';
+const VERSION = '0.27.0';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -95,7 +96,7 @@ async function guard(req, res, next) {
 }
 // Read-only visitors may still talk to Sathi and, in the demo farm, play the demo calls (nothing is saved).
 const RO_TALK = /^\/api\/(ask|ask\/stream|speak|transcribe|vet\/message|problem\/measure)$/;
-const RO_DEMO_CALLS = /^\/api\/(vet\/call|sell\/run|lands\/[^/]+\/(order|harvest\/run|harvest\/book)|watch\/[^/]+\/decide)$/; // v0.22.0: a visitor's tap on Sathi's question (nothing saved)
+const RO_DEMO_CALLS = /^\/api\/(vet\/call|sell\/run|lands\/[^/]+\/(order|harvest\/run|harvest\/book|camera\/story)|watch\/[^/]+\/decide)$/; // v0.22.0: a visitor's tap on Sathi's question (nothing saved)
 function readOnlyAllowed(req, scope) {
   const p = req.path;
   if (RO_TALK.test(p)) return true;
@@ -672,7 +673,7 @@ app.post(
 
 // ---------- sheds (v0.11.0) ----------
 // v0.18.1: each shed carries its own currency, from the country at its location (the same address lookup the
-// yard uses, done once per spot and kept in memory). Since v0.26.2 the demo shed sits near Bogura, Bangladesh,
+// yard uses, done once per spot and kept in memory). Since v0.27.0 the demo shed sits near Bogura, Bangladesh,
 // so it is in taka. A shed with no location gets none and the app uses the farm's field currency.
 const shedCur = new Map();
 async function shedCurrency(s) {
@@ -1371,7 +1372,7 @@ app.get(
     const placeKind = ['field', 'shed', 'yard'].includes(req.query.kind) ? req.query.kind : null;
     const placeId = isId(req.query.id) ? req.query.id : null;
     const missions = await listMissions({ placeKind, placeId, limit: 5 });
-    // v0.26.2: a step still in English only (its translation failed) is translated now, in the background.
+    // v0.27.0: a step still in English only (its translation failed) is translated now, in the background.
     for (const m of missions.filter(needsTranslation).slice(0, 2)) fillTranslations(m);
     const sc = currentScope();
     return { mode: (await getWatchMode(sc?.mode === 'demo' ? 'demo' : sc?.owner || 'demo').catch(() => null)) || DEFAULT_WATCH_MODE, missions: missions.map(missionView) };
@@ -1396,7 +1397,9 @@ app.post(
     const m = await getMission(req.params.id);
     if (!m) throw new Error('Not found');
     const { mission, open } = decideWatch(m, req.body?.choice === 'yes' ? 'yes' : 'no');
-    const saved = await saveMission(mission);
+    // v0.27.0: a visitor's own demo story mission keeps their answer; the shared demo missions do not change.
+    const mine = m.owner_id && m.owner_id === currentUser()?.id;
+    const saved = mine ? await runAs(null, () => saveMission(mission)) : await saveMission(mission);
     return { mission: missionView(saved), open };
   })
 );
@@ -1440,7 +1443,7 @@ async function seasonFor(land) {
 }
 // Rising yellow: ripening (late in the season and even, or grain heads) wakes Sathi for the harvest; anything
 // else for the agriculture office. One alert of each kind per field in 12 hours.
-async function cameraCheck(land, looks, { demo = false } = {}) {
+async function cameraCheck(land, looks, { demo = false, ownerId = undefined } = {}) {
   const tr = camTrend(looks);
   if (!tr.rising) return tr;
   const season = await seasonFor(land);
@@ -1448,26 +1451,36 @@ async function cameraCheck(land, looks, { demo = false } = {}) {
   const kind = camClassify({ look: last, stage: season.stage, heatPct: season.heat?.pct ?? null });
   const title = kind === 'ripening' ? 'crop_ripening' : 'patch_rising';
   const recent = await recentAlerts(12).catch(() => []);
-  // v0.26.2: a demo story always raises its alert (a retake for the video must wake Sathi again).
+  // v0.27.0: a demo story always raises its alert (a retake for the video must wake Sathi again).
   if (!demo && recent.some((a) => a.land_id === land.id && a.title === title)) return { ...tr, kind };
-  const saved = await runAs(null, () => insertAlerts([{ land_id: land.id, owner_id: land.owner_id || null, area: 'field', severity: kind === 'ripening' ? 'info' : 'warn', title, source: 'camera', body: JSON.stringify({ from: tr.from, to: tr.to, looks: tr.looks, stage: season.stage, heat: season.heat?.pct ?? null, heads: last?.heads ?? null, even: last?.even ?? null }) }])).catch(() => null);
+  const row = { land_id: land.id, owner_id: land.owner_id || null, area: 'field', severity: kind === 'ripening' ? 'info' : 'warn', title, source: 'camera', body: JSON.stringify({ from: tr.from, to: tr.to, looks: tr.looks, stage: season.stage, heat: season.heat?.pct ?? null, heads: last?.heads ?? null, even: last?.even ?? null }) };
+  // v0.27.0: a visitor's demo story wakes Sathi for that visitor only; no alert row goes to the shared demo farm.
+  if (ownerId) {
+    wakeSathi([{ ...row, owner_id: ownerId }]).catch(() => null);
+    return { ...tr, kind };
+  }
+  const saved = await runAs(null, () => insertAlerts([row])).catch(() => null);
   if (saved?.length) wakeSathi(saved).catch(() => null);
   return { ...tr, kind };
 }
-// v0.26.2: a new demo story closes what Sathi was still waiting on from the camera's last story on this field.
+// v0.27.0: a new demo story closes what Sathi was still waiting on from the camera's last story on this field.
 const CAMERA_TRIGGERS = ['patch_rising', 'crop_ripening', 'animal_in_field'];
-async function closeCameraMissions(land, triggers = CAMERA_TRIGGERS) {
-  for (const trigger of triggers) {
-    const open = await openMissionFor({ ownerId: land.owner_id || null, placeKind: 'field', placeId: land.id, trigger }).catch(() => null);
-    const m = open ? await getMission(open.id).catch(() => null) : null;
-    if (m) await saveMission({ ...m, status: 'done', due_at: null, steps: [...(m.steps || []), { at: new Date().toISOString(), kind: 'did', key: 'wtDidDemoClosed' }] });
-  }
+async function closeCameraMissions(land, triggers = CAMERA_TRIGGERS, ownerId = land.owner_id || null) {
+  await runAs(null, async () => {
+    for (const trigger of triggers) {
+      const open = await openMissionFor({ ownerId, placeKind: 'field', placeId: land.id, trigger }).catch(() => null);
+      const m = open ? await getMission(open.id).catch(() => null) : null;
+      if (m) await saveMission({ ...m, status: 'done', due_at: null, steps: [...(m.steps || []), { at: new Date().toISOString(), kind: 'did', key: 'wtDidDemoClosed' }] });
+    }
+  });
 }
-async function animalCheck(land, look) {
+async function animalCheck(land, look, { ownerId = null } = {}) {
   const n = (look.animals || []).length;
   if (!n) return;
   const kinds = [...new Set(look.animals.map((a) => a.kind))];
-  const saved = await runAs(null, () => insertAlerts([{ land_id: land.id, owner_id: land.owner_id || null, area: 'field', severity: 'warn', title: 'animal_in_field', source: 'camera', body: JSON.stringify({ value: n, kinds, at: look.at }) }])).catch(() => null);
+  const row = { land_id: land.id, owner_id: land.owner_id || null, area: 'field', severity: 'warn', title: 'animal_in_field', source: 'camera', body: JSON.stringify({ value: n, kinds, at: look.at }) };
+  if (ownerId) return void wakeSathi([{ ...row, owner_id: ownerId }]).catch(() => null);
+  const saved = await runAs(null, () => insertAlerts([row])).catch(() => null);
   if (saved?.length) wakeSathi(saved).catch(() => null);
 }
 app.get(
@@ -1475,14 +1488,59 @@ app.get(
   guard,
   timed(async (req) => {
     const land = await fieldForCamera(req.params.id);
-    const looks = await readLooks(land.id);
+    // v0.27.0: in the demo farm a visitor who played a story sees their own; everyone else the demo field's.
+    const sc0 = currentScope();
+    const viewer = sc0?.mode === 'demo' && !sc0.admin ? currentUser()?.id || null : null;
+    const own = viewer && land.location_source === 'demo' ? await readLooks(land.id, { viewer }) : [];
+    const looks = own.length ? own : await readLooks(land.id);
     const tr = camTrend(looks);
     if (tr.rising) {
       const season = await seasonFor(land);
       const last = [...looks].reverse().find((l) => !l.motion && Number.isFinite(l.share));
       tr.kind = camClassify({ look: last, stage: season.stage, heatPct: season.heat?.pct ?? null });
     }
-    return { looks: looks.map((l) => lookView(land.id, l)), trend: tr };
+    return { looks: looks.map((l) => lookView(land.id, l)), trend: tr, mine: own.length > 0 };
+  })
+);
+// v0.27.0: one frame of a demo story, for anyone signed in to the demo farm. An admin's play sets what every
+// visitor sees; a visitor's play is kept for that visitor only (their photos, their Sathi). Each frame was
+// measured by SAM 3.1 once (storyMeasure); a visitor may start 3 stories a day.
+const STORY_DAILY = Number(process.env.STORY_DAILY_MAX) || 3;
+const storyRuns = new Map();
+app.post(
+  '/api/lands/:id/camera/story',
+  guard,
+  timed(async (req) => {
+    const sc = currentScope();
+    if (sc?.mode !== 'demo') throw new Error('Demo stories play inside the demo farm');
+    const land = await fieldForCamera(req.params.id);
+    if (land.location_source !== 'demo') throw new Error('Demo stories play on the demo field');
+    const story = String(req.body?.story || '');
+    const st = STORIES[story];
+    if (!st) throw new Error('Unknown story');
+    const total = st.files.length;
+    const index = Math.max(0, Math.min(total - 1, Number(req.body?.index) || 0));
+    const viewer = sc.admin ? null : currentUser()?.id || null;
+    if (!sc.admin && !viewer) throw new Error('Sign in to play a demo story');
+    if (index === 0 && viewer) {
+      const k = `${localToday('Asia/Dhaka')}|${viewer}`;
+      const n = storyRuns.get(k) || 0;
+      if (n >= STORY_DAILY) throw new Error('story_limit');
+      storyRuns.set(k, n + 1);
+    }
+    const ownerId = viewer || land.owner_id || null;
+    if (index === 0) await closeCameraMissions(land, st.motion ? ['animal_in_field'] : CAMERA_TRIGGERS, ownerId).catch(() => null);
+    if (index === 0 && !st.motion) await saveLooks(land.id, () => [], { viewer });
+    const loadImage = async (file) => (await imageFor(await readFile(path.join(PUB, 'demo', 'fieldcam', file)))).image;
+    const m = await storyMeasure(st.files[index], { crop: land.crop, motion: Boolean(st.motion), loadImage });
+    const look = storyLook(story, index, m, { id: newId(), at: st.motion ? new Date().toISOString() : demoDates(total)[index] });
+    const looks = await saveLooks(land.id, (ls) => [...ls, look], { viewer });
+    if (st.motion) {
+      await animalCheck(land, look, { ownerId: viewer });
+      return { look: lookView(land.id, look), done: true, index, total };
+    }
+    const tr = index === total - 1 ? await cameraCheck(land, looks, { demo: true, ownerId: viewer }) : camTrend(looks);
+    return { look: lookView(land.id, look), trend: tr, done: index === total - 1, index, total };
   })
 );
 app.get('/api/lands/:id/camera/:look/photo', guard, async (req, res) => {
@@ -1903,7 +1961,7 @@ app.post(
 );
 
 // ---------- egg sale (v0.8.0): the farmer's rule, simulated shop calls, one-tap deal ----------
-// v0.26.2: the egg sale speaks and prices in the shed's currency (the demo shed is in Bangladesh, in taka).
+// v0.27.0: the egg sale speaks and prices in the shed's currency (the demo shed is in Bangladesh, in taka).
 async function saleCurrency() {
   const s = (await listSheds().catch(() => []))[0] || DEFAULT_SHED;
   return shedCurrency(s).catch(() => null);

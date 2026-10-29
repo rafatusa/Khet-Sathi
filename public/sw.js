@@ -1,7 +1,7 @@
 // Khet Sathi service worker (v0.17.0): makes the app installable and lets the app frame open without internet.
 // Always the network first, so a new release is never hidden behind an old copy; the saved copy is used only
 // when the phone is offline. Server answers (/api/...) are never saved: farm data always comes live.
-const CACHE = 'ks-shell-v0.26.2';
+const CACHE = 'ks-shell-v0.27.0';
 const SHELL = ['/', '/home', '/next/ks.css', '/next/ks-real.css', '/next/landing.css', '/i18n.js', '/next/ks-icons.js', '/next/ks-text.js', '/next/ks.js', '/next/ks-shed.js', '/next/ks-harvest.js', '/next/ks-admin.js', '/next/ks-yard.js', '/next/ks-problem.js', '/next/ks-install.js', '/next/ks-report.js', '/next/ks-tour.js', '/next/ks-fieldcam.js', '/next/ks-watch.js', '/next/ks-guide.js', '/next/ks-agent.js', '/icons/icon.svg', '/icons/icon-192.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
