@@ -624,6 +624,7 @@
       if (!S.view) renderDemoPicks();
       return;
     }
+    window.KSWatch?.load(); // v0.22.0: Sathi on watch
     const h = hero();
     heroGo = h.go;
     $('#heroBig').textContent = h.big;
@@ -2112,7 +2113,7 @@
 
   // Shared with ks-shed.js (poultry, egg sale, buying for a field, demo calls).
   window.KS = {
-    S, $, $$, I, t, fmt, num, esc, fd, loc, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, skelBox, shedSym, curSym, applyStale, viewParam, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store, shrink, exifGPS,
+    S, $, $$, I, t, fmt, num, esc, fd, loc, alertText, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, skelBox, shedSym, curSym, applyStale, viewParam, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store, shrink, exifGPS,
     lang: () => lang, show, ask, speak, toWav, renderAll, renderHeader, loadSide, loadSheds, openShed, openFarm, bubble, count, mini, lineChart,
     playUrl: (url) =>
       new Promise((done) => {

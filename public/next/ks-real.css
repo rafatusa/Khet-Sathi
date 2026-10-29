@@ -471,3 +471,35 @@ nav.bottom [data-tab="guide"]{display:none}
 .gd-demo{border-left:4px solid var(--turmeric)}
 .gd-note{margin:12px 0 0;color:var(--muted);font-size:.92rem}
 .gd-note a{color:var(--leaf);font-weight:700}
+
+/* v0.22.0: Sathi on watch (Home) */
+.watchcard{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px 16px;margin:12px 0}
+.wc-top{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.wc-h{flex:1 1 220px;min-width:0}
+.wc-h h2{margin:0;font:800 1.2rem/1.2 var(--f-display)}
+.wc-h p{margin:2px 0 0;color:var(--muted);font-size:.9rem}
+.eyes{display:flex;gap:6px;flex-wrap:wrap}
+.eye{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:.82rem;background:color-mix(in srgb,var(--leaf) 4%,var(--surface))}
+.wdot{width:8px;height:8px;border-radius:50%;background:var(--leaf)}
+.wdot.live{background:var(--alert)}
+.wseg{display:flex;border:2px solid var(--line);border-radius:12px;overflow:hidden;flex-wrap:wrap}
+.wseg button{border:0;background:var(--surface);color:var(--muted);font:600 .82rem var(--f-body);padding:0 12px;min-height:44px;cursor:pointer}
+.wseg button[aria-checked="true"]{background:var(--leaf);color:var(--surface)}
+.wask{margin-top:12px;border:2px solid var(--turmeric);background:var(--turmeric-soft);border-radius:14px;padding:12px}
+.wask b{display:block;margin-bottom:8px}
+.wask .btns{display:flex;gap:8px;flex-wrap:wrap}
+.wc-log{margin-top:12px}
+.wc-lab{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font:700 .78rem var(--f-body);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:6px 0}
+.wstat{font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink);background:var(--leaf-soft);border-radius:6px;padding:1px 7px}
+.wlog{list-style:none;margin:0;padding:0;position:relative}
+.wlog::before{content:"";position:absolute;left:11px;top:4px;bottom:4px;width:2px;background:var(--line)}
+.wlog li{position:relative;display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:10px;align-items:start;padding:4px 0}
+.wk{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:700 .7rem var(--f-mono);color:#fff;position:relative}
+.wl-saw .wk{background:var(--sky-ink)}.wl-thought .wk{background:#5f6b58}.wl-did .wk{background:var(--leaf)}.wl-wait .wk{background:var(--turmeric);color:#3b2a05}
+.wt{font-size:.92rem}
+.wm{font:500 .74rem var(--f-mono);color:var(--muted);white-space:nowrap}
+.wnone{margin:10px 0 0}
+.wold{margin-top:8px}.wold summary{cursor:pointer;font-weight:700;min-height:36px;display:flex;align-items:center}
+#wWake{margin-top:10px}
+@media (max-width:640px){.wseg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%}.wseg button{padding:4px 6px;font-size:.78rem;line-height:1.2}}
+.wall summary{cursor:pointer;font-weight:600;color:var(--leaf);min-height:36px;display:flex;align-items:center}

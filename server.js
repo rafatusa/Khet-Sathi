@@ -32,7 +32,9 @@ import {
   recentAlerts, insertAlerts, markAlertRead, insertReadings, latestReadings, listContacts, CLIP_BUCKET, getSellRule, saveSellRule, insertDeal, listDeals,
   listSheds, createShed, metricHistory, demoTemplates, farmCounts, moveLand,
   listYards, getYard, createYard, updateYard, deleteYard,
+  listMissions, getMission, dueMissions, openMissionFor, saveMission, getWatchMode, setWatchMode, DEFAULT_SHED,
 } from './lib/store.js';
+import { missionFrom, runMission, translateSteps, decide as decideWatch, missionView, TRIGGERS as WATCH_TRIGGERS, MODES as WATCH_MODES, DEFAULT_MODE as DEFAULT_WATCH_MODE } from './lib/watch.js';
 import sharp from 'sharp';
 import { unitsFor, sizeToM2, sizeWords, sizeClass, pickPlants, shoppingList, waterTip, meanTemp, outlineYard, SOUTH_ASIA } from './lib/yard.js';
 import { officeHelp } from './lib/office.js';
@@ -49,7 +51,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.21.0';
+const VERSION = '0.22.0';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -91,7 +93,7 @@ async function guard(req, res, next) {
 }
 // Read-only visitors may still talk to Sathi and, in the demo farm, play the demo calls (nothing is saved).
 const RO_TALK = /^\/api\/(ask|ask\/stream|speak|transcribe|vet\/message|problem\/measure)$/;
-const RO_DEMO_CALLS = /^\/api\/(vet\/call|sell\/run|lands\/[^/]+\/(order|harvest\/run|harvest\/book))$/;
+const RO_DEMO_CALLS = /^\/api\/(vet\/call|sell\/run|lands\/[^/]+\/(order|harvest\/run|harvest\/book)|watch\/[^/]+\/decide)$/; // v0.22.0: a visitor's tap on Sathi's question (nothing saved)
 function readOnlyAllowed(req, scope) {
   const p = req.path;
   if (RO_TALK.test(p)) return true;
@@ -1217,11 +1219,167 @@ const engine = createEngine({
   planForLand,
   camera: todayCamera,
   market: marketTick,
+  onAlerts: (rows) => wakeSathi(rows),
   log: (m) => console.log(m),
 });
 const ENGINE_EVERY_MS = 10 * 60 * 1000;
 setTimeout(() => engine.run().catch((e) => console.error('engine', e.message)), 30000).unref();
 setInterval(() => engine.run().catch((e) => console.error('engine', e.message)), ENGINE_EVERY_MS).unref();
+
+// ---------- Sathi on watch (v0.22.0, lib/watch.js) ----------
+// New alerts wake Sathi; Muse Spark looks closer with these tools, decides, and logs each step. Second looks
+// she schedules are run by the engine's timer. Missions run as the system (every farm), like the engine.
+async function shedNow() {
+  const latest = latestByDevice(await latestReadings([SHED_DEVICE], 40).catch(() => []))[SHED_DEVICE] || {};
+  const v = (m) => latest[m]?.value ?? null;
+  const clip = await todayCamera().catch(() => null);
+  const r = clip?.result;
+  return {
+    simulated: true,
+    temp: v('shed_temp'), humidity: v('shed_humidity'), ammonia: v('ammonia_ppm'), water: v('water_pct'), feed: v('feed_pct'), eggs: v('eggs_today'),
+    camera: r ? { clip: clip.name, birds: r.count?.count ?? null, still: r.count?.still?.length || 0, unusualSound: Boolean(r.observation?.unusualSound), checkedAt: r.checkedAt || null, simulated: true } : null,
+  };
+}
+async function placeOf(m) {
+  if (m.place_kind === 'field') {
+    const land = m.place_id ? await getLand(m.place_id).catch(() => null) : null;
+    return land ? { lat: land.lat, lon: land.lon, land } : null;
+  }
+  return { lat: DEFAULT_SHED.lat, lon: DEFAULT_SHED.lon };
+}
+const watchToolsFor = (m) => ({
+  look_at_shed: () => shedNow(),
+  look_at_camera_again: async () => {
+    const clip = await todayCamera();
+    if (!clip) return { error: 'No camera clip is set for today' };
+    const count = await countFrames(await clipFrames(clip), clip.width);
+    noteClip(await saveResult(clip.id, { count }));
+    return shedNow();
+  },
+  look_at_weather: async () => {
+    const p = await placeOf(m);
+    if (!p) return { error: 'Place not found' };
+    const k = await withKeep(wxKey(p.lat, p.lon), () => fetchWeather(p.lat, p.lon), { persist: true });
+    return { days: (k.value?.days || []).slice(0, 3).map((d) => ({ date: d.date, tMax: d.tMax, tMin: d.tMin, rainChance: d.rainChance, rainMm: d.rainMm, humidity: d.humidity })), staleAt: k.staleAt || null };
+  },
+  look_at_field: async () => {
+    const p = await placeOf(m);
+    if (!p?.land) return { error: 'Field not found' };
+    const { health } = await healthFor(p.land).catch(() => ({ health: null }));
+    const clear = (health?.passes || []).filter((x) => !x.cloudy && x.ndvi?.mean != null);
+    const r2 = (x) => (x == null ? null : Math.round(x * 100) / 100);
+    const plan = await planForLand(p.land).catch(() => null);
+    return {
+      crop: p.land.crop || null,
+      ndvi: r2(clear[0]?.ndvi.mean), ndviDate: clear[0]?.date || null,
+      trend: clear[1] ? r2(clear[0].ndvi.mean - clear[1].ndvi.mean) : null,
+      moisture: plan?.weather?.soilMoistureLevel || null,
+      simulated: false,
+    };
+  },
+});
+async function modeFor(ownerId) {
+  return (await getWatchMode(ownerId || 'demo').catch(() => null)) || DEFAULT_WATCH_MODE;
+}
+async function runAndSave(mission) {
+  let m;
+  try {
+    m = await runMission(mission, { tools: watchToolsFor(mission), translate: (steps) => translateSteps(steps) });
+  } catch (err) {
+    m = { ...mission, status: mission.runs ? 'sleeping' : 'failed', due_at: mission.runs ? new Date(Date.now() + 30 * 60000).toISOString() : null, steps: [...(mission.steps || []), { at: new Date().toISOString(), kind: 'did', key: 'wtDidFailed', vars: { error: String(err.message || err).slice(0, 160) } }] };
+    console.log(`watch ${mission.trigger}: failed (${err.message})`);
+  }
+  await saveMission(m).catch((e) => console.log('watch save', e.message));
+  console.log(`watch ${m.trigger}: ${m.status}, ${m.steps.length} steps${m.model ? `, ${m.model}` : ''}`);
+  return m;
+}
+const watchBusy = new Set();
+// At most WATCH_DAILY_MAX new missions a day (each is a few model calls); second looks always run.
+const watchDay = { day: '', n: 0 };
+const WATCH_DAILY_MAX = Number(process.env.WATCH_DAILY_MAX) || 30;
+function watchBudget() {
+  const d = new Date().toISOString().slice(0, 10);
+  if (watchDay.day !== d) Object.assign(watchDay, { day: d, n: 0 });
+  if (watchDay.n >= WATCH_DAILY_MAX) return false;
+  watchDay.n++;
+  return true;
+}
+async function wakeSathi(rows) {
+  for (const a of rows || []) {
+    const kind = WATCH_TRIGGERS[a.title];
+    if (!kind) continue;
+    const placeId = kind === 'field' ? a.land_id || null : null;
+    const key = `${a.owner_id || ''}|${kind}|${placeId || ''}|${a.title}`;
+    if (watchBusy.has(key)) continue;
+    if (await openMissionFor({ ownerId: a.owner_id || null, placeKind: kind, placeId, trigger: a.title }).catch(() => null)) continue;
+    if (!watchBudget()) {
+      console.log(`watch ${a.title}: skipped, ${WATCH_DAILY_MAX} missions already today`);
+      continue;
+    }
+    watchBusy.add(key);
+    const mission = missionFrom(a, { mode: await modeFor(a.owner_id), id: newId() });
+    await runAs(null, () => runAndSave(mission)).catch((e) => console.log('watch', e.message)).finally(() => watchBusy.delete(key));
+  }
+}
+async function watchDue() {
+  for (const m of await dueMissions().catch(() => [])) {
+    if (watchBusy.has(m.id)) continue;
+    watchBusy.add(m.id);
+    await runAs(null, () => runAndSave({ ...m, status: 'running' })).catch((e) => console.log('watch due', e.message)).finally(() => watchBusy.delete(m.id));
+  }
+}
+setInterval(() => watchDue().catch(() => null), Number(process.env.WATCH_DUE_EVERY_MS) || 60 * 1000).unref();
+
+// Home: Sathi's log for the place on screen, and the farm's setting.
+app.get(
+  '/api/watch',
+  guard,
+  timed(async (req) => {
+    const placeKind = ['field', 'shed', 'yard'].includes(req.query.kind) ? req.query.kind : null;
+    const placeId = isId(req.query.id) ? req.query.id : null;
+    const missions = await listMissions({ placeKind, placeId, limit: 5 });
+    const sc = currentScope();
+    return { mode: (await getWatchMode(sc?.mode === 'demo' ? 'demo' : sc?.owner || 'demo').catch(() => null)) || DEFAULT_WATCH_MODE, missions: missions.map(missionView) };
+  })
+);
+app.post(
+  '/api/watch/mode',
+  guard,
+  timed(async (req) => {
+    const mode = String(req.body?.mode || '');
+    if (!WATCH_MODES.includes(mode)) throw new Error('mode must be tell, ask or rules');
+    const sc = currentScope();
+    if (sc?.mode === 'demo' && !sc.admin) throw new Error('This is the demo farm, so nothing is saved');
+    return { mode: await setWatchMode(mode) };
+  })
+);
+// The farmer's tap on what Sathi is waiting for. Visitors to the demo farm can tap too; nothing is saved.
+app.post(
+  '/api/watch/:id/decide',
+  guard,
+  timed(async (req) => {
+    const m = await getMission(req.params.id);
+    if (!m) throw new Error('Not found');
+    const { mission, open } = decideWatch(m, req.body?.choice === 'yes' ? 'yes' : 'no');
+    const saved = await saveMission(mission);
+    return { mission: missionView(saved), open };
+  })
+);
+// Admin, demo farm: wake Sathi now from the demo shed's current camera check (for the demo and the video).
+app.post(
+  '/api/watch/wake',
+  guard,
+  timed(async () => {
+    const sc = currentScope();
+    if (sc?.mode !== 'demo' || !sc.admin) throw new Error('Only an admin can wake Sathi, inside the demo farm');
+    const now = await shedNow();
+    const still = now.camera?.still || 0;
+    const alert = still ? { title: 'birds_still', area: 'shed', source: 'camera', owner_id: null, land_id: null, body: { value: still, clip: now.camera.clip } } : { title: 'watch_round', area: 'shed', source: 'sensor', owner_id: null, land_id: null, body: { value: now.temp } };
+    const mission = missionFrom(alert, { mode: await modeFor(null), id: newId() });
+    const done = await runAs(null, () => runAndSave(mission));
+    return { mission: missionView(done) };
+  })
+);
 
 async function newestFieldLand() {
   for (const l of await listLands()) {
@@ -1274,7 +1432,8 @@ let lastShed = null; // latest count and observation, kept in memory for the she
 async function raiseShedAlert(title, body) {
   const recent = await recentAlerts(12).catch(() => []);
   if (recent.some((a) => !a.land_id && a.title === title)) return;
-  await insertAlerts([{ land_id: null, area: 'shed', severity: 'warn', title, source: 'camera', body: JSON.stringify(body) }]).catch(() => null);
+  const saved = await insertAlerts([{ land_id: null, area: 'shed', severity: 'warn', title, source: 'camera', body: JSON.stringify(body) }]).catch(() => null);
+  if (saved?.length) wakeSathi(saved).catch(() => null); // v0.22.0
 }
 
 const shedHour = () => Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));

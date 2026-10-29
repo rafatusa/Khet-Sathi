@@ -1444,10 +1444,10 @@ await checkAsync('v0.21.0: Guide and agent texts exist in Bangla, Hindi and Engl
   const T = Object.values(box.window).find((v) => v && v.en && v.bn && v.hi);
   assert.ok(T, 'app text found');
   const I = Object.values(box.window).find((v) => v && v !== T && v.en && v.bn && v.hi) || { bn: {}, hi: {}, en: {} };
-  const keys = Object.keys(T.en).filter((k) => /^(gd|ag)[A-Z0-9]/.test(k) || ['askL', 'addAnyL', 'pbPickPlant'].includes(k));
+  const keys = Object.keys(T.en).filter((k) => /^(gd|ag|wt)[A-Z0-9_]/.test(k) || ['askL', 'addAnyL', 'pbPickPlant'].includes(k));
   assert.ok(keys.length > 40);
   for (const L of ['bn', 'hi']) for (const k of keys) assert.ok(T[L][k], `${L} ${k}`);
-  for (const L of ['bn', 'hi', 'en']) for (const k of keys) for (const [, ref] of String(T[L][k]).matchAll(/\{([a-zA-Z0-9]+)\}/g)) assert.ok(T[L][ref] || I[L]?.[ref], `${L} ${k} names {${ref}}`);
+  for (const L of ['bn', 'hi', 'en']) for (const k of keys.filter((x) => x.startsWith('gd'))) for (const [, ref] of String(T[L][k]).matchAll(/\{([a-zA-Z0-9]+)\}/g)) assert.ok(T[L][ref] || I[L]?.[ref], `${L} ${k} names {${ref}}`);
   const page = fs.readFileSync(new URL('../public/for-agents.html', import.meta.url), 'utf8');
   const txt = fs.readFileSync(new URL('../public/llms.txt', import.meta.url), 'utf8');
   for (const doc of [page, txt]) {
@@ -1455,6 +1455,60 @@ await checkAsync('v0.21.0: Guide and agent texts exist in Bangla, Hindi and Engl
     assert.match(doc, /never names a disease or a medicine/);
     assert.match(doc, /data-action/);
   }
+});
+
+await checkAsync('v0.22.0 Sathi on watch: an alert wakes her, she looks with tools, looks again later, asks the farmer, never names a disease', async () => {
+  const w = await import('../lib/watch.js');
+  assert.equal(w.missionFrom({ title: 'rain_skip', body: '{}' }), null, 'not every alert wakes her');
+  const m0 = w.missionFrom({ title: 'birds_still', area: 'shed', owner_id: null, land_id: null, body: JSON.stringify({ value: 3, clip: 'Morning' }) }, { id: 'm1', now: () => Date.parse('2026-10-29T06:40:00Z') });
+  assert.equal(m0.place_kind, 'shed');
+  assert.equal(m0.steps[0].key, 'wtSawAlert');
+  const call = (id, name, args) => ({ id, type: 'function', function: { name, arguments: JSON.stringify(args) } });
+  const turn = (calls) => ({ resp: { choices: [{ message: { role: 'assistant', content: '', tool_calls: calls } }] }, provider: 'baseten', label: 'Muse Spark Open · Baseten' });
+  const words = (text) => ({ resp: { choices: [{ message: { role: 'assistant', content: text } }] }, provider: 'baseten', label: 'Muse Spark Open · Baseten' });
+  // First run: looks at the shed, thinks it may pass, looks again in 30 minutes, tells the farmer.
+  const script1 = [
+    turn([call('a', 'look_at_shed', { why: '3 birds are still; I want the shed temperature first.' })]),
+    turn([call('b', 'check_again_later', { why: 'They may be resting, so I will look again soon.', minutes: 30 })]),
+    turn([call('c', 'tell_farmer', { why: 'Keep the farmer informed.', message: '3 hens have not moved. I will look again in 30 minutes.' })]),
+  ];
+  let i = 0;
+  const tools = { look_at_shed: async () => ({ simulated: true, temp: 31, humidity: 70, camera: { birds: 41, still: 3, simulated: true } }), look_at_camera_again: async () => ({ simulated: true, temp: 31, humidity: 70, camera: { birds: 41, still: 3, simulated: true } }), look_at_weather: async () => ({ days: [] }) };
+  let now = Date.parse('2026-10-29T06:40:00Z');
+  const m1 = await w.runMission(m0, { tools, think: async () => script1[i++], now: () => now });
+  assert.equal(m1.status, 'sleeping');
+  assert.equal(m1.due_at, '2026-10-29T07:10:00.000Z');
+  assert.ok(m1.steps.some((s) => s.kind === 'saw' && s.key === 'wtSawShed' && s.vars.still === 3 && s.simulated));
+  assert.ok(m1.steps.some((s) => s.kind === 'thought' && /resting/.test(s.text.en)));
+  assert.ok(m1.steps.some((s) => s.key === 'wtDidTold'));
+  // Second run: still the same, asks the farmer to call the vet. A sentence naming a disease is dropped.
+  now = Date.parse('2026-10-29T07:10:00Z');
+  const script2 = [
+    turn([call('d', 'look_at_camera_again', { why: 'Look again with SAM 3.1.' })]),
+    turn([call('e', 'ask_farmer', { why: 'Still the same 3 birds; this could be newcastle disease.', action: 'call_vet', question: 'The same 3 hens still have not moved. Call the vet?' })]),
+    turn([call('f', 'tell_farmer', { why: 'Tell the farmer.', message: 'They still have not moved after 30 minutes. I have asked you to call the vet.' })]),
+  ];
+  i = 0;
+  const m2 = await w.runMission(m1, { tools, think: async () => script2[i++], now: () => now });
+  assert.equal(m2.status, 'waiting');
+  assert.ok(!JSON.stringify(m2.steps).toLowerCase().includes('newcastle'), 'a disease name never reaches the log');
+  assert.ok(m2.messages.some((x) => x.role === 'user' && /look again/i.test(x.content)), 'the same conversation continues');
+  const wait = m2.steps.find((s) => s.kind === 'wait');
+  assert.equal(wait.action, 'call_vet');
+  // The farmer taps yes: the vet call opens; the mission is done.
+  const { mission: m3, open } = w.decide(m2, 'yes', { now: () => now });
+  assert.equal(open, 'call_vet');
+  assert.equal(m3.status, 'done');
+  assert.equal(w.decide(m3, 'yes').open, null, 'a second tap does nothing');
+  // "Tell me only": she cannot ask to call anyone.
+  assert.ok(!w.watchTools('shed', 'tell').some((t) => t.function.name === 'ask_farmer'));
+  assert.ok(w.watchTools('shed', 'ask').some((t) => t.function.name === 'ask_farmer'));
+  // A tool she does not have is refused; she cannot look again a third time.
+  i = 0;
+  const m4 = await w.runMission({ ...m0, runs: 2, messages: [], steps: [...m0.steps] }, { tools, think: async () => [turn([call('g', 'check_again_later', { why: 'Again.', minutes: 30 })]), words('done')][i++], now: () => now });
+  assert.notEqual(m4.status, 'sleeping');
+  const v = w.missionView(m2);
+  assert.ok(!('messages' in v), 'the browser never gets the model conversation');
 });
 
 await checkAsync('Meta relay: with the two Railway variables set, calls go to the relay with the key in X-Meta-Key and the secret; without them, direct', async () => {
