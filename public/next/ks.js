@@ -18,20 +18,21 @@
 
   // ---------- language ----------
   let lang = ['bn', 'hi', 'en'].includes(store.get('ks_lang')) ? store.get('ks_lang') : 'bn';
-  const DIG = { bn: '০১২৩৪৫৬৭৮৯', hi: '०१२३४५६७८९' };
+  // v0.26.0: Hindi shows 0-9 (easier for most phone users); Bangla keeps its own digits.
+  const DIG = { bn: '০১২৩৪৫৬৭৮৯' };
   const loc = () => ({ bn: 'bn-BD', hi: 'hi-IN', en: 'en-IN' })[lang];
   const digits = (s) => (DIG[lang] ? String(s).replace(/[0-9]/g, (c) => DIG[lang][c]) : String(s));
-  const num = (n, dp = 0) => (n == null || !Number.isFinite(Number(n)) ? '—' : digits(Number(n).toFixed(dp).replace(/\.0+$/, '')));
+  const num = (n, dp = 0) => (n == null || !Number.isFinite(Number(n)) ? '-' : digits(Number(n).toFixed(dp).replace(/\.0+$/, '')));
   const t = (k) => TX[lang]?.[k] ?? CL[lang]?.[k] ?? TX.en?.[k] ?? CL.en?.[k] ?? k;
   // v0.25.4: a count of one picks the singular text when the language has one (key_1), e.g. "1 chicken not moving".
   const isOne = (x) => x === 1 || x === '1' || x === '১' || x === '१';
   const fmt = (k, v = {}) => {
     const k1 = `${k}_1`;
-    const key = ['n', 'value', 'still', 'looks', 'count'].some((a) => isOne(v[a])) && (TX[lang]?.[k1] ?? CL[lang]?.[k1]) != null ? k1 : k;
+    const key = ['n', 'value', 'still', 'looks', 'count', 'days'].some((a) => isOne(v[a])) && (TX[lang]?.[k1] ?? CL[lang]?.[k1]) != null ? k1 : k;
     return Object.entries(v).reduce((s, [a, b]) => s.split(`{${a}}`).join(b), t(key));
   };
   const dateOf = (iso) => new Date(`${iso}T12:00:00`); // local noon: no day shift in any time zone
-  const fd = (iso, o = { day: 'numeric', month: 'short' }) => (iso ? digits(dateOf(iso).toLocaleDateString(loc(), o)) : '—');
+  const fd = (iso, o = { day: 'numeric', month: 'short' }) => (iso ? digits(dateOf(iso).toLocaleDateString(loc(), o)) : '-');
   const addDays = (iso, n) => new Date(new Date(`${iso}T12:00:00Z`).getTime() + n * 864e5).toISOString().slice(0, 10);
   const daysBetween = (a, b) => Math.round((dateOf(b) - dateOf(a)) / 864e5);
   const money = (n, cur = '₹') => {
@@ -53,7 +54,7 @@
   }
   function count(el, to, f = (v) => v, dur = 800) {
     if (!el) return;
-    if (RM || !Number.isFinite(to)) return (el.textContent = Number.isFinite(to) ? f(to) : '—');
+    if (RM || !Number.isFinite(to)) return (el.textContent = Number.isFinite(to) ? f(to) : '-');
     const from = parseFloat(el.dataset.v || 0);
     const t0 = performance.now();
     el.dataset.v = to;
@@ -663,7 +664,7 @@
   function renderScore() {
     const v = latest()?.ndvi?.mean;
     $('#ringFg').style.strokeDashoffset = v == null ? 100 : 100 - clamp(v, 0, 1) * 100;
-    if (v == null) $('#scoreV').textContent = S.field ? '—' : '…';
+    if (v == null) $('#scoreV').textContent = S.field ? '-' : '…';
     else count($('#scoreV'), v, (x) => num(x, 2), 1200);
     const w = healthWord(v);
     $('#scoreTag').textContent = S.field?.error ? t('satError') : t(w.k);
@@ -692,7 +693,7 @@
       { i: 'sun', k: 'kTemp', v: days[0]?.tMax, f: (x) => `${num(x)}°`, sp: days.slice(0, 7).map((d) => d.tMax), d: days[1] ? `${t('tomorrow')} ${num(days[1].tMax)}°` : '', dir: days[1] && days[1].tMax < days[0].tMax ? 'down' : 'up' },
     ];
     $('#kpis').innerHTML = k
-      .map((x, i) => `<div class="kpi"><div class="lab"><span data-icon="${x.i}"></span><span>${esc(t(x.k))}</span></div><div class="kv" id="kv${i}">—</div><svg class="ks" id="ks${i}" viewBox="0 0 100 30" preserveAspectRatio="none"></svg><div class="kd ${x.dir}">${esc(x.d || '')}</div></div>`)
+      .map((x, i) => `<div class="kpi"><div class="lab"><span data-icon="${x.i}"></span><span>${esc(t(x.k))}</span></div><div class="kv" id="kv${i}">-</div><svg class="ks" id="ks${i}" viewBox="0 0 100 30" preserveAspectRatio="none"></svg><div class="kd ${x.dir}">${esc(x.d || '')}</div></div>`)
       .join('');
     icons($('#kpis'));
     k.forEach((x, i) => {
@@ -879,7 +880,7 @@
     const box = $('#donut');
     const pIn = (inc / tot) * 100;
     box.innerHTML = `<svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="48" stroke="var(--line)" pathLength="100"/><circle cx="60" cy="60" r="48" pathLength="100" stroke="var(--leaf)" stroke-dasharray="${Math.max(pIn - 0.6, 0)} ${100 - pIn}"/><circle cx="60" cy="60" r="48" pathLength="100" stroke="var(--soil)" stroke-dasharray="${Math.max(100 - pIn - 0.6, 0)} ${pIn}" stroke-dashoffset="${-pIn}" ${out ? '' : 'hidden'}/></svg><div class="c"><b>${esc(money(inc - out, mc()))}</b><span>${esc(t('net'))}</span></div>`;
-    $('#dleg').innerHTML = `<div><i style="background:var(--leaf)"></i>${esc(t('moneyIn'))}<b class="in-c">${inc ? `+${esc(money(inc, mc()))}` : '—'}</b></div><div><i style="background:var(--soil)"></i>${esc(t('moneyOut'))}<b class="out-c">${out ? `−${esc(money(out, mc()))}` : '—'}</b></div><div class="muted small">${esc(fmt('dealsN', { n: num(conf.length) }))}</div>`;
+    $('#dleg').innerHTML = `<div><i style="background:var(--leaf)"></i>${esc(t('moneyIn'))}<b class="in-c">${inc ? `+${esc(money(inc, mc()))}` : '-'}</b></div><div><i style="background:var(--soil)"></i>${esc(t('moneyOut'))}<b class="out-c">${out ? `−${esc(money(out, mc()))}` : '-'}</b></div><div class="muted small">${esc(fmt('dealsN', { n: num(conf.length) }))}</div>`;
   }
 
   let cdT;
@@ -1119,7 +1120,10 @@
       satRows.push(sRow(t('stressed'), `${num(p.ndvi.stressedPct)}%${acres ? ` · ${num((p.ndvi.stressedPct / 100) * acres, 2)} ${t('acShort')}` : ''}`, p.ndvi.stressedPct / 100, 'warn'));
       satRows.push(sRow(t('canopy'), `${num(p.ndvi.canopyPct)}%`, p.ndvi.canopyPct / 100, 'leaf'));
     } else satRows.push(sRow(t('passL'), S.field ? (S.field.error ? t('satError') : t('allCloudy')) : t('readingSat')));
-    if (S.field?.health?.next) satRows.push(sRow(t('nextPass'), fmt('inDays', { n: num(daysBetween(S.plan?.today || new Date().toISOString().slice(0, 10), S.field.health.next.date)) })));
+    if (S.field?.health?.next) {
+      const dn = daysBetween(S.plan?.today || new Date().toISOString().slice(0, 10), S.field.health.next.date);
+      satRows.push(sRow(t('nextPass'), dn <= 0 ? t('today') : fmt('inDays', { n: num(dn) }))); // v0.26.0: not "in 0 days"
+    }
     sec.push(['sat', t('secSat'), satRows]);
     const soilRows = [];
     if (w) soilRows.push(sRow(t('topsoilMoist'), `${num((w.soilMoisture ?? 0) * 100)}% · ${t(`moist_${w.soilMoistureLevel}`)}`, clamp((w.soilMoisture ?? 0) / 0.45, 0, 1), 'sky'));
@@ -1136,7 +1140,7 @@
     }
     if (kit?.air_temp && S.cur?.location_source === 'demo') wxRows.push(sRow(`${t('kitAir')} · ${t('simulated')}`, `${num(kit.air_temp.value, 1)}°`));
     sec.push(['sun', t('secWx'), wxRows.length ? wxRows : [sRow(t('tempToday'), '…')]]);
-    sec.push(['eye', t('secField'), [sRow(t('fieldSize'), acres ? `${num(acres, 2)} ${t('acShort')}` : '—'), sRow(t('outlineBy'), S.field?.outlineFound ? 'SAM 3.1' : t('noOutlineShort')), sRow(t('place'), placeName(S.cur))]]);
+    sec.push(['eye', t('secField'), [sRow(t('fieldSize'), acres ? `${num(acres, 2)} ${t('acShort')}` : '-'), sRow(t('outlineBy'), S.field?.outlineFound ? 'SAM 3.1' : t('noOutlineShort')), sRow(t('place'), placeName(S.cur))]]);
     $('#status').innerHTML = sec.map(([ic, h, rows], i) => `<div class="ssec" style="animation-delay:${i * 60}ms"><h5>${I[ic]}${esc(h)}</h5>${rows.join('')}</div>`).join('');
   }
   function renderSpark() {
@@ -1182,9 +1186,9 @@
     $('#ramp').style.background = `linear-gradient(90deg,${RAMP.map((c) => `rgb(${c})`).join(',')})`;
     $('#lgLo').textContent = t('bare');
     $('#lgHi').textContent = t('dense');
-    $('#fNdvi').textContent = p ? num(p.ndvi.mean, 2) : '—';
+    $('#fNdvi').textContent = p ? num(p.ndvi.mean, 2) : '-';
     const w = S.plan?.weather;
-    $('#fMoist').textContent = w?.soilMoisture != null ? `${num(w.soilMoisture * 100)}%` : '—';
+    $('#fMoist').textContent = w?.soilMoisture != null ? `${num(w.soilMoisture * 100)}%` : '-';
     $('#fStageK').textContent = p ? `${t('srcS2')} · ${fd(p.date)}` : t('srcS2');
     $('#fStage').textContent = t(healthWord(p?.ndvi?.mean).k);
     updatePlant($('#plantField'), p?.ndvi?.mean);
@@ -1239,6 +1243,8 @@
       const c = S.plan?.crops?.[0];
       if (S.mode === 'shed') bubble(fmt('greetShed', { shed: shedLine(S.shed) }));
       else if (S.mode === 'yard') bubble(t('ydHello'));
+      // v0.26.0: a crop already in the field is named; the next crop to sow only when the field is empty.
+      else if (S.cur?.crop) bubble(fmt('greetGrowing', { land: landTitle(S.cur), crop: cropName(S.cur.crop) }));
       else bubble(c ? fmt('greetCrop', { land: landTitle(S.cur), crop: cropName(c.key) }) : t('saathiHello'));
     }
     renderQuick();
@@ -1646,7 +1652,7 @@
     try {
       v = JSON.parse(a.body || '{}');
     } catch {}
-    const vars = { shop: v.shop || '', total: v.total != null ? money(v.total, v.symbol || '') : '', when: v.when || '', land: landTitle(S.cur), chance: num(v.chance ?? 0), mm: num(v.mm ?? 0), humidity: num(v.humidity ?? 0), value: num(v.value ?? 0, a.title === 'soil_dry' || a.title.startsWith('sell_') ? 0 : 1), days: num(v.days ?? 0), crop: v.crop ? cropName(v.crop) : '', date: v.date ? fd(v.date) : '', from: num(v.from ?? 0), to: num(v.to ?? 0), looks: num(v.looks ?? 0) };
+    const vars = { shop: v.shop || '', total: v.total != null ? money(v.total, v.symbol || '') : '', when: v.when || '', land: landTitle(S.cur), chance: num(v.chance ?? 0), mm: num(v.mm ?? 0), humidity: num(v.humidity ?? 0), value: num(v.value ?? 0, a.title === 'soil_dry' || a.title.startsWith('sell_') ? 0 : 1), days: num(v.days ?? 0), crop: v.crop ? cropName(v.crop) : '', date: v.date ? fd(v.date) : '', from: num(v.from ?? 0), to: num(v.to ?? 0), looks: num(v.looks ?? 0), price: v.value != null ? money(v.value, v.symbol || shedSym()) : '' };
     return { title: fmt(`a_${a.title}`, vars), body: fmt(`b_${a.title}`, vars) };
   }
   // Alerts for the place that is picked: the shed's (camera, sensors, egg sale) or this field's (v0.11.3).
@@ -1955,10 +1961,10 @@
     const w = p?.weather;
     renderPlaceCheck(p);
     $('#prof').innerHTML = [
-      [I.eye, t('fieldSize'), AD.land?.acres ? `${num(AD.land.acres, 2)} ${t('acShort')}` : '—'],
+      [I.eye, t('fieldSize'), AD.land?.acres ? `${num(AD.land.acres, 2)} ${t('acShort')}` : '-'],
       [I.soil, t('soilType'), p?.soil ? `${t(`soil_${p.soil.texture}`)} · pH ${num(p.soil.ph, 1)}` : t('soilUnknown')],
-      [I.drop, t('topsoilMoist'), w ? `${num((w.soilMoisture ?? 0) * 100)}% · ${t(`moist_${w.soilMoistureLevel}`)}` : '—'],
-      [I.rain, t('rain10'), w ? `${num(w.rainNext10Mm)} ${t('mm')}` : '—'],
+      [I.drop, t('topsoilMoist'), w ? `${num((w.soilMoisture ?? 0) * 100)}% · ${t(`moist_${w.soilMoistureLevel}`)}` : '-'],
+      [I.rain, t('rain10'), w ? `${num(w.rainNext10Mm)} ${t('mm')}` : '-'],
     ]
       .map(([ic, k, v], i) => `<div class="pt" style="animation-delay:${i * 70}ms"><span class="ptic">${ic}</span><div><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div></div>`)
       .join('');

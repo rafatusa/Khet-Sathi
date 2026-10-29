@@ -318,8 +318,8 @@
     last.soundBad = Boolean(r?.observation?.unusualSound);
   }
   function showResult(r) {
-    $('#shCount').textContent = r?.count ? num(r.count.count) : '—';
-    $('#shStill').textContent = r?.count ? num(r.count.resting ? 0 : r.count.still.length) : '—';
+    $('#shCount').textContent = r?.count ? num(r.count.count) : '-';
+    $('#shStill').textContent = r?.count ? num(r.count.resting ? 0 : r.count.still.length) : '-';
     $('#shStillBox').classList.toggle('warn', Boolean(r?.count && !r.count.resting && r.count.still.length));
     const notes = [];
     if (r?.count?.resting) notes.push(t('restingNight'));
@@ -615,7 +615,7 @@
     vet.signs = new Set(vet.auto);
     renderSigns();
     renderSince();
-    $('#dVal').textContent = '—';
+    $('#dVal').textContent = '-';
     $('#vetSignsNote').hidden = !vet.auto.size;
     vetStep(1);
     $('#vetSheet').hidden = false;

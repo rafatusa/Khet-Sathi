@@ -712,11 +712,11 @@ check('Vet signs: only listed codes; still birds by day only; model flags mapped
 check('Vet message: fixed words in 3 languages, never a disease or medicine', () => {
   const body = { signs: ['still', 'off_feed', 'twisted_neck'], still: 8, since: 'days', deaths: 2 };
   const bn = vetMessage({ ...body, lang: 'bn' });
-  assert.match(bn, /^ডাক্তার সাহেব/);
-  assert.match(bn, /২-৩ দিন ধরে খামারি এগুলো দেখছেন: ৮টি মুরগি দিনের বেলা নড়ছে না, কিছু মুরগি খাবারের কাছে যাচ্ছে না, কয়েকটির ঘাড় বাঁকা।/);
+  assert.match(bn, /^আসসালামু আলাইকুম ডাক্তার সাহেব/);
+  assert.match(bn, /খামারি দুই-তিন দিন ধরে দেখছেন যে ৮টি মুরগি দিনের বেলা নড়ছে না, কিছু মুরগি খাবারের কাছে যাচ্ছে না, কয়েকটির ঘাড় বাঁকা।/);
   assert.match(bn, /আজ ২টি মুরগি মারা গেছে।/);
-  assert.match(vetMessage({ ...body, lang: 'en', deaths: 1 }), /For 2-3 days the farmer has seen: 8 chickens are not moving.*1 chicken died today\./);
-  assert.match(vetMessage({ lang: 'hi', signs: [], deaths: 0 }), /कुछ असामान्य.*आज कोई मुर्गी नहीं मरी।/);
+  assert.match(vetMessage({ ...body, lang: 'en', deaths: 1 }), /For 2 to 3 days the farmer has seen: 8 chickens are not moving.*1 chicken died today\./);
+  assert.match(vetMessage({ lang: 'hi', signs: [], deaths: 0 }), /कुछ गड़बड़.*आज कोई मुर्गी नहीं मरी।/);
   assert.doesNotMatch(vetMessage({ lang: 'bn', signs: [] }), /মারা/, 'no deaths line when not answered');
   for (const lang of ['bn', 'hi', 'en']) {
     const all = vetMessage({ lang, signs: SIGN_CODES, still: 3, since: 'week', deaths: 4 });
@@ -1691,6 +1691,36 @@ check('v0.25.4: a count of one reads singular ("1 chicken not moving"), in Engli
   assert.match(i18n, /a_birds_still_1: '\{value\} मुर्गी हिल नहीं रही'/);
   assert.match(tx, /b_animal_in_field_1: "The field camera saw \{value\} animal"/);
   assert.match(ks, /const k1 = `\$\{k\}_1`/, 'fmt picks key_1 for a count of one, only in the language on screen');
+});
+
+await checkAsync('v0.26.0: natural Bangla and Hindi, taka for the Bangladesh demo shed, Sathi translation retried, shed kit stays near normal', async () => {
+  const tx = readFileSync(new URL('../public/next/ks-text.js', import.meta.url), 'utf8');
+  const i18n = readFileSync(new URL('../public/i18n.js', import.meta.url), 'utf8');
+  for (const [name, src] of [['ks-text.js', tx], ['i18n.js', i18n]]) {
+    assert.doesNotMatch(src, /নমস্কার|সিমুলেটেড|পাকা করব|পাকা ডিল|সিম্যুলেটেড|सिम्युलेटेड/, `${name}: old words gone`);
+  }
+  assert.match(tx, /greetGrowing: "আসসালামু আলাইকুম!/);
+  const sell = await import('../lib/sell.js');
+  assert.equal(sell.money(420, 'bn', 'BDT'), '৪২০ টাকা');
+  assert.equal(sell.money(420, 'en', 'BDT'), '420 taka');
+  assert.equal(sell.money(175, 'hi', 'INR'), '175 रुपये', 'Hindi speaks 0-9');
+  const hv = await import('../lib/harvest.js');
+  assert.equal(hv.priceText(1270, { code: 'BDT', symbol: '৳' }, 'bn'), '১,২৭০ টাকা', 'the money word after the number');
+  const st = await import('../lib/store.js');
+  assert.ok(st.DEFAULT_SHED.lat > 24.5 && st.DEFAULT_SHED.lon > 89, 'the demo shed sits near Bogura');
+  const sn = await import('../lib/sensors.js');
+  let shed = { shed_temp: 37.8, shed_humidity: 90, ammonia_ppm: 38, water_pct: 50, feed_pct: 50, eggs_today: 0, egg_stock: 0 };
+  for (let i = 0; i < 40; i++) shed = sn.stepShed(shed, { rand: () => 0.5, hour: 1, air: 23 });
+  assert.ok(shed.shed_temp < 26 && shed.ammonia_ppm < 20, `drifts back to normal: ${shed.shed_temp} C, ${shed.ammonia_ppm} ppm`);
+  const w = await import('../lib/watch.js');
+  let calls = 0;
+  const think = async () => ({ resp: { choices: [{ message: { role: 'assistant', content: ++calls === 1 ? 'not json' : '[{"bn":"পাশের লাইন","hi":"बगल की लाइन"}]' } }] } });
+  const steps = await w.translateSteps([{ kind: 'did', text: { en: 'Next line' } }], { think });
+  assert.equal(calls, 2, 'a bad answer is tried once more');
+  assert.equal(steps[0].text.bn, 'পাশের লাইন');
+  assert.equal(w.needsTranslation({ steps: [{ text: { en: 'x' } }] }), true);
+  const ag = readFileSync(new URL('../lib/agent.js', import.meta.url), 'utf8');
+  assert.match(ag, /Write numbers as digits/);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

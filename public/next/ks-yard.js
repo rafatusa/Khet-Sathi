@@ -89,9 +89,9 @@
     const w = d?.weather;
     const stats = [
       ['eye', t('ydSize'), y?.size_m2 ? sizeText(d, y) : t('ydNoSize')],
-      ['sun', t('ydSunK'), y?.sun ? sunWord(y.sun) : '—'],
-      ['suncloud', t('kTemp'), w && Number.isFinite(w.tMax) ? `${num(w.tMax)}° / ${num(w.tMin)}°` : '—'],
-      ['clock', t('ydMonth'), d?.month ? monthName(d.month) : '—'],
+      ['sun', t('ydSunK'), y?.sun ? sunWord(y.sun) : '-'],
+      ['suncloud', t('kTemp'), w && Number.isFinite(w.tMax) ? `${num(w.tMax)}° / ${num(w.tMin)}°` : '-'],
+      ['clock', t('ydMonth'), d?.month ? monthName(d.month) : '-'],
     ];
     $('#ydStats').innerHTML = stats.map(([ic, k, v]) => `<div class="kpi"><div class="lab"><span>${I[ic] || ''}</span><span>${esc(k)}</span></div><div class="kv ydkv">${esc(v)}</div></div>`).join('');
     queueMicrotask(() => K.applyStale?.());

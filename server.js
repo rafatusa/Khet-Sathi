@@ -36,7 +36,7 @@ import {
 } from './lib/store.js';
 import { powerDaily, heatStage, GDD_CROPS } from './lib/agroclimate.js';
 import { classify as camClassify, measureLook, trend as camTrend, readLooks, saveLooks, addLook, lookPhoto, lookView, demoDates } from './lib/fieldcam.js';
-import { missionFrom, runMission, translateSteps, decide as decideWatch, missionView, TRIGGERS as WATCH_TRIGGERS, MODES as WATCH_MODES, DEFAULT_MODE as DEFAULT_WATCH_MODE } from './lib/watch.js';
+import { missionFrom, runMission, translateSteps, needsTranslation, decide as decideWatch, missionView, TRIGGERS as WATCH_TRIGGERS, MODES as WATCH_MODES, DEFAULT_MODE as DEFAULT_WATCH_MODE } from './lib/watch.js';
 import sharp from 'sharp';
 import { unitsFor, sizeToM2, sizeWords, sizeClass, pickPlants, shoppingList, waterTip, meanTemp, outlineYard, SOUTH_ASIA } from './lib/yard.js';
 import { officeHelp } from './lib/office.js';
@@ -53,7 +53,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.25.4';
+const VERSION = '0.26.0';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -581,7 +581,7 @@ app.post(
     const qtyT = digitsFor(String(s.amount?.units || 2), L);
     const T = {
       en: { harvester: ['Hello, this is Khet Sathi calling for a farmer.', `Can your reaper cut ${acresT} acres of the crop from ${when}?`, `Yes, we can come on ${when}. ${priceText(total, s.currency, 'en')} for the job.`, 'Please book it. Thank you.'], transport: ['Hello, this is Khet Sathi calling for a farmer.', `Can you carry about ${qtyT} ${unitName(s.unit, 'en')} to the buyer the day after harvest?`, `Yes, my van can do it. ${priceText(total, s.currency, 'en')}.`, 'Please book it. Thank you.'] },
-      bn: { harvester: ['নমস্কার, আমি খেত সাথী, একজন কৃষকের হয়ে ফোন করছি।', `${when} থেকে ${acresT} একর ফসল কেটে দিতে পারবেন?`, `হ্যাঁ, ${when} আসতে পারি। পুরো কাজ ${priceText(total, s.currency, 'bn')}।`, 'বুক করে দিন। ধন্যবাদ।'], transport: ['নমস্কার, আমি খেত সাথী, একজন কৃষকের হয়ে ফোন করছি।', `কাটার পরদিন প্রায় ${qtyT} ${unitName(s.unit, 'bn')} ফসল ক্রেতার কাছে পৌঁছে দিতে পারবেন?`, `হ্যাঁ, আমার গাড়ি পারবে। ${priceText(total, s.currency, 'bn')}।`, 'বুক করে দিন। ধন্যবাদ।'] },
+      bn: { harvester: ['আসসালামু আলাইকুম, আমি খেত সাথী, একজন কৃষকের হয়ে ফোন করছি।', `${when} থেকে ${acresT} একর ফসল কেটে দিতে পারবেন?`, `হ্যাঁ, ${when} আসতে পারি। পুরো কাজ ${priceText(total, s.currency, 'bn')}।`, 'বুক করে দিন। ধন্যবাদ।'], transport: ['আসসালামু আলাইকুম, আমি খেত সাথী, একজন কৃষকের হয়ে ফোন করছি।', `কাটার পরদিন প্রায় ${qtyT} ${unitName(s.unit, 'bn')} ফসল ক্রেতার কাছে পৌঁছে দিতে পারবেন?`, `হ্যাঁ, আমার গাড়ি পারবে। ${priceText(total, s.currency, 'bn')}।`, 'বুক করে দিন। ধন্যবাদ।'] },
       hi: { harvester: ['नमस्ते, मैं खेत साथी हूँ, एक किसान की ओर से फ़ोन कर रही हूँ।', `क्या आप ${when} से ${acresT} एकड़ फ़सल काट सकते हैं?`, `हाँ, ${when} आ सकते हैं। पूरे काम के ${priceText(total, s.currency, 'hi')}।`, 'कृपया बुक कर दीजिए। धन्यवाद।'], transport: ['नमस्ते, मैं खेत साथी हूँ, एक किसान की ओर से फ़ोन कर रही हूँ।', `क्या आप कटाई के अगले दिन लगभग ${qtyT} ${unitName(s.unit, 'hi')} फ़सल खरीदार तक पहुँचा सकते हैं?`, `हाँ, मेरी गाड़ी कर देगी। ${priceText(total, s.currency, 'hi')}।`, 'कृपया बुक कर दीजिए। धन्यवाद।'] },
     }[L][what];
     const crew = { harvester: { en: 'Demo reaper crew', bn: 'ডেমো ফসল কাটার দল', hi: 'डेमो कटाई टीम' }, transport: { en: 'Demo transport van', bn: 'ডেমো মাল পরিবহন', hi: 'डेमो ढुलाई गाड़ी' } }[what][L];
@@ -672,11 +672,11 @@ app.post(
 
 // ---------- sheds (v0.11.0) ----------
 // v0.18.1: each shed carries its own currency, from the country at its location (the same address lookup the
-// yard uses, done once per spot and kept in memory). The demo shed sits near Bolpur, West Bengal, so it stays
-// in rupees. A shed with no location gets none and the app uses the farm's field currency.
+// yard uses, done once per spot and kept in memory). Since v0.26.0 the demo shed sits near Bogura, Bangladesh,
+// so it is in taka. A shed with no location gets none and the app uses the farm's field currency.
 const shedCur = new Map();
 async function shedCurrency(s) {
-  if (s?.demo || s?.builtIn) return currencyFor('IN');
+  if (s?.demo || s?.builtIn) return currencyFor('BD');
   const lat = Number(s?.lat);
   const lon = Number(s?.lon);
   if (s?.lat == null || s?.lon == null || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
@@ -1314,6 +1314,19 @@ async function runAndSave(mission) {
   return m;
 }
 const watchBusy = new Set();
+const filling = new Set();
+function fillTranslations(m) {
+  if (filling.has(m.id) || watchBusy.has(m.id) || m.status === 'running') return;
+  filling.add(m.id);
+  translateSteps(m.steps.map((x) => ({ ...x, text: x.text ? { ...x.text } : x.text })))
+    .then(async (steps) => {
+      const fresh = await getMission(m.id).catch(() => null);
+      if (!fresh || fresh.status === 'running' || fresh.steps.length !== steps.length) return;
+      await saveMission({ ...fresh, steps });
+    })
+    .catch(() => null)
+    .finally(() => filling.delete(m.id));
+}
 // At most WATCH_DAILY_MAX new missions a day (each is a few model calls); second looks always run.
 const watchDay = { day: '', n: 0 };
 const WATCH_DAILY_MAX = Number(process.env.WATCH_DAILY_MAX) || 30;
@@ -1358,6 +1371,8 @@ app.get(
     const placeKind = ['field', 'shed', 'yard'].includes(req.query.kind) ? req.query.kind : null;
     const placeId = isId(req.query.id) ? req.query.id : null;
     const missions = await listMissions({ placeKind, placeId, limit: 5 });
+    // v0.26.0: a step still in English only (its translation failed) is translated now, in the background.
+    for (const m of missions.filter(needsTranslation).slice(0, 2)) fillTranslations(m);
     const sc = currentScope();
     return { mode: (await getWatchMode(sc?.mode === 'demo' ? 'demo' : sc?.owner || 'demo').catch(() => null)) || DEFAULT_WATCH_MODE, missions: missions.map(missionView) };
   })
@@ -1433,13 +1448,13 @@ async function cameraCheck(land, looks, { demo = false } = {}) {
   const kind = camClassify({ look: last, stage: season.stage, heatPct: season.heat?.pct ?? null });
   const title = kind === 'ripening' ? 'crop_ripening' : 'patch_rising';
   const recent = await recentAlerts(12).catch(() => []);
-  // v0.25.4: a demo story always raises its alert (a retake for the video must wake Sathi again).
+  // v0.26.0: a demo story always raises its alert (a retake for the video must wake Sathi again).
   if (!demo && recent.some((a) => a.land_id === land.id && a.title === title)) return { ...tr, kind };
   const saved = await runAs(null, () => insertAlerts([{ land_id: land.id, owner_id: land.owner_id || null, area: 'field', severity: kind === 'ripening' ? 'info' : 'warn', title, source: 'camera', body: JSON.stringify({ from: tr.from, to: tr.to, looks: tr.looks, stage: season.stage, heat: season.heat?.pct ?? null, heads: last?.heads ?? null, even: last?.even ?? null }) }])).catch(() => null);
   if (saved?.length) wakeSathi(saved).catch(() => null);
   return { ...tr, kind };
 }
-// v0.25.4: a new demo story closes what Sathi was still waiting on from the camera's last story on this field.
+// v0.26.0: a new demo story closes what Sathi was still waiting on from the camera's last story on this field.
 const CAMERA_TRIGGERS = ['patch_rising', 'crop_ripening', 'animal_in_field'];
 async function closeCameraMissions(land, triggers = CAMERA_TRIGGERS) {
   for (const trigger of triggers) {
@@ -1842,7 +1857,7 @@ app.get(
 app.get(
   '/api/shed/eggs',
   guard,
-  timed(async () => ({ days: eggsPerDay(await metricHistory(SHED_DEVICE, 'eggs_today').catch(() => []), localToday('Asia/Kolkata')), simulated: true }))
+  timed(async () => ({ days: eggsPerDay(await metricHistory(SHED_DEVICE, 'eggs_today').catch(() => []), localToday('Asia/Dhaka')), simulated: true }))
 );
 
 // ---------- symptoms to the vet (v0.7.2; the vet and the call are SIMULATED) ----------
@@ -1888,9 +1903,15 @@ app.post(
 );
 
 // ---------- egg sale (v0.8.0): the farmer's rule, simulated shop calls, one-tap deal ----------
+// v0.26.0: the egg sale speaks and prices in the shed's currency (the demo shed is in Bangladesh, in taka).
+async function saleCurrency() {
+  const s = (await listSheds().catch(() => []))[0] || DEFAULT_SHED;
+  return shedCurrency(s).catch(() => null);
+}
 async function loadRule() {
   const row = await getSellRule('eggs').catch(() => null);
-  return { ...DEFAULT_RULE, ...(row || {}) };
+  const cur = await saleCurrency();
+  return { ...DEFAULT_RULE, floor_price: cur?.code === 'BDT' ? 420 : DEFAULT_RULE.floor_price, ...(row || {}) };
 }
 async function eggStock() {
   const latest = latestByDevice(await latestReadings([SHED_DEVICE], 30).catch(() => []))[SHED_DEVICE];
@@ -1911,6 +1932,7 @@ async function runSale(lang) {
   const shops = await eggShops(rule);
   if (!shops.length) throw new Error('No egg shops saved');
   const day = localToday('Asia/Dhaka');
+  const cur = await saleCurrency();
   const calls = await Promise.all(
     shops.map(async (shop, i) => {
       const plan = planDeal({ shop, floor: Number(rule.floor_price), trays, lang, day, slot: i });
@@ -1923,7 +1945,7 @@ async function runSale(lang) {
       } catch (err) {
         console.log('shop voice fallback:', err.message);
       }
-      const { turns, spark } = voiceDeal(plan, lang, lines);
+      const { turns, spark } = voiceDeal(plan, lang, lines, cur);
       const named = namesOf(shop);
       return { contact_id: shop.id, name: shop.name, names: named.names, villages: named.villages, village: shop.village, turns, price: plan.price, best: plan.best, pickup: plan.pickup, spark, by: spark ? by : null };
     })

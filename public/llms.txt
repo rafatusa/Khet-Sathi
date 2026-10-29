@@ -2,7 +2,7 @@
 
 The same guide as https://khetsathi.royalbengal.ai/for-agents, as plain text.
 
-This page is for browser agents such as Meta's Muse acting for a person. Khet Sathi is a farm app for smallholder farmers in Bangladesh, India and anywhere else: fields seen by satellite, poultry sheds checked from phone videos, home yards, a farm helper called Sathi, and selling the harvest. A plain-text copy is at /llms.txt.
+This page is for browser agents such as Meta's Muse acting for a person. Khet Sathi is a farm app for smallholder farmers in Bangladesh, India and anywhere else: fields seen by satellite, poultry sheds checked from phone videos, home yards, a farm helper called Sathi, and selling the harvest. The same guide as a web page: /for-agents
 
 ## Rules
 
@@ -23,7 +23,7 @@ This page is for browser agents such as Meta's Muse acting for a person. Khet Sa
 
 - Home (/home): The place on screen (a field, a shed or a yard): what to do today, weather, tasks
 - Sathi (/sathi): Ask Sathi anything by text or voice. Her answer shows each step of her work and where each number came from
-- Field (/field): The field from the Sentinel-2 satellite: greenness, moisture, rain, temperature
+- Field (/field): Greenness from the Sentinel-2 satellite; moisture, rain and temperature from Open-Meteo
 - Poultry (/shed): A shed's videos: SAM 3.1 counts the chickens; Muse Spark listens for unusual sounds
 - Market (/market): Selling the harvest: buyers' offers (demo calls) and the person's own selling rules
 - Money (/money): Income and costs for the place
@@ -41,7 +41,7 @@ The button under the app name in the header (data-action="farmBtn") switches bet
 
 ### Look at the demo farm (no farm of your own needed)
 
-- After sign-in, open the account button and press Watch the demo farm. A bar at the top says it is the demo farm; My farm returns.
+- After sign-in, open the account button and press Watch the demo farm. A bar at the top says it is the demo farm; press My farm to go back.
 - The demo farm cannot be changed by visitors; anything saved there is refused with a notice.
 
 ### Run a field camera demo story (admin, in the demo farm)
@@ -83,8 +83,8 @@ The button under the app name in the header (data-action="farmBtn") switches bet
 ### Sell the harvest
 
 - Open Market. Offers come from demo calls to buyers; they are marked demo.
-- Choose an offer and press confirm only after the person agrees. Nothing is sold for real in the demo.
+- Choose an offer and press Agree and sell only after the person agrees. Nothing is sold for real in the demo.
 
 ## Where the data comes from
 
-OpenStreetMap, ESA WorldCover, Copernicus Sentinel-2, MIRCA-OS, FAOSTAT, SoilGrids and Open-Meteo, read live. Meta's models: Muse Spark (Sathi), SAM 3.1 (outlines), Muse Voice Transcribe (voice). When a source does not answer, the app shows the last good data with the time it is from.
+OpenStreetMap, ESA WorldCover, Copernicus Sentinel-2, MIRCA-OS, FAOSTAT, SoilGrids, Open-Meteo and Google Maps (shops and offices), read live. Meta's models: Muse Spark (Sathi), SAM 3.1 (outlines), Muse Voice Transcribe (voice). When a source does not answer, the app shows the last good data with the time it is from.

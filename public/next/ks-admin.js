@@ -15,7 +15,7 @@
     if (Math.abs(s) < 86400) return rtf.format(Math.round(s / 3600), 'hour');
     return rtf.format(Math.round(s / 86400), 'day');
   };
-  const secs = (ms) => (ms == null ? '—' : `${num(ms / 1000, 1)} s`);
+  const secs = (ms) => (ms == null ? '-' : `${num(ms / 1000, 1)} s`);
 
   async function loadChecks(force = false) {
     A.busy = true;

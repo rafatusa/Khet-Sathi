@@ -50,9 +50,9 @@
     const crop = growing ? K.cropName(l.crop) : p?.crops?.[0] ? K.cropName(p.crops[0].key) : '';
     const toHarvest = hv?.harvestStart ? Math.max(0, Math.round((Date.parse(`${hv.harvestStart}T12:00:00Z`) - Date.parse(`${today()}T12:00:00Z`)) / 864e5)) : null;
     const kpis = [
-      [t('repNdvi'), Number.isFinite(last) ? `${num(last, 2)}${Number.isFinite(prev) ? ` ${last >= prev ? '▲' : '▼'}${num(Math.abs(last - prev), 2)}` : ''}` : '—'],
-      [t('repRain7'), days.length ? `${num(rain7)} ${t('mm')}` : '—'],
-      growing ? [t('repToHarvest'), toHarvest != null ? fmt('repDays', { n: num(toHarvest) }) : '—'] : [t('repNextPass'), S.field?.health?.next ? fd(S.field.health.next.date) : '—'],
+      [t('repNdvi'), Number.isFinite(last) ? `${num(last, 2)}${Number.isFinite(prev) ? ` ${last >= prev ? '▲' : '▼'}${num(Math.abs(last - prev), 2)}` : ''}` : '-'],
+      [t('repRain7'), days.length ? `${num(rain7)} ${t('mm')}` : '-'],
+      growing ? [t('repToHarvest'), toHarvest != null ? fmt('repDays', { n: num(toHarvest) }) : '-'] : [t('repNextPass'), S.field?.health?.next ? fd(S.field.health.next.date) : '-'],
     ];
     const done = [];
     passes.filter((x) => within7(x.date)).forEach((x) => done.push(fmt('repPassDone', { date: fd(x.date), v: num(x.ndvi.mean, 2) })));
@@ -91,9 +91,9 @@
       title: `${K.shedLine(S.shed)} · ${t('repTitle')}`,
       sub: t('repShedSub'),
       kpis: [
-        [t('repEggsToday'), have.length ? num(have.at(-1).eggs) : '—'],
-        [t('repEggsAvg'), avg != null ? num(avg) : '—'],
-        [t('repSales'), sales.length ? money(total, K.shedSym()) : '—'],
+        [t('repEggsToday'), have.length ? num(have.at(-1).eggs) : '-'],
+        [t('repEggsAvg'), avg != null ? num(avg) : '-'],
+        [t('repSales'), sales.length ? money(total, K.shedSym()) : '-'],
       ],
       chart: bars(eggs.map((x) => x.eggs ?? null), eggs.map((x) => fd(x.date, { weekday: 'short' }))),
       chartH: t('repChartEggs'),
@@ -110,8 +110,8 @@
       title: `${window.KSYard?.yardTitle(y) || ''} · ${t('repTitle')}`,
       sub: y?.size_m2 ? `${num(Math.round(y.size_m2))} ${t('yu_m2')} · ${t(`ydSun_${y.sun || 'half'}`)}` : '',
       kpis: [
-        [t('ydSize'), y?.size_m2 ? `${num(Math.round(y.size_m2))} ${t('yu_m2')}` : '—'],
-        [t('kTemp'), w && Number.isFinite(w.tMax) ? `${num(w.tMax)}° / ${num(w.tMin)}°` : '—'],
+        [t('ydSize'), y?.size_m2 ? `${num(Math.round(y.size_m2))} ${t('yu_m2')}` : '-'],
+        [t('kTemp'), w && Number.isFinite(w.tMax) ? `${num(w.tMax)}° / ${num(w.tMin)}°` : '-'],
         [t('repPicks'), num((d.picks || []).length)],
       ],
       chart: '',
@@ -136,7 +136,7 @@
       <div class="rk">${r.kpis.map(([k, v]) => `<div><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join('')}</div>
       ${r.chart ? `<div class="rsec"><h4>${esc(r.chartH)}</h4>${r.chart}</div>` : ''}
       <div class="rsec"><h4>${esc(r.doneH || t('repDone'))}</h4>${li(r.done, t('repQuiet'))}</div>
-      <div class="rsec"><h4>${esc(t('repNext'))}</h4>${li(r.next, '—')}</div>
+      <div class="rsec"><h4>${esc(t('repNext'))}</h4>${li(r.next, '-')}</div>
       <div class="rfoot">Khet Sathi · ${esc(r.sources)}${r.note ? ` · ${esc(r.note)}` : ''}</div>
     </div>`;
   }
