@@ -129,7 +129,7 @@
         <form id="loginEmail">
           <h2 data-t="loginH"></h2>
           <p class="sub" data-t="loginS"></p>
-          <label class="field"><span data-t="emailL"></span><input id="emailIn" type="email" inputmode="email" autocomplete="email" required maxlength="200" placeholder="farmer@example.com"></label>
+          <label class="field"><span data-t="emailL"></span><input id="emailIn" data-tl="emailL" type="email" inputmode="email" autocomplete="email" required maxlength="200" placeholder="farmer@example.com"></label>
           <button class="cta wide" type="submit" id="sendBtn"><span data-t="sendCode"></span></button>
           <p class="muted small" data-t="loginNote"></p>
           <p class="muted small" data-t="privacyNote"></p>
@@ -137,7 +137,7 @@
         <form id="loginCode" hidden>
           <h2 data-t="codeH"></h2>
           <p class="sub" id="codeS"></p>
-          <label class="field"><span data-t="codeL"></span><input id="codeIn" class="codein" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="10" required></label>
+          <label class="field"><span data-t="codeL"></span><input id="codeIn" data-tl="codeL" class="codein" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="10" required></label>
           <p class="muted small" id="devHint" hidden></p>
           <button class="cta wide" type="submit" id="verifyBtn"><span data-t="signIn"></span></button>
           <button class="btn ghost wide" type="button" id="resendBtn"></button>

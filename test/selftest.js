@@ -1392,7 +1392,11 @@ await checkAsync('Demo leaf: saved without a measurement while SAM is down, meas
 
 await checkAsync('v0.20.1: spots asked with three short phrases and combined; Measure again; yard says SAM answered', async () => {
   const pb = await import('../lib/problem.js');
-  assert.deepEqual(pb.PATCH_PROMPTS, ['brown spot', 'yellow patch', 'spot', 'brown area']);
+  assert.deepEqual(pb.PATCH_PROMPTS, ['brown spot', 'yellow patch', 'spot', 'brown area', 'dark patch']);
+  // v0.24.1: a "leaf" mask with two pieces: only the larger piece is the leaf; spots on the smaller one do not count.
+  const twoLeaves = (g, gw, gh, sc, raw) => { const put = (l, t, r, b) => { for (let yy = Math.floor(t * sc); yy < Math.floor(b * sc); yy++) for (let xx = Math.floor(l * sc); xx < Math.floor(r * sc); xx++) g[yy * gw + xx] = 1; }; if (raw.two) { put(0, 0, 60, 100); put(80, 0, 100, 30); } else put(raw.l, raw.t, raw.r, raw.b); };
+  assert.equal(pb.patchShare({ width: 100, height: 100, leaf: { raw: { two: true }, bounds: {} }, patches: [{ raw: { l: 0, t: 0, r: 60, b: 50 } }] }, twoLeaves), 50);
+  assert.equal(pb.onLeaf({ width: 100, height: 100, leaf: { raw: { two: true }, bounds: {} }, patches: [{ raw: { l: 82, t: 2, r: 98, b: 28 } }, { raw: { l: 10, t: 10, r: 20, b: 20 } }] }, twoLeaves).length, 1, 'a spot on the leaf behind is dropped');
   const obj = (l, t, r, b) => ({ id: 1, box: { left: l, top: t, right: r, bottom: b }, areaPx: (r - l) * (b - t), containsPoint: true, raw: { l, t, r, b }, mask: { width: 4, height: 4, bounds: { left: l, top: t, right: r, bottom: b }, svgPath: 'M0 0Z' } });
   const asked = [];
   const seg = async (img, prompt) => {
@@ -1406,7 +1410,7 @@ await checkAsync('v0.20.1: spots asked with three short phrases and combined; Me
   const rect = (g, gw, gh, sc, raw) => { for (let yy = Math.floor(raw.t * sc); yy < Math.floor(raw.b * sc); yy++) for (let xx = Math.floor(raw.l * sc); xx < Math.floor(raw.r * sc); xx++) g[yy * gw + xx] = 1; };
   const m = await pb.measureProblem({ dataUrl: 'x', width: 200, height: 100 }, { segment: seg, paintFn: rect });
   assert.equal(m.error, null, 'one phrase failing does not fail the measurement');
-  assert.deepEqual(asked.slice(1).sort(), ['brown area', 'brown spot', 'spot', 'yellow patch']);
+  assert.deepEqual(asked.slice(1).sort(), ['brown area', 'brown spot', 'dark patch', 'spot', 'yellow patch']);
   assert.equal(m.patches.length, 2, 'the same spot found twice counts once; spots on other leaves and the whole leaf again are dropped');
   assert.equal(m.share, 8, '20x20 + 20x20 of a 100x100 leaf');
   const allDown = await pb.measureProblem({ dataUrl: 'x', width: 100, height: 100 }, { segment: async (i, p) => { if (p === 'leaf') return { objects: [obj(0, 0, 100, 100)] }; throw new Error('model_not_found'); } });
