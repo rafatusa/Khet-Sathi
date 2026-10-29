@@ -1734,6 +1734,14 @@ check('v0.26.1: country in the language on screen, transactions wording, plain r
   assert.match(readFileSync(new URL('../public/next/ks-watch.js', import.meta.url), 'utf8'), /K\.digits\(s\.text\.bn\)/);
 });
 
+check('v0.26.1: asked what she can do, Sathi also says the farmer\'s own AI assistant (like Muse) can use Khet Sathi, and it still waits for their yes', () => {
+  const ag = readFileSync(new URL('../lib/agent.js', import.meta.url), 'utf8');
+  assert.match(ag, /your own AI assistant, like Meta's Muse, can use Khet Sathi for you/);
+  assert.match(ag, /আপনার নিজের এআই সহকারী, যেমন মেটার Muse/);
+  assert.match(ag, /आपका अपना एआई सहायक, जैसे मेटा का Muse/);
+  assert.match(ag, /never say an AI assistant has already done something/);
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);
