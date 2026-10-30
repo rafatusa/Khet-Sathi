@@ -1711,7 +1711,8 @@
   }
   // Alerts for the place that is picked: the shed's (camera, sensors, egg sale) or this field's (v0.11.3).
   const shedAlert = (a) => a.area === 'shed' || a.title.startsWith('sell_');
-  const myAlerts = () => S.alerts.filter((a) => (S.mode === 'shed' ? shedAlert(a) : !shedAlert(a) && (!a.land_id || a.land_id === S.cur?.id)));
+  // v0.27.2: a home yard has no field or shed warnings (the field last opened stays in S.cur).
+  const myAlerts = () => (S.mode === 'yard' ? [] : S.alerts.filter((a) => (S.mode === 'shed' ? shedAlert(a) : !shedAlert(a) && (!a.land_id || a.land_id === S.cur?.id))));
   function renderPending() {
     const box = $('#pending');
     const list = myAlerts();

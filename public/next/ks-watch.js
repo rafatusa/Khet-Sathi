@@ -36,7 +36,8 @@
     return [head, body].filter(Boolean).join(' · ');
   }
   function stepHtml(s) {
-    const [mark, label] = KIND[s.kind] || ['·', 'wtDid'];
+    const [mark, label0] = KIND[s.kind] || ['·', 'wtDid'];
+    const label = s.kind === 'wait' && s.status && s.status !== 'open' ? 'wtAsked' : label0; // v0.27.2: an answered or closed question
     const sim = s.simulated ? ` <span class="src-tag sim">${esc(t('wtSim'))}</span>` : '';
     return `<li class="wl-${esc(s.kind)}"><span class="wk" aria-hidden="true">${mark}</span><span class="sr-only">${esc(t(label))}: </span><span class="wt">${esc(stepLine(s))}${sim}</span><span class="wm">${esc(hhmm(s.at))}</span></li>`;
   }
