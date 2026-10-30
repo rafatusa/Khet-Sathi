@@ -192,10 +192,11 @@
   // v0.27.5: a dot on every bird SAM 3.1 counted (last frame) and a ring on each one that hardly moved.
   function drawRings(size, still, birds = []) {
     const svg = $('#shSvg');
-    const r = Math.max(4, Math.round((size.width || 640) * 0.008));
+    // v0.27.6: big enough to see at phone size (about 4 px on a 1024 px clip shown 310 px wide).
+    const r = Math.max(6, Math.round((size.width || 640) * 0.014));
     svg.setAttribute('viewBox', `0 0 ${size.width} ${size.height}`);
     svg.innerHTML =
-      (birds || []).map((b) => `<circle class="bird" cx="${(b.left + b.right) / 2}" cy="${(b.top + b.bottom) / 2}" r="${r}" stroke-width="${Math.max(2, r / 3)}"/>`).join('') +
+      (birds || []).map((b) => `<circle class="bird" cx="${(b.left + b.right) / 2}" cy="${(b.top + b.bottom) / 2}" r="${r}" stroke-width="${Math.max(3, Math.round(r * 0.35))}"/>`).join('') +
       (still || [])
         .map((b) => `<ellipse class="still" cx="${(b.left + b.right) / 2}" cy="${(b.top + b.bottom) / 2}" rx="${Math.max(14, (b.right - b.left) / 2 + 6)}" ry="${Math.max(14, (b.bottom - b.top) / 2 + 6)}" stroke-width="${Math.max(4, r * 0.8)}"/>`)
         .join('');
@@ -352,7 +353,8 @@
     $('#shNote').textContent = notes.join(' ');
     $('#shNote').hidden = !notes.length;
     const o = r?.observation;
-    $('#shSound').hidden = !o?.ok;
+    // v0.27.6: the demo shed's clips have no sound track, so "no sound, record again" is not shown for them.
+    $('#shSound').hidden = !o?.ok || (!o.heardAudio && isDemoShed());
     if (o?.ok) {
       $('#shSoundT').textContent = !o.heardAudio ? t('soundMissing') : o.unusualSound ? t('soundBadTitle') : t('soundOkTitle');
       $('#shSound').className = `action ${o.unusualSound || !o.heardAudio ? '' : 'ok'}`;

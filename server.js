@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptText, segmentStream, uploadFile, deleteFile, respond, responseText } from './lib/meta.js';
 import { analyseFrames, framesFromSegments, observePrompt, parseObservation, MAX_FRAMES, SAFE_VET_LINE, safeText } from './lib/poultry.js';
 import { autoSigns, vetMessage, vetScript, withNames, cleanCall, parseDeaths, parseSince, SIGN_CODES } from './lib/vetcall.js';
@@ -55,7 +56,8 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.27.4';
+// v0.27.6: read from package.json, so the version the app reports can never lag the release again.
+const VERSION = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.

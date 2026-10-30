@@ -1865,6 +1865,19 @@ await checkAsync('v0.27.5: every counted hen is marked, edge birds are never fla
   assert.equal((tx.match(/legCounted:/g) || []).length, 3); assert.equal((tx.match(/recordedDay:/g) || []).length, 3);
 });
 
+check('v0.27.6: visible hen dots, a one-line demo label, no "record again" on silent demo clips, version from package.json', () => {
+  const c = readFileSync(new URL('../public/next/ks-shed.js', import.meta.url), 'utf8');
+  assert.match(c, /Math\.max\(6, Math\.round\(\(size\.width \|\| 640\) \* 0\.014\)\)/);
+  assert.match(c, /!o\.heardAudio && isDemoShed\(\)/);
+  const css = readFileSync(new URL('../public/next/ks-real.css', import.meta.url), 'utf8');
+  assert.match(css, /\.shedview \.bird\{fill:#2f7a2a;stroke:#fff\}/); assert.match(css, /\.camclock\{white-space:nowrap;flex:none\}/);
+  const tx = readFileSync(new URL('../public/next/ks-text.js', import.meta.url), 'utf8');
+  assert.match(tx, /recordedDay: "Daytime clip"/);
+  const srv = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  assert.match(srv, /const VERSION = JSON\.parse\(readFileSync\(new URL\('\.\/package\.json'/);
+  assert.doesNotMatch(srv, /const VERSION = '/);
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);
