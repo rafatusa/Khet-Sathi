@@ -176,6 +176,7 @@
     if (!cl.length || P.pending || P.showResult || !$('#shBusy').hidden) return;
     const i = (cl.findIndex((c) => c.id === P.sel) + 1) % cl.length;
     P.sel = cl[i].id;
+    if (P.feed) P.feed = P.sel; // the feed keeps playing from camera to camera
     renderShedTab();
   }
   function camClock() {
@@ -258,7 +259,12 @@
     $('#camName').textContent = `${fmt('camN', { n: num(cl.indexOf(c) + 1) })} · ${clipName(c)}${isDemoShed() ? ` · ${t('demoFeed')}` : ''}`;
     const r = c.result;
     const still = r?.count && !r.count.resting ? r.count.still : [];
-    if (c.hasVideo && !P.showResult) {
+    // v0.29.0: a camera that has been checked opens on that check's picture with SAM 3.1's marks; "Play the feed"
+    // plays the video instead (a viewer of the demo farm cannot run a check, so would never see the marks).
+    const showPic = P.showResult || (Boolean(r?.count?.birds?.length) && P.feed !== c.id);
+    feedBtn().hidden = !(showPic && c.hasVideo);
+    feedBtn().textContent = t('playFeed');
+    if (c.hasVideo && !showPic) {
       $('#shFrame').hidden = true;
       hideMarks();
       const src = imgUrl(`/api/clips/${c.id}/video`);
@@ -278,10 +284,28 @@
     }
     $('#clipInfo').textContent = clipLine(c);
     $('#recheckBtn').textContent = r?.checkedAt ? t('checkAgain') : t('checkThis');
+    // v0.29.0: a view-only visitor cannot run a check (nothing is saved), so the button is not offered.
+    $('#recheckBtn').hidden = Boolean(S.view && !S.admin);
     // A clip saved without its video (an upload that did not finish) shows its last frame and offers to add the video.
     addVidBtn().hidden = Boolean(c.hasVideo);
     addVidBtn().textContent = t('addClipVideo');
     showResult(r);
+  }
+  function feedBtn() {
+    let b = $('#feedBtn');
+    if (b) return b;
+    b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'feedBtn';
+    b.className = 'btn ghost';
+    b.dataset.action = 'playFeed';
+    b.addEventListener('click', () => {
+      P.feed = P.sel;
+      P.showResult = false;
+      renderShedTab();
+    });
+    ($('#shLegend') || $('#shedView')).after(b);
+    return b;
   }
   // Add the video to a saved clip whose video upload never finished.
   function addVidBtn() {

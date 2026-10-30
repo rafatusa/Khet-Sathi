@@ -261,7 +261,9 @@
   }
   async function callBuyers() {
     if (!isDemo()) return soon(t('callBuyersReal'));
-    if (!(await saveRule(true))) return;
+    // v0.29.0: a view-only visitor of the demo farm hears the demo calls with the saved rule (nothing is saved).
+    const viewOnly = Boolean(S.view && !S.admin);
+    if (!viewOnly && !(await saveRule(true))) return;
     $('#mcCall').disabled = true;
     try {
       const r = await postJson(`/api/lands/${S.cur.id}/harvest/run`, { lang: L(), cropName: cropName(S.cur.crop) });

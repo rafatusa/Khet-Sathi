@@ -1917,11 +1917,20 @@ await checkAsync('v0.27.9: egg deals keep the shop names, pickup wording, README
   for (let i = 1; i < vs.length; i++) assert.ok(vs[i - 1][0] * 1e6 + vs[i - 1][1] * 1e3 + vs[i - 1][2] > vs[i][0] * 1e6 + vs[i][1] * 1e3 + vs[i][2], 'releases newest first');
 });
 
-check('v0.28.0 (temporary): the demo farm opens without sign-in, view only, until ANON_DEMO_UNTIL', () => {
+await checkAsync('v0.29.0: the demo farm needs sign-in again; the shed opens on its last check; viewers hear the buyer calls; daytime demo clip in the shed facts', async () => {
   const srv = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
-  assert.match(srv, /const anonDemoOpen = \(\) => Date\.now\(\) < ANON_DEMO_UNTIL;/);
-  assert.match(srv, /user\.anon \? \{ mode: 'demo', owner: null, readOnly: true, admin: false \}/, 'a guest is always the read-only demo farm');
-  assert.match(srv, /\(view === 'demo' \|\| req\.path === '\/api\/auth\/me'\)/, 'a guest reaches only the demo farm');
+  assert.doesNotMatch(srv, /ANON_DEMO_UNTIL|anon-demo/, 'the temporary guest access is gone');
+  const k = readFileSync(new URL('../public/next/ks.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(k, /S\.guest/);
+  const sh = readFileSync(new URL('../public/next/ks-shed.js', import.meta.url), 'utf8');
+  assert.match(sh, /const showPic = P\.showResult \|\| \(Boolean\(r\?\.count\?\.birds\?\.length\) && P\.feed !== c\.id\);/);
+  assert.match(sh, /\$\('#recheckBtn'\)\.hidden = Boolean\(S\.view && !S\.admin\);/);
+  const hv = readFileSync(new URL('../public/next/ks-harvest.js', import.meta.url), 'utf8');
+  assert.match(hv, /if \(!viewOnly && !\(await saveRule\(true\)\)\) return;/);
+  const { shedFacts } = await import('../lib/shedchat.js');
+  const f = shedFacts({ shed: { name: 'x' }, check: { when: 'now', count: 37, still: 0, resting: false, daytimeClip: true }, night: true });
+  assert.doesNotMatch(f, /chickens rest, so not moving is normal/); assert.match(f, /recorded daytime demo clip/);
+  assert.match(shedFacts({ shed: { name: 'x' }, check: { when: 'now', count: 3, still: 0, resting: true }, night: true }), /chickens rest/);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

@@ -279,12 +279,6 @@
       return;
     }
     afterLogin = b.dataset.lp === 'demo' ? 'demo' : null;
-    // TEMPORARY (v0.28.0, for the demo video): while the server allows it, the demo farm opens without sign-in.
-    if (b.dataset.lp === 'demo')
-      return fetch('/api/auth/me')
-        .then((r) => r.json())
-        .then((j) => (j.ok && j.guest ? ((S.guest = true), (S.view = 'demo'), boot()) : showSignIn()))
-        .catch(() => showSignIn());
     showSignIn();
   });
   // v0.17.0: the logo opens the landing page; signed in, it shows the person's avatar and "Go to my farm".
@@ -2076,7 +2070,7 @@
     applyLang();
     icons();
     const wantTab = tabFromPath();
-    if (!sess && !S.guest) return showLanding();
+    if (!sess) return showLanding();
     const me = await api('/api/auth/me').catch(() => null);
     if (!me?.ok) return showPass();
     S.admin = Boolean(me.admin);

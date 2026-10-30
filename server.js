@@ -83,21 +83,14 @@ app.use(express.static(PUB));
 // v0.13.0: every /api route (except health and sign-in) needs a signed-in farm. The token comes in the
 // Authorization header, or as ?t= on GET media links (pictures and video), which cannot send headers.
 // The request then runs as that farm: the store only reads and writes its rows.
-// TEMPORARY (v0.28.0, to record the demo video; reverted in the next release): until ANON_DEMO_UNTIL the demo
-// farm opens without sign-in, view only. Every visitor without a token shares one guest with the usual daily
-// limits, so the demo calls stay capped. Closes by itself at that time.
-const ANON_DEMO_UNTIL = Date.parse(process.env.ANON_DEMO_UNTIL || '2026-10-31T08:00:00Z') || 0;
-const ANON_GUEST = { id: 'anon-demo', email: '', anon: true };
-const anonDemoOpen = () => Date.now() < ANON_DEMO_UNTIL;
 async function guard(req, res, next) {
   const h = req.get('authorization') || '';
   const token = h.startsWith('Bearer ') ? h.slice(7) : req.method === 'GET' ? String(req.query.t || '') : '';
+  const user = await userFromToken(token).catch(() => null);
+  if (!user) return res.status(401).json({ ok: false, error: 'Sign in first', signIn: true });
   // v0.14.0: the demo farm (X-View: demo) or, for an admin, someone's farm (X-View: farm:<id>), read only.
   const view = req.get('x-view') || (req.method === 'GET' ? String(req.query.view || '') : '');
-  let user = await userFromToken(token).catch(() => null);
-  if (!user && !token && anonDemoOpen() && (view === 'demo' || req.path === '/api/auth/me')) user = ANON_GUEST;
-  if (!user) return res.status(401).json({ ok: false, error: 'Sign in first', signIn: true });
-  const scope = user.anon ? { mode: 'demo', owner: null, readOnly: true, admin: false } : scopeFor(user, view);
+  const scope = scopeFor(user, view);
   if (scope.readOnly && req.method !== 'GET' && !readOnlyAllowed(req, scope)) {
     return res.status(200).json({ ok: false, readOnly: true, error: scope.mode === 'demo' ? 'This is the demo farm, so nothing is saved' : 'Read only: this is someone else\'s farm' });
   }
@@ -185,7 +178,7 @@ app.post('/api/auth/send', timed(async (req) => sendCode(req.body?.email)));
 app.post('/api/auth/verify', timed(async (req) => ({ session: await verifyCode(req.body?.email, req.body?.code) })));
 app.post('/api/auth/refresh', timed(async (req) => ({ session: await refreshSession(req.body?.refresh_token) })));
 app.post('/api/auth/signout', timed(async (req) => signOut(String(req.get('authorization') || '').replace(/^Bearer /, ''))));
-app.get('/api/auth/me', guard, timed(async (req) => ({ email: req.user.email, admin: !req.user.anon && isAdmin(req.user), guest: Boolean(req.user.anon), limits: LIMITS })));
+app.get('/api/auth/me', guard, timed(async (req) => ({ email: req.user.email, admin: isAdmin(req.user), limits: LIMITS })));
 
 // v0.14.0: a person's farm holds only their own real places. The demo places (no owner) live in the
 // demo farm: the admin makes and edits them there, everyone else can watch it read only.
@@ -1214,7 +1207,7 @@ async function askShed(text, shedId, lang, onStep = null) {
   const index = await readIndex().catch(() => ({ clips: [] }));
   const mine = index.clips.filter((c) => (demo ? !c.shedId : c.shedId === shed?.id) && c.result?.count);
   const last = mine.sort((a, b) => String(b.result.checkedAt).localeCompare(String(a.result.checkedAt)))[0]?.result;
-  const check = last ? { when: last.checkedAt, count: last.count.count, still: last.count.still?.length || 0, resting: Boolean(last.count.resting), unusualSound: Boolean(last.observation?.unusualSound) } : null;
+  const check = last ? { when: last.checkedAt, count: last.count.count, still: last.count.still?.length || 0, resting: Boolean(last.count.resting), daytimeClip: Boolean(last.count.daytimeClip), unusualSound: Boolean(last.observation?.unusualSound) } : null;
   const cur = (await shedCurrency(shed).catch(() => null)) || (await listLands().catch(() => [])).find((l) => l.place_info?.currency)?.place_info.currency || currencyFor('IN');
   const facts = shedFacts({ shed, kit: latest, stock: await eggStock().catch(() => null), tray: TRAY, rule: await loadRule().catch(() => null), check, night: isNight(shedHour()), money: cur.code });
   onStep?.({ type: 'context', kind: 'shed', phase: 'done', at: Date.now() });
