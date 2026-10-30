@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
+import { dueCameraCheck, nextCheckAt } from './lib/camround.js';
 import { MODELS, hasKey, listModels, chat, messageText, transcribe, transcriptText, segmentStream, uploadFile, deleteFile, respond, responseText } from './lib/meta.js';
 import { analyseFrames, framesFromSegments, observePrompt, parseObservation, MAX_FRAMES, SAFE_VET_LINE, safeText } from './lib/poultry.js';
 import { autoSigns, vetMessage, vetScript, withNames, cleanCall, parseDeaths, parseSince, SIGN_CODES } from './lib/vetcall.js';
@@ -1260,7 +1261,7 @@ const watchToolsFor = (m) => ({
     const clip = await todayCamera();
     if (!clip) return { error: 'No camera clip is set for today' };
     const count = await countFrames(await clipFrames(clip), clip.width, { recorded: !clip.shedId, height: clip.height });
-    noteClip(await saveResult(clip.id, { count }));
+    noteClip(await saveResult(clip.id, { count, by: 'sathi' }));
     return shedNow();
   },
   look_at_weather: async () => {
@@ -1702,6 +1703,39 @@ async function countFrames(frameUrls, width, { recorded = false, height = 0 } = 
   return result;
 }
 
+// v0.27.7: Sathi checks today's camera on her own every CAMERA_EVERY_MS in daylight (lib/camround.js): SAM 3.1
+// counts and finds still hens, Muse Spark watches the clip, and the engine raises any warning, which wakes her.
+const CAMERA_EVERY_MS = Number(process.env.CAMERA_EVERY_MS) || 2 * 3600 * 1000;
+let cameraBusy = false;
+async function cameraRound() {
+  if (cameraBusy) return;
+  const clip = await todayCamera().catch(() => null);
+  if (!clip?.hasVideo || !dueCameraCheck({ hour: shedHour(), lastAt: clip.result?.checkedAt, everyMs: CAMERA_EVERY_MS })) return;
+  cameraBusy = true;
+  try {
+    const count = await countFrames(await clipFrames(clip), clip.width, { recorded: !clip.shedId, height: clip.height });
+    let observation = null;
+    let videoError = null;
+    const video = await clipVideo(clip);
+    if (video) {
+      try {
+        observation = await observeVideo(video.buffer, 'en');
+      } catch (err) {
+        videoError = err.message;
+      }
+    }
+    noteClip(await saveResult(clip.id, { count, observation, videoError, lang: 'en', by: 'sathi' }));
+    engine.run().catch(() => null);
+    console.log(`camera round: ${clip.name} ${count.count} hens, ${count.still.length} not moving`);
+  } catch (err) {
+    console.error('camera round', err.message);
+  } finally {
+    cameraBusy = false;
+  }
+}
+setTimeout(() => cameraRound().catch(() => null), 90 * 1000).unref();
+setInterval(() => cameraRound().catch(() => null), 5 * 60 * 1000).unref();
+
 // Muse Spark 1.2 watches the clip with its sound (Files API upload, deleted afterwards). Never a diagnosis.
 async function observeVideo(buffer, lang) {
   const fileId = await uploadFile(buffer, 'shed.mp4', 'video/mp4');
@@ -1786,7 +1820,10 @@ app.get(
     const clips = index.clips.filter((c) => (inDemo() ? !c.shedId : mine.has(c.shedId)));
     clips.forEach(nameClip);
     clips.forEach(noteClip);
-    return { ...index, clips, todayId: clips.some((c) => c.id === index.todayId) ? index.todayId : null, max: MAX_CLIPS };
+    const today = clips.find((c) => c.id === index.todayId) || null;
+    // v0.27.7: when Sathi looks at today's camera next (she checks it on her own every few hours in daylight).
+    const cameraNext = today?.hasVideo ? nextCheckAt({ lastAt: today.result?.checkedAt, everyMs: CAMERA_EVERY_MS }) : null;
+    return { ...index, clips, todayId: today ? index.todayId : null, cameraNext, max: MAX_CLIPS };
   })
 );
 
@@ -1838,7 +1875,7 @@ app.post(
         videoError = err.message;
       }
     }
-    const saved = await saveResult(clip.id, { count, observation, videoError, lang });
+    const saved = await saveResult(clip.id, { count, observation, videoError, lang, by: 'farmer' });
     noteClip(saved);
     const index = await readIndex();
     if (index.todayId === clip.id) engine.run().catch(() => null); // today's camera: raise its warnings now

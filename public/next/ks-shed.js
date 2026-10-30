@@ -172,7 +172,8 @@
   }
   function nextFeed() {
     const cl = myClips().filter((c) => c.hasVideo);
-    if (!cl.length || P.pending || P.showResult) return;
+    // v0.27.7: never move to the next camera while a check runs (the result shown was the wrong clip's).
+    if (!cl.length || P.pending || P.showResult || !$('#shBusy').hidden) return;
     const i = (cl.findIndex((c) => c.id === P.sel) + 1) % cl.length;
     P.sel = cl[i].id;
     renderShedTab();
@@ -188,6 +189,16 @@
     };
     tick();
     clockT = setInterval(tick, 1000);
+  }
+  // v0.27.7: who checked the clip last, and (for today's camera) when Sathi looks again on her own.
+  const clock = (iso) => K.digits(new Date(iso).toLocaleTimeString(K.loc(), { hour: 'numeric', minute: '2-digit', hour12: L() === 'en', ...(isDemoShed() ? { timeZone: 'Asia/Dhaka' } : {}) }));
+  function clipLine(c) {
+    const r = c?.result;
+    const next = c?.id === P.clips.todayId && P.clips.cameraNext ? clock(P.clips.cameraNext) : null;
+    if (!r?.checkedAt) return next ? fmt('sathiLooksAt', { next }) : t('notChecked');
+    if (r.by === 'sathi') return next ? fmt('checkedBySathiNext', { at: clock(r.checkedAt), next }) : fmt('checkedBySathi', { at: clock(r.checkedAt) });
+    const last = fmt('lastChecked', { when: ago(r.checkedAt) });
+    return next ? `${last} · ${fmt('sathiLooksAt', { next })}` : last;
   }
   // v0.27.5: a dot on every bird SAM 3.1 counted (last frame) and a ring on each one that hardly moved.
   function drawRings(size, still, birds = []) {
@@ -265,7 +276,8 @@
       $('#shFrame').hidden = false;
       drawRings({ width: c.width, height: c.height }, still, r?.count?.birds || []);
     }
-    $('#clipInfo').textContent = r?.checkedAt ? fmt('lastChecked', { when: ago(r.checkedAt) }) : t('notChecked');
+    $('#clipInfo').textContent = clipLine(c);
+    $('#recheckBtn').textContent = r?.checkedAt ? t('checkAgain') : t('checkThis');
     // A clip saved without its video (an upload that did not finish) shows its last frame and offers to add the video.
     addVidBtn().hidden = Boolean(c.hasVideo);
     addVidBtn().textContent = t('addClipVideo');

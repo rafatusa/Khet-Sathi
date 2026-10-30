@@ -1849,7 +1849,7 @@ await checkAsync('v0.27.5: every counted hen is marked, edge birds are never fla
   assert.equal(cameraAlerts(night, { hour: 21 }).length, 1, 'a recorded daytime clip warns at any hour');
   assert.equal(cameraAlerts({ name: 'c', result: { count: { still: [{}], resting: false } } }, { hour: 21 }).length, 0, 'a farm clip at night does not');
   const srv = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
-  assert.equal((srv.match(/\{ recorded: !clip\.shedId, height: clip\.height \}/g) || []).length, 2, 'both clip checks judge demo clips as recorded daytime');
+  assert.equal((srv.match(/\{ recorded: !clip\.shedId, height: clip\.height \}/g) || []).length, 3, 'every clip check (farmer, watch, scheduled round) judges demo clips as recorded daytime');
   assert.match(srv, /result\.resting = recorded \? false :/);
   const s = await import('../lib/sell.js');
   assert.equal(s.fixAddress('Hello bhai, thanks for calling.', 'en'), 'Hello, thanks for calling.');
@@ -1876,6 +1876,26 @@ check('v0.27.6: visible hen dots, a one-line demo label, no "record again" on si
   const srv = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
   assert.match(srv, /const VERSION = JSON\.parse\(readFileSync\(new URL\('\.\/package\.json'/);
   assert.doesNotMatch(srv, /const VERSION = '/);
+});
+
+await checkAsync('v0.27.7: Sathi checks today\'s camera on her own every 2 hours in daylight; the feed never moves during a check', async () => {
+  const m = await import('../lib/camround.js');
+  const E = 2 * 3600 * 1000;
+  assert.equal(m.dueCameraCheck({ hour: 23, lastAt: null, everyMs: E }), false, 'not at night');
+  assert.equal(m.dueCameraCheck({ hour: 10, lastAt: null, everyMs: E }), true, 'never checked: now');
+  assert.equal(m.dueCameraCheck({ hour: 10, lastAt: new Date(Date.now() - 3600e3).toISOString(), everyMs: E }), false, 'checked an hour ago');
+  assert.equal(m.dueCameraCheck({ hour: 10, lastAt: new Date(Date.now() - E).toISOString(), everyMs: E }), true, 'two hours ago');
+  const now = Date.parse('2026-10-31T04:10:00Z');
+  assert.equal(m.nextCheckAt({ lastAt: '2026-10-31T04:00:00Z', now, everyMs: E }), '2026-10-31T06:00:00.000Z', '10:00 Dhaka -> 12:00');
+  assert.equal(m.nextCheckAt({ lastAt: '2026-10-31T11:00:00Z', now: Date.parse('2026-10-31T11:10:00Z'), everyMs: E }), '2026-11-01T00:00:00.000Z', '17:00 -> 06:00 next day');
+  assert.equal(m.nextCheckAt({ lastAt: '2026-10-30T17:00:00Z', now: Date.parse('2026-10-30T17:50:00Z'), everyMs: E }), '2026-10-31T00:00:00.000Z', 'after midnight -> 06:00 same day');
+  const srv = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  assert.match(srv, /async function cameraRound\(\)/); assert.match(srv, /by: 'sathi'/); assert.match(srv, /by: 'farmer'/); assert.match(srv, /cameraNext/);
+  const c = readFileSync(new URL('../public/next/ks-shed.js', import.meta.url), 'utf8');
+  assert.match(c, /P\.showResult \|\| !\$\('#shBusy'\)\.hidden\) return;/);
+  assert.match(c, /checkedBySathiNext/);
+  const tx = readFileSync(new URL('../public/next/ks-text.js', import.meta.url), 'utf8');
+  for (const k of ['checkAgain', 'checkedBySathi', 'checkedBySathiNext', 'sathiLooksAt']) assert.equal((tx.match(new RegExp(`\\b${k}:`, 'g')) || []).length, 3, k);
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);
