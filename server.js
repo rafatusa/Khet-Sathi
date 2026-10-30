@@ -55,7 +55,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.27.1';
+const VERSION = '0.27.2';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -575,14 +575,15 @@ app.post(
     const s = await harvestState(land);
     const L = pickLang(req.body?.lang);
     const acres = Number(land.acres) || 1;
-    const usd = what === 'harvester' ? Math.max(8, acres * 25) : Math.max(5, (s.amount?.units || 2) * 1.5);
-    const total = Math.round(usd * (s.currency?.perUsd || 1));
+    // v0.27.2: a local van carries a maund for about 40-50 taka (was 180, three or four times too much).
+    const usd = what === 'harvester' ? Math.max(8, acres * 25) : Math.max(4, (s.amount?.units || 2) * 0.4);
+    const total = Math.round((usd * (s.currency?.perUsd || 1)) / 10) * 10;
     const whenIso = s.ready?.harvestStart || s.today;
     const when = digitsFor(new Date(`${whenIso}T12:00:00Z`).toLocaleDateString({ bn: 'bn-BD', hi: 'hi-IN', en: 'en-IN' }[L], { day: 'numeric', month: 'long', timeZone: 'UTC' }), L);
     const acresT = digitsFor(String(Math.round(acres * 100) / 100), L);
     const qtyT = digitsFor(String(s.amount?.units || 2), L);
     const T = {
-      en: { harvester: ['Hello, this is Khet Sathi calling for a farmer.', `Can your reaper cut ${acresT} acres of the crop from ${when}?`, `Yes, we can come on ${when}. ${priceText(total, s.currency, 'en')} for the job.`, 'Please book it. Thank you.'], transport: ['Hello, this is Khet Sathi calling for a farmer.', `Can you carry about ${qtyT} ${unitName(s.unit, 'en', s.amount?.units ?? 2)} to the buyer the day after harvest?`, `Yes, my van can do it. ${priceText(total, s.currency, 'en')}.`, 'Please book it. Thank you.'] },
+      en: { harvester: ['Hello, this is Khet Sathi calling for a farmer.', `Can your reaper cut ${acresT} acres of ${String(land.crop || 'the crop').replace(/_/g, ' ')} from ${when}?`, `Yes, we can come on ${when}. ${priceText(total, s.currency, 'en')} for the job.`, 'Please book it. Thank you.'], transport: ['Hello, this is Khet Sathi calling for a farmer.', `Can you carry about ${qtyT} ${unitName(s.unit, 'en', s.amount?.units ?? 2)} to the buyer the day after harvest?`, `Yes, my van can do it. ${priceText(total, s.currency, 'en')}.`, 'Please book it. Thank you.'] },
       bn: { harvester: ['আসসালামু আলাইকুম, আমি খেত সাথী, একজন কৃষকের হয়ে ফোন করছি।', `${when} থেকে ${acresT} একর ফসল কেটে দিতে পারবেন?`, `হ্যাঁ, ${when} আসতে পারি। পুরো কাজ ${priceText(total, s.currency, 'bn')}।`, 'বুক করে দিন। ধন্যবাদ।'], transport: ['আসসালামু আলাইকুম, আমি খেত সাথী, একজন কৃষকের হয়ে ফোন করছি।', `কাটার পরদিন প্রায় ${qtyT} ${unitName(s.unit, 'bn')} ফসল ক্রেতার কাছে পৌঁছে দিতে পারবেন?`, `হ্যাঁ, আমার গাড়ি পারবে। ${priceText(total, s.currency, 'bn')}।`, 'বুক করে দিন। ধন্যবাদ।'] },
       hi: { harvester: ['नमस्ते, मैं खेत साथी हूँ, एक किसान की ओर से फ़ोन कर रही हूँ।', `क्या आप ${when} से ${acresT} एकड़ फ़सल काट सकते हैं?`, `हाँ, ${when} आ सकते हैं। पूरे काम के ${priceText(total, s.currency, 'hi')}।`, 'कृपया बुक कर दीजिए। धन्यवाद।'], transport: ['नमस्ते, मैं खेत साथी हूँ, एक किसान की ओर से फ़ोन कर रही हूँ।', `क्या आप कटाई के अगले दिन लगभग ${qtyT} ${unitName(s.unit, 'hi')} फ़सल खरीदार तक पहुँचा सकते हैं?`, `हाँ, मेरी गाड़ी कर देगी। ${priceText(total, s.currency, 'hi')}।`, 'कृपया बुक कर दीजिए। धन्यवाद।'] },
     }[L][what];
@@ -1628,10 +1629,14 @@ app.get(
     const kit = latestByDevice(await latestReadings([SHED_DEVICE], 30).catch(() => []))[SHED_DEVICE] || {};
     const shed = Object.fromEntries(Object.entries(kit).map(([k, r]) => [k, r?.value]));
     const alerts = [];
+    const seen = new Set();
     for (const a of raw) {
       const f = freshen(a, shed);
-      if (f.keep) alerts.push(f.alert);
+      // v0.27.2: the same warning for the same place shows once (the newest).
+      const k = `${a.land_id || ''}|${a.title}`;
+      if (f.keep && !seen.has(k)) alerts.push(f.alert);
       else markAlertRead(a.id).catch(() => null);
+      seen.add(k);
     }
     return { alerts: alerts.slice(0, 8), engine: engine.status() };
   })

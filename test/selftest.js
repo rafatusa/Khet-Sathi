@@ -1805,6 +1805,19 @@ await checkAsync('v0.27.1: stale shed warnings close, old questions expire, Engl
   if (fp) assert.match(fp, /^ends in …/, 'only the last 4 characters of the key show');
 });
 
+await checkAsync('v0.27.2: a night clip never raises "not moving" by day; demo contacts are in Bogura; fair van price', async () => {
+  const al = await import('../lib/alerts.js');
+  const clip = { name: 'x', result: { count: { count: 63, still: [1], resting: true }, observation: null } };
+  assert.equal(al.cameraAlerts(clip, { hour: 14 }).length, 0, 'checked while resting: no warning later in the day');
+  const n = await import('../lib/names.js');
+  const c = n.simInBangladesh({ simulated: true, phone: '+91 90000 00701', village: 'বোলপুর' });
+  assert.equal(c.village, 'বগুড়া');
+  assert.equal(c.phone, '+880 1700-000701');
+  assert.equal(n.SIM_NAMES['বগুড়া'].en, 'Bogura');
+  const srv = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  assert.match(srv, /\(s\.amount\?\.units \|\| 2\) \* 0\.4/, 'a van costs about 50 taka a maund');
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);
