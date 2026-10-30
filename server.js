@@ -55,7 +55,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.27.3';
+const VERSION = '0.27.4';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -583,7 +583,7 @@ app.post(
     const acresT = digitsFor(String(Math.round(acres * 100) / 100), L);
     const qtyT = digitsFor(String(s.amount?.units || 2), L);
     const T = {
-      en: { harvester: ['Hello, this is Khet Sathi calling for a farmer.', `Can your reaper cut ${acresT} acres of ${String(land.crop || 'the crop').replace(/_/g, ' ')} from ${when}?`, `Yes, we can come on ${when}. ${priceText(total, s.currency, 'en')} for the job.`, 'Please book it. Thank you.'], transport: ['Hello, this is Khet Sathi calling for a farmer.', `Can you carry about ${qtyT} ${unitName(s.unit, 'en', s.amount?.units ?? 2)} to the buyer the day after harvest?`, `Yes, my van can do it. ${priceText(total, s.currency, 'en')}.`, 'Please book it. Thank you.'] },
+      en: { harvester: ['Hello, this is Khet Sathi calling for a farmer.', `Can your reaper cut ${acresT} acres of ${String(land.crop || 'the crop').replace(/_/g, ' ')} from ${when}?`, `Yes, we can come on ${when}. ${priceText(total, s.currency, 'en')} for the job.`, 'Please book it. Thank you.'], transport: ['Hello, this is Khet Sathi calling for a farmer.', `Can you carry about ${s.unit?.key === 'mon' ? `${Math.round((s.amount?.units || 2) * s.unit.kg)} kilos` : `${qtyT} ${unitName(s.unit, 'en', s.amount?.units ?? 2)}`} to the buyer the day after harvest?`, `Yes, my van can do it. ${priceText(total, s.currency, 'en')}.`, 'Please book it. Thank you.'] },
       bn: { harvester: ['আসসালামু আলাইকুম, আমি খেত সাথী, একজন কৃষকের হয়ে ফোন করছি।', `${when} থেকে ${acresT} একর ফসল কেটে দিতে পারবেন?`, `হ্যাঁ, ${when} আসতে পারি। পুরো কাজ ${priceText(total, s.currency, 'bn')}।`, 'বুক করে দিন। ধন্যবাদ।'], transport: ['আসসালামু আলাইকুম, আমি খেত সাথী, একজন কৃষকের হয়ে ফোন করছি।', `কাটার পরদিন প্রায় ${qtyT} ${unitName(s.unit, 'bn')} ফসল ক্রেতার কাছে পৌঁছে দিতে পারবেন?`, `হ্যাঁ, আমার গাড়ি পারবে। ${priceText(total, s.currency, 'bn')}।`, 'বুক করে দিন। ধন্যবাদ।'] },
       hi: { harvester: ['नमस्ते, मैं खेत साथी हूँ, एक किसान की ओर से फ़ोन कर रही हूँ।', `क्या आप ${when} से ${acresT} एकड़ फ़सल काट सकते हैं?`, `हाँ, ${when} को आ सकते हैं। पूरे काम के ${priceText(total, s.currency, 'hi')}।`, 'ठीक है, बुक कर दीजिए। धन्यवाद।'], transport: ['नमस्ते, मैं खेत साथी हूँ, एक किसान की ओर से फ़ोन कर रही हूँ।', `क्या आप कटाई के अगले दिन लगभग ${qtyT} ${unitName(s.unit, 'hi')} फ़सल खरीदार तक पहुँचा सकते हैं?`, `हाँ, मेरी गाड़ी पहुँचा देगी। ${priceText(total, s.currency, 'hi')}।`, 'ठीक है, बुक कर दीजिए। धन्यवाद।'] },
     }[L][what];
@@ -2035,7 +2035,7 @@ async function runSale(lang) {
       let lines = null;
       let by = null;
       try {
-        const turn = await brainChat({ messages: [{ role: 'user', content: shopPrompt({ shop, lang, plan }) }], maxTokens: 3000, effort: 'low' });
+        const turn = await brainChat({ messages: [{ role: 'user', content: shopPrompt({ shop, lang, plan, currency: cur?.code }) }], maxTokens: 3000, effort: 'low' });
         lines = parseLines(messageText(turn.resp).text);
         by = turn.label;
       } catch (err) {

@@ -1818,6 +1818,21 @@ await checkAsync('v0.27.2: a night clip never raises "not moving" by day; demo c
   assert.match(srv, /\(s\.amount\?\.units \|\| 2\) \* 0\.4/, 'a van costs about 50 taka a maund');
 });
 
+await checkAsync('v0.27.4: English buyer calls on a maund farm speak in kilos; the egg shopkeeper is in Bogura and thinks in taka', async () => {
+  const h = await import('../lib/harvest.js');
+  const plan = { turns: [{ who: 'saathi', key: 'greet' }, { who: 'shop', kind: 'open', price: 1270 }] };
+  const en = h.voiceCropDeal(plan, { lang: 'en', qty: 12.5, unit: { key: 'mon', kg: 40 }, cropName: 'rice', currency: { code: 'BDT', symbol: '\u09f3' } });
+  assert.match(en[0].text, /about 500 kilos of rice/);
+  assert.match(en[1].text, /31\.75 taka per kilo/);
+  const bn = h.voiceCropDeal(plan, { lang: 'bn', qty: 12.5, unit: { key: 'mon', kg: 40 }, cropName: 'x', currency: { code: 'BDT' } });
+  assert.match(bn[0].text, /\u09ae\u09a3/, 'Bangla keeps the maund');
+  const s = await import('../lib/sell.js');
+  const p = s.shopPrompt({ shop: { name: 'x' }, lang: 'en', plan: { turns: [{ who: 'shop', kind: 'open', price: 420 }] }, currency: 'BDT' });
+  assert.match(p, /Bogura/); assert.match(p, /taka per tray/); assert.doesNotMatch(p, /rupees|West Bengal/);
+  const c = readFileSync(new URL('../public/next/ks-harvest.js', import.meta.url), 'utf8');
+  assert.match(c, /kgMode = \(u\) => L\(\) === 'en' && u\?\.key === 'mon'/);
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);
