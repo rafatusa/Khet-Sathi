@@ -16,7 +16,10 @@
     }
   };
   // v0.26.1: Bangla digits in her Bangla lines (the model writes 0-9).
-  const textOf = (s) => (s.text ? (L() === 'bn' && s.text.bn ? K.digits(s.text.bn) : s.text[L()] || s.text.en || '') : '');
+  // v0.27.1: older lines may hold an ISO date ("2026-10-30 04:53") or "37.1C"; both read plainly now.
+  const MON = { bn: ['জানু', 'ফেব্রু', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টে', 'অক্টো', 'নভে', 'ডিসে'], hi: ['जन', 'फ़र', 'मार्च', 'अप्रैल', 'मई', 'जून', 'जुल', 'अग', 'सित', 'अक्टू', 'नव', 'दिस'], en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] };
+  const tidy = (x) => String(x).replace(/\b\d{4}-(\d\d)-(\d\d)(?:[ T](\d\d:\d\d))?/g, (_, mo, d, hm) => `${Number(d)} ${(MON[L()] || MON.en)[Number(mo) - 1] || mo}${hm ? ` ${hm}` : ''}`).replace(/(\d)\s?C\b/g, '$1°C');
+  const textOf = (s) => (s.text ? (L() === 'bn' && s.text.bn ? K.digits(tidy(s.text.bn)) : tidy(s.text[L()] || s.text.en || '')) : '');
   const KIND = { saw: ['S', 'wtSaw'], thought: ['T', 'wtThought'], did: ['D', 'wtDid'], wait: ['?', 'wtWait'] };
 
   function stepLine(s) {
@@ -26,7 +29,7 @@
     if (vars.action) vars.action = t(`wtAct_${vars.action}`);
     if (vars.what) vars.what = t(`wtTool_${vars.what}`);
     if (vars.stage) vars.stage = t(`wtStage_${vars.stage}`);
-    for (const k of ['temp', 'humidity', 'birds', 'still', 'max', 'min', 'rain']) if (typeof vars[k] === 'number') vars[k] = num(vars[k]);
+    for (const k of ['temp', 'humidity', 'birds', 'still', 'max', 'min', 'rain', 'hours']) if (typeof vars[k] === 'number') vars[k] = num(vars[k]);
     const head = s.key ? fmt(s.key, vars) : '';
     const body = textOf(s);
     if (s.key === 'wtDidTold') return `${head}: ${body}`;

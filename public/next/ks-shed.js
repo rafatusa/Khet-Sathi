@@ -16,7 +16,9 @@
   const P = { poultry: null, clips: { clips: [], todayId: null, max: 5 }, eggs: [], sel: null, pending: null, market: null, pick: new Set(['seed', 'fert', 'plough']), shop: null, feedIdx: 0, showResult: false };
   const last = { count: null, obs: null, birds: null, still: 0, resting: false, soundBad: false, vetLine: '' };
   // A clip's name follows the app language (names saved by the server in bn, hi, en; v0.11.2).
-  const clipName = (c) => c?.names?.[L()] || c?.name || '';
+  // v0.27.1: the saved Hindi name of the demo clip used a bookish word; everyday Hindi says सामान्य.
+  const CLIP_FIX = { 'स्वाभाविक': 'सामान्य' };
+  const clipName = (c) => { const n = c?.names?.[L()] || c?.name || ''; return CLIP_FIX[n] || n; };
   const myClips = () => P.clips.clips.filter((c) => (isDemoShed() ? !c.shedId : c.shedId === S.shed?.id));
   const ago = (iso) => {
     const s = Math.round((Date.parse(iso) - Date.now()) / 1000);

@@ -12,6 +12,8 @@
   const H = { data: null, key: null, loading: null, run: null, pick: null, rule: null };
   const keyOf = () => (S.cur ? `${S.cur.id}|${S.cur.crop}|${S.cur.sown_on || ''}` : null);
   const unitT = (u) => t(`u_${u?.key || 't'}`);
+  // v0.27.1: after a number other than 1, the plural when the language has one ("12.5 maunds").
+  const unitQ = (u, q) => { const k = `u_${u?.key || 't'}_pl`; return Number(q) !== 1 && K.has?.(k) ? t(k) : unitT(u); };
   const sym = () => H.data?.currency?.symbol || '';
   const m = (n) => money(n, sym());
   const isDemo = () => Boolean(H.data?.demoLand);
@@ -94,13 +96,13 @@
     $('#hvBook').innerHTML =
       [
         ['harvester', I.harvester, t('harvesterL'), fmt('harvesterS', { ac: num(ac, 2), date: fd(r?.harvestStart) })],
-        ['transport', I.tractor, t('transportL'), fmt('transportS', { q: num(q || 0, 1), u: unitT(d.unit) })],
+        ['transport', I.tractor, t('transportL'), fmt('transportS', { q: num(q || 0, 1), u: unitQ(d.unit, q || 0) })],
       ]
         .map(([w, ic, a, b]) => `<div class="bookrow"><span class="bic">${ic}</span><span class="nm"><b>${esc(a)}</b><small>${esc(b)}</small></span><button class="btn" type="button" data-book="${w}" aria-label="${esc(`${t('book')}: ${a}`)}">${esc(t('book'))}</button></div>`)
         .join('') + `<p class="muted small">${esc(t(isDemo() ? 'bookNoteDemo' : 'bookNoteReal'))}</p>`;
     $('#hvSellTag').hidden = !isDemo();
     $('#hvSell').innerHTML = q
-      ? `<div class="bigstat"><b>${esc(fmt('aboutQty', { q: num(q, 1), u: unitT(d.unit) }))}</b></div><div class="muted small">${esc(fmt('qtyHow', { ac: num(ac, 2), crop: cropName(S.cur.crop), country: K.countryName(S.cur?.place_info?.cc) || S.plan?.place?.country || '' }))}${d.samplePrice ? ` · ${esc(fmt('samplePriceLine', { p: m(d.samplePrice), u: unitT(d.unit) }))}` : ''}</div><div class="btns"><button class="btn" type="button" data-hv="rule">${esc(t('setRule'))}</button><button class="btn ghost" type="button" data-hv="buyers">${esc(t('seeBuyers'))}</button></div>`
+      ? `<div class="bigstat"><b>${esc(fmt('aboutQty', { q: num(q, 1), u: unitQ(d.unit, q) }))}</b></div><div class="muted small">${esc(fmt('qtyHow', { ac: num(ac, 2), crop: cropName(S.cur.crop), country: K.countryName(S.cur?.place_info?.cc) || S.plan?.place?.country || '' }))}${d.samplePrice ? ` · ${esc(fmt('samplePriceLine', { p: m(d.samplePrice), u: unitT(d.unit) }))}` : ''}</div><div class="btns"><button class="btn" type="button" data-hv="rule">${esc(t('setRule'))}</button><button class="btn ghost" type="button" data-hv="buyers">${esc(t('seeBuyers'))}</button></div>`
       : `${emptyBox(t('noYield'))}<div class="btns"><button class="btn ghost" type="button" data-hv="buyers">${esc(t('seeBuyers'))}</button></div>`;
   }
   // Greenness this season (Sentinel-2 NDVI), from the sowing date.
@@ -170,7 +172,7 @@
     const u = unitT(d.unit);
     $('#mcTag').hidden = !isDemo();
     $('#mcRule').innerHTML = `
-      <div class="ruleopt"><span>${esc(t('sellQtyL'))}</span><div class="stepper"><button type="button" class="iconbtn" data-mc="qty:-1" aria-label="${esc(`${t('agLess')}: ${t('sellQtyL')}`)}">−</button><b>${esc(r.qty ? `${num(r.qty, 1)} ${u}` : '-')}</b><button type="button" class="iconbtn" data-mc="qty:1" aria-label="${esc(`${t('agMore')}: ${t('sellQtyL')}`)}">+</button></div>${d.amount ? `<small class="muted">${esc(fmt('aboutQty', { q: num(d.amount.units, 1), u }))}</small>` : ''}</div>
+      <div class="ruleopt"><span>${esc(t('sellQtyL'))}</span><div class="stepper"><button type="button" class="iconbtn" data-mc="qty:-1" aria-label="${esc(`${t('agLess')}: ${t('sellQtyL')}`)}">−</button><b>${esc(r.qty ? `${num(r.qty, 1)} ${unitQ(d.unit, r.qty)}` : '-')}</b><button type="button" class="iconbtn" data-mc="qty:1" aria-label="${esc(`${t('agMore')}: ${t('sellQtyL')}`)}">+</button></div>${d.amount ? `<small class="muted">${esc(fmt('aboutQty', { q: num(d.amount.units, 1), u }))}</small>` : ''}</div>
       <label class="ruleopt"><span>${esc(fmt('floorL', { u }))}</span><span class="floorin"><span>${esc(sym())}</span><input id="mcFloor" inputmode="numeric" value="${r.floor_price ?? ''}" placeholder="${esc(d.samplePrice ? String(d.samplePrice) : '')}"></span><small class="muted">${esc(d.samplePrice ? t('floorHint') : t('noRealPrice'))}</small></label>
       <div class="ruleopt"><span>${esc(t('whenL'))}</span><div class="chips">${['harvest', 'hold30'].map((w) => `<button type="button" class="chip" data-when="${w}" aria-pressed="${r.when === w}">${esc(t(w === 'harvest' ? 'whenHarvest' : 'whenHold'))}</button>`).join('')}</div></div>
       <label class="ruleopt"><label><input type="checkbox" id="mcAsk" ${r.ask_first !== false ? 'checked' : ''}><span>${esc(t('askMe'))}</span></label></label>
@@ -184,7 +186,7 @@
     const run = H.run;
     $('#mcOffersH').closest('.lab').hidden = !isDemo();
     if (!isDemo()) return ($('#mcOffers').innerHTML = '');
-    if (!run) return ($('#mcOffers').innerHTML = `<div class="emptybox">${esc(t('buyerNoteDemo'))}</div>`);
+    if (!run) return ($('#mcOffers').innerHTML = `<div class="emptybox">${esc(t('offersWait'))}</div>`); // v0.27.1: the demo note shows once, under the rule
     const u = unitT(run.unit);
     const ranked = (run.ranked || []).map((id) => run.shops.find((s) => s.contact_id === id)).filter(Boolean);
     if (!H.pick) H.pick = ranked.find((s) => s.price)?.contact_id || null;
@@ -195,7 +197,7 @@
         .map((s, i) => `<button type="button" class="offer" role="radio" aria-checked="${s.contact_id === H.pick}" data-offer="${s.contact_id}" ${s.price ? '' : 'disabled'}><div><b>${esc(name(s))}</b>${s.price && i === 0 ? ` <span class="pill ok">${esc(t('bestTag'))}</span>` : ''}<div class="muted small">${esc(s.price ? fmt('collects', { when: s.pickup }) : fmt('belowFloor', { p: money(s.best, run.currency.symbol) }))}</div></div>${s.price ? `<b>${esc(fmt('perUnit', { p: money(s.price, run.currency.symbol), u }))}</b>` : `<span class="pill bad">${esc(t('noDealT'))}</span>`}</button>`)
         .join('')}</div>` +
       (pick
-        ? `<div class="mktotal"><span>${esc(fmt('qtyTotal', { q: num(run.qty, 1), u, p: money(pick.price, run.currency.symbol) }))}</span><b>${esc(money(pick.price * run.qty, run.currency.symbol))}</b></div><button class="cta wide" type="button" id="mcSell"><span>${I.check}</span><span>${esc(t('agreeSell'))}</span></button>`
+        ? `<div class="mktotal"><span>${esc(fmt('qtyTotal', { q: num(run.qty, 1), u: unitQ(run.unit, run.qty), p: money(pick.price, run.currency.symbol) }))}</span><b>${esc(money(pick.price * run.qty, run.currency.symbol))}</b></div><button class="cta wide" type="button" id="mcSell"><span>${I.check}</span><span>${esc(t('agreeSell'))}</span></button>`
         : `<div class="emptybox">${esc(t('offersNone'))}</div>`) +
       `<div class="btns"><button class="btn ghost" type="button" id="mcReplay">${esc(t('hearCalls'))}</button></div>`;
   }

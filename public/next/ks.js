@@ -39,6 +39,14 @@
     const key = ['n', 'value', 'still', 'looks', 'count', 'days'].some((a) => isOne(v[a])) && (TX[lang]?.[k1] ?? CL[lang]?.[k1]) != null ? k1 : k;
     return Object.entries(v).reduce((s, [a, b]) => s.split(`{${a}}`).join(b), t(key));
   };
+  // v0.27.1: demo shop and crew names are saved in the language of the booking; show them in today's.
+  const DEMO_NAMES = [
+    { en: 'Krishi seed and fertilizer shop', bn: 'কৃষি বীজ ও সার ভাণ্ডার', hi: 'कृषि बीज और खाद भंडार' },
+    { en: 'Village plough crew', bn: 'গ্রামের চাষের দল', hi: 'गाँव की जुताई टीम' },
+    { en: 'Demo reaper crew', bn: 'ডেমো ফসল কাটার দল', hi: 'डेमो कटाई टीम' },
+    { en: 'Demo transport van', bn: 'ডেমো মাল পরিবহন', hi: 'डेमो ढुलाई गाड़ी' },
+  ];
+  const shopLabel = (name) => DEMO_NAMES.find((n) => Object.values(n).includes(name))?.[lang] || name || '';
   const dateOf = (iso) => new Date(`${iso}T12:00:00`); // local noon: no day shift in any time zone
   const fd = (iso, o = { day: 'numeric', month: 'short' }) => (iso ? digits(dateOf(iso).toLocaleDateString(loc(), o)) : '-');
   const addDays = (iso, n) => new Date(new Date(`${iso}T12:00:00Z`).getTime() + n * 864e5).toISOString().slice(0, 10);
@@ -150,6 +158,10 @@
       lang = b.dataset.lang;
       store.set('ks_lang', lang);
       applyLang();
+      renderViewBar();
+      // v0.27.1: a chat that only holds the greeting starts again in the new language.
+      const th = $('#thread');
+      if (th && th.children.length <= 1) th.innerHTML = '';
       renderAll();
     })
   );
@@ -219,6 +231,8 @@
     $('#mkShed').hidden = S.mode !== 'shed';
     $('#modeChip').textContent = t(S.mode === 'shed' ? 'mPoultry' : S.mode === 'yard' ? 'mYard' : 'mField');
     $('#modeChip').className = `mchip ${S.mode}`;
+    // v0.27.1: the chat subtitle names what Sathi is watching (field, shed or yard).
+    $('#brainLine').textContent = t(S.mode === 'shed' ? 'onlineShed' : S.mode === 'yard' ? 'onlineYard' : 'online');
     document.body.dataset.mode = S.mode;
     // v0.12.0: the demo line only for demo places; a farmer's own land says it is real data.
     // v0.14.0: demo places exist only in the demo farm, so the demo line shows only there.
@@ -545,7 +559,7 @@
     if (S.tab === 'home') renderHome();
     if (S.tab === 'field') renderField();
     if (S.tab === 'shed' || S.tab === 'market') window.KSShed?.render(S.tab);
-    if (S.tab === 'saathi') renderPending();
+    if (S.tab === 'saathi') renderSaathi(); // v0.27.1: greeting follows the language
     if (S.tab === 'money') renderMoney();
     renderBadge();
   }
@@ -1468,7 +1482,8 @@
       said.className = 'said';
       m.prepend(said);
       if (r.answer && r.checks?.total) said.addEventListener('ks-revealed', () => markNumbers(m, said, r.answer, r.checks), { once: true });
-      $('#brainLine').textContent = r.brain?.label ? `${t('online')} · ${r.brain.label}` : t('online');
+      const onl = t(S.mode === 'shed' ? 'onlineShed' : S.mode === 'yard' ? 'onlineYard' : 'online');
+      $('#brainLine').textContent = r.brain?.label ? `${onl} · ${r.brain.label}` : onl;
       // v0.15.0: the agriculture offices Sathi found, with Call (the farmer's own phone) and Directions.
       const help = (r.trace || []).find((s) => s.type === 'tool' && s.name === 'find_agri_office')?.output;
       if (help && window.KSYard) {
@@ -1691,7 +1706,7 @@
     try {
       v = JSON.parse(a.body || '{}');
     } catch {}
-    const vars = { shop: v.shop || '', total: v.total != null ? money(v.total, v.symbol || '') : '', when: v.when || '', land: landTitle(S.cur), chance: num(v.chance ?? 0), mm: num(v.mm ?? 0), humidity: num(v.humidity ?? 0), value: num(v.value ?? 0, a.title === 'soil_dry' || a.title.startsWith('sell_') ? 0 : 1), days: num(v.days ?? 0), crop: v.crop ? cropName(v.crop) : '', date: v.date ? fd(v.date) : '', from: num(v.from ?? 0), to: num(v.to ?? 0), looks: num(v.looks ?? 0), price: v.value != null ? money(v.value, v.symbol || shedSym()) : '' };
+    const vars = { shop: shopLabel(v.shop), total: v.total != null ? money(v.total, v.symbol || '') : '', when: v.when || '', land: landTitle(S.cur), chance: num(v.chance ?? 0), mm: num(v.mm ?? 0), humidity: num(v.humidity ?? 0), value: num(v.value ?? 0, a.title === 'soil_dry' || a.title.startsWith('sell_') ? 0 : 1), days: num(v.days ?? 0), crop: v.crop ? cropName(v.crop) : '', date: v.date ? fd(v.date) : '', from: num(v.from ?? 0), to: num(v.to ?? 0), looks: num(v.looks ?? 0), price: v.value != null ? money(v.value, v.symbol || shedSym()) : '' };
     return { title: fmt(`a_${a.title}`, vars), body: fmt(`b_${a.title}`, vars) };
   }
   // Alerts for the place that is picked: the shed's (camera, sensors, egg sale) or this field's (v0.11.3).
@@ -1742,7 +1757,7 @@
       ? conf
           .map((d) => {
             const it = (d.items || [])[0] || {};
-            const label = it.item === 'eggs' ? fmt('dealEggs', { trays: num(it.trays), shop: it.shop || '' }) : ['seed', 'fert', 'plough'].includes(it.item) ? `${(d.items || []).map((x) => t(`buy_${x.item}`)).join(' + ')} · ${it.shop || ''}` : it.item === 'harvest' ? `${cropName(it.crop)} · ${num(it.qty, 1)} ${t(`u_${it.unit}`)} · ${it.shop || ''}` : it.item === 'harvester' || it.item === 'transport' ? `${t(it.item === 'harvester' ? 'harvesterL' : 'transportL')} · ${it.shop || ''}` : it.item || d.direction;
+            const label = it.item === 'eggs' ? fmt('dealEggs', { trays: num(it.trays), shop: shopLabel(it.shop) }) : ['seed', 'fert', 'plough'].includes(it.item) ? `${(d.items || []).map((x) => t(`buy_${x.item}`)).join(' + ')} · ${shopLabel(it.shop)}` : it.item === 'harvest' ? `${cropName(it.crop)} · ${num(it.qty, 1)} ${t(`u_${it.unit}`)} · ${shopLabel(it.shop)}` : it.item === 'harvester' || it.item === 'transport' ? `${t(it.item === 'harvester' ? 'harvesterL' : 'transportL')} · ${shopLabel(it.shop)}` : it.item || d.direction;
             return `<div class="entry">${I[d.direction === 'sell' ? 'rupee' : 'cart']}<div class="t"><b>${esc(label)}</b><div class="who">${esc(new Date(d.created_at).toLocaleDateString(loc(), { day: 'numeric', month: 'short' }))} · ${esc(t('simulated'))}</div></div><span class="a ${d.direction === 'sell' ? 'in-c' : 'out-c'}">${d.direction === 'sell' ? '+' : '−'}${esc(money(Number(d.total_inr || 0), dealCur(d)))}</span></div>`;
           })
           .join('')
@@ -2164,7 +2179,10 @@
   });
 
   // Shared with ks-shed.js (poultry, egg sale, buying for a field, demo calls).
+  // v0.27.1: does the language on screen have its own text for this key (no English fallback)?
+  const has = (k) => (TX[lang]?.[k] ?? CL[lang]?.[k]) != null;
   window.KS = {
+    has,
     S, $, $$, I, t, fmt, countryName, num, esc, fd, loc, alertText, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, skelBox, shedSym, curSym, applyStale, viewParam, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store, shrink, exifGPS,
     lang: () => lang, show, ask, speak, toWav, renderAll, renderHeader, loadSide, loadSheds, openShed, openFarm, bubble, count, mini, lineChart,
     playUrl: (url) =>

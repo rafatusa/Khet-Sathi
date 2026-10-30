@@ -6,6 +6,10 @@
   const K = window.KS;
   if (!K) return;
   const { S, $, t, fmt, num, esc, toast, api, postJson, emptyBox } = K;
+  // v0.27.1: emails are shortened on screen (full address on hover), so a recording does not show them.
+  const maskEmail = (e) => { const [u, d] = String(e || '').split('@'); return d ? `${u.slice(0, 3)}…@${d}` : String(e || ''); };
+  // English says "1 field", "1 shed"; the key ends in _f1 / _s1 when that text exists.
+  const placesKey = (f) => { const k = `adPlaces${Number(f.lands) === 1 ? '_f1' : ''}${Number(f.sheds) === 1 ? '_s1' : ''}`; return K.has?.(k) ? k : 'adPlaces'; };
   const A = { checks: null, overview: null, busy: false };
   const ago = (iso) => {
     if (!iso) return t('adNever');
@@ -88,7 +92,7 @@
       `<table class="adt"><thead><tr><th>Email</th><th>${esc(t('fieldsH'))}</th><th>${esc(t('nMoney'))}</th><th></th><th></th></tr></thead><tbody>${o.farms
         .map(
           (f) =>
-            `<tr><td>${esc(f.email)}${f.admin ? ` <span class="pill warn">${esc(t('adYou'))}</span>` : ''}</td><td>${esc(fmt('adPlaces', { l: num(f.lands), s: num(f.sheds) }))}</td><td>${esc(num(f.deals))}</td><td class="muted small">${esc(ago(f.lastActive))}</td><td>${f.admin ? '' : `<button class="btn ghost small-btn" type="button" data-viewfarm="${esc(f.id)}" data-email="${esc(f.email)}">${esc(t('adViewFarm'))}</button>`}</td></tr>`
+            `<tr><td title="${esc(f.email)}">${esc(maskEmail(f.email))}${f.admin ? ` <span class="pill warn">${esc(t('adYou'))}</span>` : ''}</td><td>${esc(fmt(placesKey(f), { l: num(f.lands), s: num(f.sheds) }))}</td><td>${esc(num(f.deals))}</td><td class="muted small">${esc(ago(f.lastActive))}</td><td>${f.admin ? '' : `<button class="btn ghost small-btn" type="button" data-viewfarm="${esc(f.id)}" data-email="${esc(f.email)}">${esc(t('adViewFarm'))}</button>`}</td></tr>`
         )
         .join('')}</tbody></table>`;
     const u = o.usage;

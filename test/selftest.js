@@ -1651,14 +1651,14 @@ check('Demo stories (v0.25.0): every frame the field camera card asks for ships 
 
 await checkAsync('Sathi on watch (v0.25.1): times reach her as local clock times, never UTC; long dashes leave her lines', async () => {
   const w = await import('../lib/watch.js');
-  assert.equal(w.localStamp('2026-10-29T12:30:00Z'), '2026-10-29 18:30', 'Asia/Dhaka is UTC+6');
+  assert.equal(w.localStamp('2026-10-29T12:30:00Z'), '29 Oct 18:30', 'Asia/Dhaka is UTC+6');
   assert.equal(w.cleanLine('Camera saw 2 goats \u2014 please check'), 'Camera saw 2 goats, please check');
   const seen = [];
   const think = async ({ messages }) => { seen.push(...messages.map((x) => (typeof x.content === 'string' ? x.content : ''))); return { resp: { choices: [{ message: { role: 'assistant', content: 'done' } }] }, provider: 'baseten', label: 'x' }; };
   await w.runMission({ id: 'm', trigger: 'animal_in_field', place_kind: 'field', mode: 'ask', facts: { value: 2, at: '2026-10-29T12:30:00.000Z' }, steps: [] }, { tools: {}, think, now: () => Date.parse('2026-10-29T12:31:00Z') });
   const first = seen.find((x) => x.startsWith('What woke you'));
   assert.match(first, /18:30/);
-  assert.match(first, /Local time now 2026-10-29 18:31/);
+  assert.match(first, /Local time now 29 Oct 18:31/);
   assert.doesNotMatch(first, /T12:30|Z"/);
 });
 
@@ -1731,7 +1731,7 @@ check('v0.26.1: country in the language on screen, transactions wording, plain r
   assert.match(ks, /new Intl\.DisplayNames\(\[loc\(\)\], \{ type: 'region' \}\)/);
   assert.equal(new Intl.DisplayNames(['bn-BD'], { type: 'region' }).of('BD'), 'বাংলাদেশ');
   for (const f of ['ks.js', 'ks-harvest.js', 'ks-report.js']) assert.doesNotMatch(readFileSync(new URL(`../public/next/${f}`, import.meta.url), 'utf8'), / – /, `${f}: no long dash in ranges`);
-  assert.match(readFileSync(new URL('../public/next/ks-watch.js', import.meta.url), 'utf8'), /K\.digits\(s\.text\.bn\)/);
+  assert.match(readFileSync(new URL('../public/next/ks-watch.js', import.meta.url), 'utf8'), /K\.digits\(tidy\(s\.text\.bn\)\)/);
 });
 
 check('v0.26.1: asked what she can do, Sathi also says the farmer\'s own AI assistant (like Muse) can use Khet Sathi, and it still waits for their yes', () => {
@@ -1776,6 +1776,33 @@ await checkAsync('v0.27.0: demo stories for every visitor: each frame measured b
   const srv = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
   assert.match(srv, /camera\\\/story\)\|watch/, 'visitors may call the story route in the read-only demo');
   assert.match(srv, /throw new Error\('story_limit'\)/);
+});
+
+await checkAsync('v0.27.1: stale shed warnings close, old questions expire, English plurals, taka egg prices', async () => {
+  const al = await import('../lib/alerts.js');
+  const hot = { area: 'shed', source: 'sensor', title: 'shed_hot', body: '{"value":37.1}', created_at: new Date().toISOString() };
+  assert.equal(al.freshen(hot, { shed_temp: 29.1 }).keep, false, 'a hot-shed warning closes when the shed cooled');
+  const still = al.freshen({ ...hot, title: 'shed_feed' }, { feed_pct: 15 });
+  assert.equal(still.keep, true);
+  assert.equal(JSON.parse(still.alert.body).value, 15, 'a warning still true shows today\'s value');
+  assert.equal(al.freshen({ area: 'shed', source: 'camera', title: 'birds_still', created_at: new Date(Date.now() - 13 * 3600e3).toISOString() }, {}).keep, false, 'a 13-hour-old camera warning closes');
+  const w = await import('../lib/watch.js');
+  const at = new Date(Date.now() - 7 * 3600e3).toISOString();
+  const m = { status: 'waiting', steps: [{ kind: 'wait', status: 'open', at, action: 'call_vet', text: { en: 'Call the vet?' } }] };
+  const done = w.expireStale(m);
+  assert.equal(done.status, 'done');
+  assert.equal(done.steps[0].status, 'expired');
+  assert.equal(done.steps.at(-1).key, 'wtDidExpired');
+  assert.equal(w.expireStale({ ...m, steps: [{ ...m.steps[0], at: new Date().toISOString() }] }), null, 'a fresh question stays open');
+  const h = await import('../lib/harvest.js');
+  assert.equal(h.unitName({ key: 'mon' }, 'en', 12.5), 'maunds');
+  assert.equal(h.unitName({ key: 'mon' }, 'en', 1), 'maund');
+  assert.equal(h.unitName({ key: 'mon' }, 'bn', 12.5), 'মণ');
+  const srv = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  assert.match(srv, /Number\(rule\.floor_price\) < 300\) rule\.floor_price = BDT_FLOOR/, 'an old rupee floor is lifted to taka');
+  const ck = await import('../lib/checks.js');
+  const fp = ck.keyFingerprint();
+  if (fp) assert.match(fp, /^ends in …/, 'only the last 4 characters of the key show');
 });
 
 for (const [s, n] of results) console.log(`${s}  ${n}`);

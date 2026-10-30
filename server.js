@@ -37,7 +37,8 @@ import {
 } from './lib/store.js';
 import { powerDaily, heatStage, GDD_CROPS } from './lib/agroclimate.js';
 import { classify as camClassify, measureLook, trend as camTrend, readLooks, saveLooks, addLook, lookPhoto, lookView, demoDates, STORIES, storyMeasure, storyLook } from './lib/fieldcam.js';
-import { missionFrom, runMission, translateSteps, needsTranslation, decide as decideWatch, missionView, TRIGGERS as WATCH_TRIGGERS, MODES as WATCH_MODES, DEFAULT_MODE as DEFAULT_WATCH_MODE } from './lib/watch.js';
+import { freshen } from './lib/alerts.js';
+import { expireStale, missionFrom, runMission, translateSteps, needsTranslation, decide as decideWatch, missionView, TRIGGERS as WATCH_TRIGGERS, MODES as WATCH_MODES, DEFAULT_MODE as DEFAULT_WATCH_MODE } from './lib/watch.js';
 import sharp from 'sharp';
 import { unitsFor, sizeToM2, sizeWords, sizeClass, pickPlants, shoppingList, waterTip, meanTemp, outlineYard, SOUTH_ASIA } from './lib/yard.js';
 import { officeHelp } from './lib/office.js';
@@ -54,7 +55,7 @@ import { runChecks } from './lib/checks.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = env('PORT', '3000');
-const VERSION = '0.27.0';
+const VERSION = '0.27.1';
 
 app.use(express.json({ limit: '15mb' }));
 // v0.11.0: the new app is the main app at /; the classic app stays at /classic/ as a backup.
@@ -581,7 +582,7 @@ app.post(
     const acresT = digitsFor(String(Math.round(acres * 100) / 100), L);
     const qtyT = digitsFor(String(s.amount?.units || 2), L);
     const T = {
-      en: { harvester: ['Hello, this is Khet Sathi calling for a farmer.', `Can your reaper cut ${acresT} acres of the crop from ${when}?`, `Yes, we can come on ${when}. ${priceText(total, s.currency, 'en')} for the job.`, 'Please book it. Thank you.'], transport: ['Hello, this is Khet Sathi calling for a farmer.', `Can you carry about ${qtyT} ${unitName(s.unit, 'en')} to the buyer the day after harvest?`, `Yes, my van can do it. ${priceText(total, s.currency, 'en')}.`, 'Please book it. Thank you.'] },
+      en: { harvester: ['Hello, this is Khet Sathi calling for a farmer.', `Can your reaper cut ${acresT} acres of the crop from ${when}?`, `Yes, we can come on ${when}. ${priceText(total, s.currency, 'en')} for the job.`, 'Please book it. Thank you.'], transport: ['Hello, this is Khet Sathi calling for a farmer.', `Can you carry about ${qtyT} ${unitName(s.unit, 'en', s.amount?.units ?? 2)} to the buyer the day after harvest?`, `Yes, my van can do it. ${priceText(total, s.currency, 'en')}.`, 'Please book it. Thank you.'] },
       bn: { harvester: ['আসসালামু আলাইকুম, আমি খেত সাথী, একজন কৃষকের হয়ে ফোন করছি।', `${when} থেকে ${acresT} একর ফসল কেটে দিতে পারবেন?`, `হ্যাঁ, ${when} আসতে পারি। পুরো কাজ ${priceText(total, s.currency, 'bn')}।`, 'বুক করে দিন। ধন্যবাদ।'], transport: ['আসসালামু আলাইকুম, আমি খেত সাথী, একজন কৃষকের হয়ে ফোন করছি।', `কাটার পরদিন প্রায় ${qtyT} ${unitName(s.unit, 'bn')} ফসল ক্রেতার কাছে পৌঁছে দিতে পারবেন?`, `হ্যাঁ, আমার গাড়ি পারবে। ${priceText(total, s.currency, 'bn')}।`, 'বুক করে দিন। ধন্যবাদ।'] },
       hi: { harvester: ['नमस्ते, मैं खेत साथी हूँ, एक किसान की ओर से फ़ोन कर रही हूँ।', `क्या आप ${when} से ${acresT} एकड़ फ़सल काट सकते हैं?`, `हाँ, ${when} आ सकते हैं। पूरे काम के ${priceText(total, s.currency, 'hi')}।`, 'कृपया बुक कर दीजिए। धन्यवाद।'], transport: ['नमस्ते, मैं खेत साथी हूँ, एक किसान की ओर से फ़ोन कर रही हूँ।', `क्या आप कटाई के अगले दिन लगभग ${qtyT} ${unitName(s.unit, 'hi')} फ़सल खरीदार तक पहुँचा सकते हैं?`, `हाँ, मेरी गाड़ी कर देगी। ${priceText(total, s.currency, 'hi')}।`, 'कृपया बुक कर दीजिए। धन्यवाद।'] },
     }[L][what];
@@ -1323,7 +1324,8 @@ function fillTranslations(m) {
     .then(async (steps) => {
       const fresh = await getMission(m.id).catch(() => null);
       if (!fresh || fresh.status === 'running' || fresh.steps.length !== steps.length) return;
-      await saveMission({ ...fresh, steps });
+      // v0.27.1: saved outside the visitor's read-only scope, or a demo visitor's page never filled it.
+      await runAs(null, () => saveMission({ ...fresh, steps: fresh.steps.map((x, i) => (steps[i]?.text ? { ...x, text: steps[i].text } : x)) }));
     })
     .catch(() => null)
     .finally(() => filling.delete(m.id));
@@ -1372,6 +1374,14 @@ app.get(
     const placeKind = ['field', 'shed', 'yard'].includes(req.query.kind) ? req.query.kind : null;
     const placeId = isId(req.query.id) ? req.query.id : null;
     const missions = await listMissions({ placeKind, placeId, limit: 5 });
+    // v0.27.1: a question left unanswered for hours closes itself.
+    for (const [i, m] of missions.entries()) {
+      const done = expireStale(m);
+      if (!done) continue;
+      missions[i] = done;
+      const mine = m.owner_id && m.owner_id === currentUser()?.id;
+      (mine || !m.owner_id ? runAs(null, () => saveMission(done)) : saveMission(done)).catch(() => null);
+    }
     // v0.27.0: a step still in English only (its translation failed) is translated now, in the background.
     for (const m of missions.filter(needsTranslation).slice(0, 2)) fillTranslations(m);
     const sc = currentScope();
@@ -1613,7 +1623,17 @@ app.get(
   guard,
   timed(async () => {
     await engine.runIfStale().catch(() => null);
-    return { alerts: await listAlerts(8), engine: engine.status() };
+    // v0.27.1: shed warnings that no longer match the latest reading close themselves.
+    const raw = await listAlerts(16);
+    const kit = latestByDevice(await latestReadings([SHED_DEVICE], 30).catch(() => []))[SHED_DEVICE] || {};
+    const shed = Object.fromEntries(Object.entries(kit).map(([k, r]) => [k, r?.value]));
+    const alerts = [];
+    for (const a of raw) {
+      const f = freshen(a, shed);
+      if (f.keep) alerts.push(f.alert);
+      else markAlertRead(a.id).catch(() => null);
+    }
+    return { alerts: alerts.slice(0, 8), engine: engine.status() };
   })
 );
 
@@ -1966,10 +1986,22 @@ async function saleCurrency() {
   const s = (await listSheds().catch(() => []))[0] || DEFAULT_SHED;
   return shedCurrency(s).catch(() => null);
 }
+// v0.27.1: a tray of 30 eggs sells for about 420-460 taka in Bangladesh. A rule saved while the shed
+// still priced in rupees (floor 175) is lifted to the taka floor, and the demo shops' last prices
+// (kept in rupees) are scaled to taka, so the calls bargain at real Bangladesh prices.
+const BDT_FLOOR = 420;
+const BDT_PER_INR_TRAY = 2.4;
 async function loadRule() {
   const row = await getSellRule('eggs').catch(() => null);
   const cur = await saleCurrency();
-  return { ...DEFAULT_RULE, floor_price: cur?.code === 'BDT' ? 420 : DEFAULT_RULE.floor_price, ...(row || {}) };
+  const rule = { ...DEFAULT_RULE, floor_price: cur?.code === 'BDT' ? BDT_FLOOR : DEFAULT_RULE.floor_price, ...(row || {}) };
+  if (cur?.code === 'BDT' && Number(rule.floor_price) < 300) rule.floor_price = BDT_FLOOR;
+  return rule;
+}
+function shopInCurrency(shop, cur) {
+  const last = Number(shop?.details?.last_price_inr_per_tray);
+  if (cur?.code !== 'BDT' || !last) return shop;
+  return { ...shop, details: { ...shop.details, last_price_inr_per_tray: Math.round((last * BDT_PER_INR_TRAY) / 5) * 5 } };
 }
 async function eggStock() {
   const latest = latestByDevice(await latestReadings([SHED_DEVICE], 30).catch(() => []))[SHED_DEVICE];
@@ -1978,7 +2010,8 @@ async function eggStock() {
 async function eggShops(rule) {
   const all = (await listContacts('shop').catch(() => [])).filter((c) => (c.details?.buys || ['eggs']).includes('eggs'));
   const picked = rule.shop_ids?.length ? all.filter((c) => rule.shop_ids.includes(c.id)) : all;
-  return (picked.length ? picked : all).slice(0, 5);
+  const cur = await saleCurrency();
+  return (picked.length ? picked : all).slice(0, 5).map((c) => shopInCurrency(c, cur));
 }
 
 // One round of calls: every price from lib/sell.js; Muse Spark voices the shopkeepers in parallel.
@@ -2033,7 +2066,8 @@ app.get(
   timed(async () => {
     const rule = await loadRule();
     const stock = await eggStock();
-    const shops = (await listContacts('shop').catch(() => [])).filter((c) => (c.details?.buys || ['eggs']).includes('eggs')).map(namesOf);
+    const cur = await saleCurrency();
+    const shops = (await listContacts('shop').catch(() => [])).filter((c) => (c.details?.buys || ['eggs']).includes('eggs')).map((c) => namesOf(shopInCurrency(c, cur)));
     return { rule, stock, trays: Math.floor(stock / TRAY), tray: TRAY, due: sellDue(rule, stock), shops, simulated: true };
   })
 );
