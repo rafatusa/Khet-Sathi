@@ -121,7 +121,7 @@
     const deals = (S.deals || []).filter((d) => d.status === 'confirmed' && (d.items || [])[0]?.item === 'eggs').slice(0, 4);
     $('#shSales').innerHTML =
       (deals.length
-        ? deals.map((d) => `<div class="entry">${I.rupee}<div class="t"><b>${esc(fmt('traysN', { n: num(d.items[0].trays) }))}</b><div class="who">${esc(d.items[0].shop || '')} · ${esc(new Date(d.created_at).toLocaleDateString(K.loc(), { day: 'numeric', month: 'short' }))}</div></div><span class="a in-c">+${esc(rupees(d.total_inr))}</span></div>`).join('')
+        ? deals.map((d) => `<div class="entry">${I.rupee}<div class="t"><b>${esc(fmt('traysN', { n: num(d.items[0].trays) }))}</b><div class="who">${esc(K.dealShop(d))} · ${esc(new Date(d.created_at).toLocaleDateString(K.loc(), { day: 'numeric', month: 'short' }))}</div></div><span class="a in-c">+${esc(rupees(d.total_inr))}</span></div>`).join('')
         : `<div class="muted small">${esc(t('noSalesYet'))}</div>`) + (S.sale ? `<div class="muted small">${esc(fmt('eggStockText', { n: num(S.sale.stock), trays: num(S.sale.trays) }))}</div>` : '');
   }
   document.addEventListener('click', (e) => {

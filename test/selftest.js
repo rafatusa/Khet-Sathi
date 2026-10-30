@@ -1903,6 +1903,20 @@ check('v0.27.8: the selling rule is read newest first (the demo rule has no owne
   assert.match(st, /sell_rules\?select=\*&kind=eq\.\$\{encodeURIComponent\(kind\)\}\$\{who\}&order=updated_at\.desc&limit=1/);
 });
 
+await checkAsync('v0.27.9: egg deals keep the shop names, pickup wording, README for judges', async () => {
+  const s = await import('../lib/sell.js');
+  const v = s.voiceDeal({ turns: [{ who: 'shop', kind: 'deal', pickup: 'today at 4 pm' }] }, 'en', ['Great, I will come to collect at {pickup}.'], { code: 'BDT' });
+  assert.equal(v.turns[0].text, 'Great, I will come to collect today at 4 pm.');
+  const srv = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  assert.match(srv, /shopNames: shop\.names \|\| null/);
+  const k = readFileSync(new URL('../public/next/ks.js', import.meta.url), 'utf8');
+  assert.match(k, /const dealShop = \(d\) =>/); assert.match(k, /shop: dealShop\(d\)/);
+  const rd = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+  assert.match(rd, /## Try it in 2 minutes/); assert.match(rd, /## Meta models at a glance/); assert.doesNotMatch(rd, /\(planned\)/);
+  const vs = [...rd.matchAll(/^\| v(\d+)\.(\d+)\.(\d+) \|/gm)].map((m) => m.slice(1, 4).map(Number));
+  for (let i = 1; i < vs.length; i++) assert.ok(vs[i - 1][0] * 1e6 + vs[i - 1][1] * 1e3 + vs[i - 1][2] > vs[i][0] * 1e6 + vs[i][1] * 1e3 + vs[i][2], 'releases newest first');
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);

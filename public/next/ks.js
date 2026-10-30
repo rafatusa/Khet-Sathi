@@ -47,6 +47,13 @@
     { en: 'Demo transport van', bn: 'ডেমো মাল পরিবহন', hi: 'डेमो ढुलाई गाड़ी' },
   ];
   const shopLabel = (name) => DEMO_NAMES.find((n) => Object.values(n).includes(name))?.[lang] || name || '';
+  // v0.27.9: an egg deal's shop in the app language (saved names, else the shed's shop list; a deal kept only the
+  // Bangla name before this release).
+  const dealShop = (d) => {
+    const it = (d?.items || [])[0] || {};
+    const shop = (S.sale?.shops || []).find((x) => x.id === d?.contact_id || Object.values(x.names || {}).includes(it.shop));
+    return it.shopNames?.[lang] || shop?.names?.[lang] || shopLabel(it.shop);
+  };
   const dateOf = (iso) => new Date(`${iso}T12:00:00`); // local noon: no day shift in any time zone
   const fd = (iso, o = { day: 'numeric', month: 'short' }) => (iso ? digits(dateOf(iso).toLocaleDateString(loc(), o)) : '-');
   const addDays = (iso, n) => new Date(new Date(`${iso}T12:00:00Z`).getTime() + n * 864e5).toISOString().slice(0, 10);
@@ -1758,7 +1765,7 @@
       ? conf
           .map((d) => {
             const it = (d.items || [])[0] || {};
-            const label = it.item === 'eggs' ? fmt('dealEggs', { trays: num(it.trays), shop: shopLabel(it.shop) }) : ['seed', 'fert', 'plough'].includes(it.item) ? `${(d.items || []).map((x) => t(`buy_${x.item}`)).join(' + ')} · ${shopLabel(it.shop)}` : it.item === 'harvest' ? `${cropName(it.crop)} · ${num(it.qty, 1)} ${t(`u_${it.unit}`)} · ${shopLabel(it.shop)}` : it.item === 'harvester' || it.item === 'transport' ? `${t(it.item === 'harvester' ? 'harvesterL' : 'transportL')} · ${shopLabel(it.shop)}` : it.item || d.direction;
+            const label = it.item === 'eggs' ? fmt('dealEggs', { trays: num(it.trays), shop: dealShop(d) }) : ['seed', 'fert', 'plough'].includes(it.item) ? `${(d.items || []).map((x) => t(`buy_${x.item}`)).join(' + ')} · ${shopLabel(it.shop)}` : it.item === 'harvest' ? `${cropName(it.crop)} · ${num(it.qty, 1)} ${t(`u_${it.unit}`)} · ${shopLabel(it.shop)}` : it.item === 'harvester' || it.item === 'transport' ? `${t(it.item === 'harvester' ? 'harvesterL' : 'transportL')} · ${shopLabel(it.shop)}` : it.item || d.direction;
             return `<div class="entry">${I[d.direction === 'sell' ? 'rupee' : 'cart']}<div class="t"><b>${esc(label)}</b><div class="who">${esc(new Date(d.created_at).toLocaleDateString(loc(), { day: 'numeric', month: 'short' }))} · ${esc(t('simulated'))}</div></div><span class="a ${d.direction === 'sell' ? 'in-c' : 'out-c'}">${d.direction === 'sell' ? '+' : '−'}${esc(money(Number(d.total_inr || 0), dealCur(d)))}</span></div>`;
           })
           .join('')
@@ -2184,7 +2191,7 @@
   const has = (k) => (TX[lang]?.[k] ?? CL[lang]?.[k]) != null;
   window.KS = {
     has,
-    S, $, $$, I, t, fmt, countryName, num, esc, fd, loc, alertText, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, skelBox, shedSym, curSym, applyStale, viewParam, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store, shrink, exifGPS,
+    S, $, $$, I, t, fmt, countryName, dealShop, num, esc, fd, loc, alertText, money, digits, icons, toast, api, postJson, imgUrl, emptyBox, skelBox, shedSym, curSym, applyStale, viewParam, cropName, placeLine, shedLine, addDays, growingNow, openLand, loadLands, cropArea, enterView, landTitle, store, shrink, exifGPS,
     lang: () => lang, show, ask, speak, toWav, renderAll, renderHeader, loadSide, loadSheds, openShed, openFarm, bubble, count, mini, lineChart,
     playUrl: (url) =>
       new Promise((done) => {

@@ -2180,7 +2180,7 @@ app.post(
     const deal = await insertDeal({
       contact_id: /^[0-9a-f-]{36}$/i.test(shop.contact_id) ? shop.contact_id : null,
       direction: 'sell',
-      items: [{ item: 'eggs', trays: run.trays, eggs: run.eggs, price_inr_per_tray: shop.price, pickup: shop.pickup, shop: shop.name, simulated: true }],
+      items: [{ item: 'eggs', trays: run.trays, eggs: run.eggs, price_inr_per_tray: shop.price, pickup: shop.pickup, shop: shop.name, shopNames: shop.names || null, simulated: true }],
       total_inr: total,
       status: 'confirmed',
     });
