@@ -1898,6 +1898,11 @@ await checkAsync('v0.27.7: Sathi checks today\'s camera on her own every 2 hours
   for (const k of ['checkAgain', 'checkedBySathi', 'checkedBySathiNext', 'sathiLooksAt']) assert.equal((tx.match(new RegExp(`\\b${k}:`, 'g')) || []).length, 3, k);
 });
 
+check('v0.27.8: the selling rule is read newest first (the demo rule has no owner, so saves add rows)', () => {
+  const st = readFileSync(new URL('../lib/store.js', import.meta.url), 'utf8');
+  assert.match(st, /sell_rules\?select=\*&kind=eq\.\$\{encodeURIComponent\(kind\)\}\$\{who\}&order=updated_at\.desc&limit=1/);
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);
