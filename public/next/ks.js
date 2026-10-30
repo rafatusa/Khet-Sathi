@@ -279,6 +279,12 @@
       return;
     }
     afterLogin = b.dataset.lp === 'demo' ? 'demo' : null;
+    // TEMPORARY (v0.28.0, for the demo video): while the server allows it, the demo farm opens without sign-in.
+    if (b.dataset.lp === 'demo')
+      return fetch('/api/auth/me')
+        .then((r) => r.json())
+        .then((j) => (j.ok && j.guest ? ((S.guest = true), (S.view = 'demo'), boot()) : showSignIn()))
+        .catch(() => showSignIn());
     showSignIn();
   });
   // v0.17.0: the logo opens the landing page; signed in, it shows the person's avatar and "Go to my farm".
@@ -2070,7 +2076,7 @@
     applyLang();
     icons();
     const wantTab = tabFromPath();
-    if (!sess) return showLanding();
+    if (!sess && !S.guest) return showLanding();
     const me = await api('/api/auth/me').catch(() => null);
     if (!me?.ok) return showPass();
     S.admin = Boolean(me.admin);
@@ -2090,8 +2096,8 @@
     $('#meSettings').hidden = !S.admin;
     renderViewBar();
     $('#meBtn').hidden = false;
-    $('#meBtn').textContent = (sess.email || '?').slice(0, 1).toUpperCase();
-    $('#meEmail').textContent = sess.email || '';
+    $('#meBtn').textContent = (sess?.email || '?').slice(0, 1).toUpperCase();
+    $('#meEmail').textContent = sess?.email || '';
     show('home', { route: 'none' });
     const want = store.get('ks_land');
     const pick = S.lands.find((l) => l.id === want) || S.lands[0];

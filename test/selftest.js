@@ -1917,6 +1917,13 @@ await checkAsync('v0.27.9: egg deals keep the shop names, pickup wording, README
   for (let i = 1; i < vs.length; i++) assert.ok(vs[i - 1][0] * 1e6 + vs[i - 1][1] * 1e3 + vs[i - 1][2] > vs[i][0] * 1e6 + vs[i][1] * 1e3 + vs[i][2], 'releases newest first');
 });
 
+check('v0.28.0 (temporary): the demo farm opens without sign-in, view only, until ANON_DEMO_UNTIL', () => {
+  const srv = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  assert.match(srv, /const anonDemoOpen = \(\) => Date\.now\(\) < ANON_DEMO_UNTIL;/);
+  assert.match(srv, /user\.anon \? \{ mode: 'demo', owner: null, readOnly: true, admin: false \}/, 'a guest is always the read-only demo farm');
+  assert.match(srv, /\(view === 'demo' \|\| req\.path === '\/api\/auth\/me'\)/, 'a guest reaches only the demo farm');
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);
