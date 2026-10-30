@@ -156,6 +156,12 @@
     ov.className = 'camov';
     ov.innerHTML = `<span class="camname" id="camName"></span><span class="camclock mono" id="camClock"></span>`;
     $('#shedView').append(ov);
+    // v0.27.5: what the marks on the picture mean (shown with the marks).
+    const leg = document.createElement('div');
+    leg.className = 'camleg';
+    leg.id = 'shLegend';
+    leg.hidden = true;
+    $('#shedView').after(leg);
     const cctv = document.createElement('button');
     cctv.className = 'chip';
     cctv.type = 'button';
@@ -176,19 +182,35 @@
     const tick = () => {
       const el = $('#camClock');
       if (!el) return;
+      // v0.27.5: the demo shed's feeds are recorded daylight clips, not a live camera: no live clock over them.
+      if (isDemoShed()) return void (el.textContent = t('recordedDay'));
       el.textContent = K.digits(new Date().toLocaleTimeString(K.loc(), { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     };
     tick();
     clockT = setInterval(tick, 1000);
   }
-  function drawRings(size, still) {
+  // v0.27.5: a dot on every bird SAM 3.1 counted (last frame) and a ring on each one that hardly moved.
+  function drawRings(size, still, birds = []) {
     const svg = $('#shSvg');
+    const r = Math.max(4, Math.round((size.width || 640) * 0.008));
     svg.setAttribute('viewBox', `0 0 ${size.width} ${size.height}`);
-    svg.innerHTML = (still || [])
-      .map((b) => `<ellipse class="still" cx="${(b.left + b.right) / 2}" cy="${(b.top + b.bottom) / 2}" rx="${Math.max(14, (b.right - b.left) / 2 + 6)}" ry="${Math.max(14, (b.bottom - b.top) / 2 + 6)}"/>`)
-      .join('');
-    svg.toggleAttribute('hidden', !(still || []).length);
+    svg.innerHTML =
+      (birds || []).map((b) => `<circle class="bird" cx="${(b.left + b.right) / 2}" cy="${(b.top + b.bottom) / 2}" r="${r}" stroke-width="${Math.max(2, r / 3)}"/>`).join('') +
+      (still || [])
+        .map((b) => `<ellipse class="still" cx="${(b.left + b.right) / 2}" cy="${(b.top + b.bottom) / 2}" rx="${Math.max(14, (b.right - b.left) / 2 + 6)}" ry="${Math.max(14, (b.bottom - b.top) / 2 + 6)}" stroke-width="${Math.max(4, r * 0.8)}"/>`)
+        .join('');
+    const any = Boolean((birds || []).length || (still || []).length);
+    svg.toggleAttribute('hidden', !any);
+    const leg = $('#shLegend');
+    if (leg) {
+      leg.innerHTML = `${(birds || []).length ? `<span><i class="dot"></i>${esc(t('legCounted'))}</span>` : ''}${(still || []).length ? `<span><i class="ring"></i>${esc(t('legStill'))}</span>` : ''}`;
+      leg.hidden = !any;
+    }
   }
+  const hideMarks = () => {
+    $('#shSvg').setAttribute('hidden', '');
+    if ($('#shLegend')) $('#shLegend').hidden = true;
+  };
   function renderShedTab() {
     ensureCam();
     camClock();
@@ -214,7 +236,7 @@
       v.hidden = true;
       v.removeAttribute('src');
       $('#shFrame').hidden = true;
-      $('#shSvg').setAttribute('hidden', '');
+      hideMarks();
       $('#shEmpty').hidden = false;
       $('#camName').textContent = '';
       showResult(null);
@@ -226,7 +248,7 @@
     const still = r?.count && !r.count.resting ? r.count.still : [];
     if (c.hasVideo && !P.showResult) {
       $('#shFrame').hidden = true;
-      $('#shSvg').setAttribute('hidden', '');
+      hideMarks();
       const src = imgUrl(`/api/clips/${c.id}/video`);
       if (v.dataset.src !== src) {
         v.dataset.src = src;
@@ -240,7 +262,7 @@
       v.pause?.();
       $('#shFrame').src = imgUrl(`/api/clips/${c.id}/frame/${Math.max(0, c.frames - 1)}`);
       $('#shFrame').hidden = false;
-      drawRings({ width: c.width, height: c.height }, still);
+      drawRings({ width: c.width, height: c.height }, still, r?.count?.birds || []);
     }
     $('#clipInfo').textContent = r?.checkedAt ? fmt('lastChecked', { when: ago(r.checkedAt) }) : t('notChecked');
     // A clip saved without its video (an upload that did not finish) shows its last frame and offers to add the video.
@@ -312,7 +334,7 @@
 
   function fromSaved(c) {
     const r = c?.result;
-    last.count = r?.count ? { still: r.count.resting ? [] : r.count.still, resting: r.count.resting } : null;
+    last.count = r?.count ? { still: r.count.resting ? [] : r.count.still, resting: r.count.resting, daytimeClip: Boolean(r.count.daytimeClip) } : null;
     last.birds = r?.count?.count || null;
     last.still = r?.count && !r.count.resting ? r.count.still.length : 0;
     last.resting = Boolean(r?.count?.resting);
@@ -449,15 +471,15 @@
     $('#saveBox').hidden = true;
     busy(t('stepCount'));
     try {
-      const r = await postJson('/api/poultry/count', { frames: v.frames, width: v.width });
+      const r = await postJson('/api/poultry/count', { frames: v.frames, width: v.width, height: v.height });
       if (!r.ok) throw new Error(r.error);
-      last.count = { still: r.resting ? [] : r.still, resting: r.resting };
+      last.count = { still: r.resting ? [] : r.still, resting: r.resting, daytimeClip: false };
       last.birds = r.count || null;
       last.still = r.resting ? 0 : r.still.length;
       last.resting = r.resting;
       const res = { count: { count: r.count, still: r.still, resting: r.resting } };
       showResult(res);
-      drawRings(v, r.resting ? [] : r.still);
+      drawRings(v, r.resting ? [] : r.still, r.birds || []);
       busy(t('stepWatch'));
       const w = await api(`/api/poultry/video?lang=${L()}`, { method: 'POST', headers: { 'Content-Type': 'video/mp4' }, body: file });
       if (w.ok && w.observation?.ok) {

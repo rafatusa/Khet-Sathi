@@ -1257,7 +1257,7 @@ const watchToolsFor = (m) => ({
   look_at_camera_again: async () => {
     const clip = await todayCamera();
     if (!clip) return { error: 'No camera clip is set for today' };
-    const count = await countFrames(await clipFrames(clip), clip.width);
+    const count = await countFrames(await clipFrames(clip), clip.width, { recorded: !clip.shedId, height: clip.height });
     noteClip(await saveResult(clip.id, { count }));
     return shedNow();
   },
@@ -1682,7 +1682,9 @@ async function raiseShedAlert(title, body) {
 const shedHour = () => Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
 
 // SAM 3.1 on each frame (4 at a time), then count and still birds. Hens resting at night are normal.
-async function countFrames(frameUrls, width) {
+// v0.27.5: the demo shed's built-in clips were filmed in daylight, so they are judged as daytime footage
+// (recorded: true) instead of by today's clock; a farm's own clips and phone videos keep the clock rule.
+async function countFrames(frameUrls, width, { recorded = false, height = 0 } = {}) {
   const frames = frameUrls.filter((f) => typeof f === 'string' && f.startsWith('data:image/')).slice(0, MAX_FRAMES);
   if (frames.length < 2) throw new Error('Send at least 2 frames');
   const segs = [];
@@ -1690,10 +1692,11 @@ async function countFrames(frameUrls, width) {
     const batch = frames.slice(i, i + 4).map(async (f) => collectSegments(await segmentStream({ imageDataUrl: f, prompt: 'chicken' })));
     segs.push(...(await Promise.all(batch)));
   }
-  const result = analyseFrames(framesFromSegments(segs, width));
+  const result = analyseFrames(framesFromSegments(segs, width, height));
   const hour = shedHour();
   const lightRow = latestByDevice(await latestReadings([SHED_DEVICE], 20).catch(() => []))[SHED_DEVICE]?.light;
-  result.resting = isNight(hour) || (lightRow?.value === 0 && (hour < 6 || hour >= 18));
+  result.resting = recorded ? false : isNight(hour) || (lightRow?.value === 0 && (hour < 6 || hour >= 18));
+  result.daytimeClip = recorded;
   return result;
 }
 
@@ -1715,7 +1718,7 @@ app.post(
   guard,
   timed(async (req) => {
     useLimit('check');
-    const result = await countFrames(req.body?.frames || [], Number(req.body?.width) || 1024);
+    const result = await countFrames(req.body?.frames || [], Number(req.body?.width) || 1024, { height: Number(req.body?.height) || 0 });
     lastShed = { ...(lastShed || {}), count: result, countedAt: new Date().toISOString() };
     if (result.still.length && !result.resting) await raiseShedAlert('birds_still', { value: result.still.length });
     return result;
@@ -1822,7 +1825,7 @@ app.post(
     if (!clip) throw new Error('Clip not found');
     useLimit('check');
     const lang = pickLang(req.query.lang);
-    const count = await countFrames(await clipFrames(clip), clip.width);
+    const count = await countFrames(await clipFrames(clip), clip.width, { recorded: !clip.shedId, height: clip.height });
     let observation = null;
     let videoError = null;
     const video = await clipVideo(clip);
@@ -1948,7 +1951,7 @@ app.get(
 app.post(
   '/api/vet/signs',
   guard,
-  timed(async (req) => ({ signs: autoSigns({ count: req.body?.count, observation: req.body?.observation, night: isNight(shedHour()) }), all: SIGN_CODES }))
+  timed(async (req) => ({ signs: autoSigns({ count: req.body?.count, observation: req.body?.observation, night: isNight(shedHour()) && !req.body?.count?.daytimeClip }), all: SIGN_CODES }))
 );
 
 // The farmer's spoken answer to "since when?" and "any deaths today?".

@@ -1833,6 +1833,38 @@ await checkAsync('v0.27.4: English buyer calls on a maund farm speak in kilos; t
   assert.match(c, /kgMode = \(u\) => L\(\) === 'en' && u\?\.key === 'mon'/);
 });
 
+await checkAsync('v0.27.5: every counted hen is marked, edge birds are never flagged still, demo clips are daytime footage, and the shopkeeper never calls Sathi bhai', async () => {
+  const box = (x, y) => ({ box: { left: x, top: y, right: x + 20, bottom: y + 20 } });
+  const f = (dx) => ({ width: 1000, objects: [box(100, 100), box(300 + dx, 200), box(600 + dx, 400)] });
+  const r = analyseFrames([f(0), f(30), f(60)]);
+  assert.equal(r.birds.length, 3, 'all birds of the last frame');
+  assert.deepEqual(r.birds[0], { left: 100, top: 100, right: 120, bottom: 120 });
+  assert.equal(r.still.length, 1, 'only the bird that did not move is still');
+  assert.deepEqual(analyseFrames([]).birds, []);
+  const edge = (y) => ({ width: 1000, height: 600, objects: [box(500, y), box(300, 300)] });
+  assert.equal(analyseFrames([edge(0), edge(0), edge(0)]).still.length, 1, 'a bird cut off by the top edge is never flagged');
+  assert.equal(analyseFrames([edge(0), edge(0), edge(0)]).birds.length, 2, 'but it is still counted');
+  assert.equal(analyseFrames([edge(590), edge(590), edge(590)]).still.length, 1, 'nor one at the bottom edge');
+  const night = { name: 'c', result: { count: { still: [{}], resting: false, daytimeClip: true } } };
+  assert.equal(cameraAlerts(night, { hour: 21 }).length, 1, 'a recorded daytime clip warns at any hour');
+  assert.equal(cameraAlerts({ name: 'c', result: { count: { still: [{}], resting: false } } }, { hour: 21 }).length, 0, 'a farm clip at night does not');
+  const srv = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  assert.equal((srv.match(/\{ recorded: !clip\.shedId, height: clip\.height \}/g) || []).length, 2, 'both clip checks judge demo clips as recorded daytime');
+  assert.match(srv, /result\.resting = recorded \? false :/);
+  const s = await import('../lib/sell.js');
+  assert.equal(s.fixAddress('Hello bhai, thanks for calling.', 'en'), 'Hello, thanks for calling.');
+  assert.equal(s.fixAddress('Bhai, that is high.', 'en'), 'That is high.');
+  assert.equal(s.fixAddress('\u09ad\u09be\u0987, \u09a7\u09a8\u09cd\u09af\u09ac\u09be\u09a6', 'bn'), '\u0986\u09aa\u09be, \u09a7\u09a8\u09cd\u09af\u09ac\u09be\u09a6');
+  const p = s.shopPrompt({ shop: { name: 'x' }, lang: 'en', plan: { turns: [{ who: 'shop', kind: 'open', price: 420 }] }, currency: 'BDT' });
+  assert.match(p, /is a woman/); assert.match(p, /no bhai, brother/);
+  const v = s.voiceDeal({ turns: [{ who: 'shop', kind: 'open', price: 435 }] }, 'en', ['Hello bhai, I can pay {price} today.'], { code: 'BDT' });
+  assert.doesNotMatch(v.turns[0].text, /bhai/i);
+  const c = readFileSync(new URL('../public/next/ks-shed.js', import.meta.url), 'utf8');
+  assert.match(c, /class="bird"/); assert.match(c, /t\('recordedDay'\)/);
+  const tx = readFileSync(new URL('../public/next/ks-text.js', import.meta.url), 'utf8');
+  assert.equal((tx.match(/legCounted:/g) || []).length, 3); assert.equal((tx.match(/recordedDay:/g) || []).length, 3);
+});
+
 for (const [s, n] of results) console.log(`${s}  ${n}`);
 const failed = results.filter(([s]) => s === 'FAIL').length;
 console.log(`\n${results.length - failed}/${results.length} passed`);
